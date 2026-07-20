@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>V CarCare - แดชบอร์ดระบบ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212; color: #E0E0E0; font-family: sans-serif; }
+        .text-orange { color: #FF6B00; }
+        .card-custom { background-color: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 12px; transition: all 0.3s ease; }
+        
+        @media (max-width: 767.98px) {
+            body { padding-top: 75px; }
+            .fb-nav-tabs {
+                position: fixed; top: 0; left: 0; right: 0; height: 65px;
+                background-color: #1A1A1A; border-bottom: 1px solid #2A2A2A;
+                display: flex; justify-content: space-around; align-items: stretch; z-index: 1050;
+            }
+            .fb-tab-item {
+                flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+                color: #8E8E93; text-decoration: none; font-size: 11px; font-weight: bold; border-bottom: 3px solid transparent;
+            }
+            .fb-tab-item i { font-size: 22px; margin-bottom: 2px; }
+            .fb-tab-item.active { color: #FF6B00; border-bottom-color: #FF6B00; }
+        }
+
+        @media (min-width: 768px) {
+            .wrapper { display: flex; min-height: 100vh; }
+            .sidebar { width: 260px; background-color: #1A1A1A; border-right: 1px solid #2A2A2A; padding: 20px; }
+            .sidebar .nav-link { color: #8E8E93; padding: 12px 15px; border-radius: 8px; margin-bottom: 5px; font-weight: bold; }
+            .sidebar .nav-link:hover { color: #FFFFFF; background-color: #2A2A2A; }
+            .sidebar .nav-link.active { color: #121212; background-color: #FF6B00; }
+            .main-content { flex-grow: 1; padding: 30px; background-color: #121212; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="d-block d-md-none">
+        <div class="fb-nav-tabs">
+            <a href="index.html" class="fb-tab-item active"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
+            <a href="pos.html" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>
+            <a href="staff.html" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
+            <a href="finance.html" class="fb-tab-item"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
+        </div>
+
+        <div class="container-fluid p-3">
+            <h4 class="fw-bold text-white mb-3">สถานะร้านวันนี้ (Mobile)</h4>
+            <div class="row g-2 mb-3">
+                <div class="col-6"><div class="card-custom p-3 border-start border-orange border-4"><small class="text-secondary">ในคิวทั้งหมด</small><h3 class="fw-bold m-0 text-white" id="total-queue-mb">2 คัน</h3></div></div>
+                <div class="col-6"><div class="card-custom p-3 border-start border-success border-4"><small class="text-secondary">รายได้วันนี้</small><h3 class="fw-bold text-success m-0">330 บ.</h3></div></div>
+            </div>
+            
+            <div class="card-custom p-3">
+                <h6 class="text-orange fw-bold mb-3"><i class="bi bi-clock-history me-2"></i> คิวรถปัจจุบัน</h6>
+                <div id="queue-container-mb">
+                    <div class="p-3 mb-2 rounded-3" style="background-color: #2A2A2A; border: 1px solid #3A3A3A;" id="car-1-mb">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-white fs-5">กข 1234 กทม.</span>
+                            <span class="badge bg-warning text-dark" id="status-1-mb">กำลังบริการ</span>
+                        </div>
+                        <small class="text-secondary d-block mb-2">รถเก๋ง • ล้างภายนอก + ดูดฝุ่น</small>
+                        <button class="btn btn-sm btn-success w-100 py-2 mt-1 rounded-3" onclick="finishJob(1)">เสร็จงาน</button>
+                    </div>
+                    <div class="p-3 mb-2 rounded-3" style="background-color: #2A2A2A; border: 1px solid #3A3A3A;" id="car-2-mb">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-white fs-5">มม 8888 นบ.</span>
+                            <span class="badge bg-secondary text-light" id="status-2-mb">รอคิว</span>
+                        </div>
+                        <small class="text-secondary d-block mb-2">มอเตอร์ไซค์ • ล้างภายนอก</small>
+                        <button class="btn btn-sm btn-outline-warning w-100 py-2 mt-1 rounded-3" onclick="startJob(2)" id="btn-start-2-mb">เริ่มงาน</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-none d-md-block">
+        <div class="wrapper">
+            <div class="sidebar">
+                <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
+                <nav class="nav flex-column">
+                    <a class="nav-link active" href="index.html"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
+                    <a class="nav-link" href="pos.html"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
+                    <a class="nav-link" href="staff.html"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
+                    <a class="nav-link" href="finance.html"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
+                </nav>
+            </div>
+
+            <div class="main-content">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold text-white m-0">แดชบอร์ดภาพรวมร้าน</h2>
+                    <span class="badge bg-danger p-2 fs-6"><i class="bi bi-broadcast me-2"></i>Live Mode</span>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6"><div class="card-custom p-4 border-start border-orange border-5"><h5>รถในคิวปัจจุบัน</h5><h2 class="fw-bold text-white" id="total-queue-pc">2 คัน</h2></div></div>
+                    <div class="col-md-6"><div class="card-custom p-4 border-start border-success border-5"><h5>ยอดเงินสด/โอนวันนี้</h5><h2 class="fw-bold text-success">330.00 บาท</h2></div></div>
+                </div>
+
+                <div class="card-custom p-4">
+                    <h5 class="text-white fw-bold mb-3"><i class="bi bi-table text-orange me-2"></i> ตารางคิวรถกำลังใช้บริการ</h5>
+                    <table class="table table-dark table-hover m-0">
+                        <thead>
+                            <tr class="text-secondary border-secondary">
+                                <th>ทะเบียนรถ</th>
+                                <th>ประเภทรถ</th>
+                                <th>บริการที่เลือก</th>
+                                <th>ราคา</th>
+                                <th>สถานะงาน</th>
+                                <th class="text-end">การจัดการคิว</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="align-middle border-secondary" id="car-1-pc">
+                                <td class="fw-bold text-white">กข 1234 กรุงเทพฯ</td>
+                                <td><span class="badge bg-secondary">รถเก๋ง (S/M)</span></td>
+                                <td>ล้างภายนอก + ดูดฝุ่นภายใน</td>
+                                <td class="text-orange fw-bold">250.00 บ.</td>
+                                <td><span class="badge bg-warning text-dark" id="status-1-pc">กำลังบริการ</span></td>
+                                <td class="text-end" id="action-1-pc"><button class="btn btn-sm btn-success px-3" onclick="finishJob(1)">เสร็จงาน</button></td>
+                            </tr>
+                            <tr class="align-middle border-secondary" id="car-2-pc">
+                                <td class="fw-bold text-white">มม 8888 นนทบุรี</td>
+                                <td><span class="badge bg-secondary">มอเตอร์ไซค์</span></td>
+                                <td>ล้างภายนอก</td>
+                                <td class="text-orange fw-bold">80.00 บ.</td>
+                                <td><span class="badge bg-secondary text-light" id="status-2-pc">รอคิว</span></td>
+                                <td class="text-end" id="action-2-pc"><button class="btn btn-sm btn-outline-warning px-3" onclick="startJob(2)">เริ่มงาน</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // ฟังก์ชันเริ่มงาน (ทำงานพร้อมกันทั้งคอมและมือถือ)
+    function startJob(id) {
+        // อัปเดตสถานะฝั่งมือถือ
+        if(document.getElementById(`status-${id}-mb`)) {
+            document.getElementById(`status-${id}-mb`).className = "badge bg-warning text-dark";
+            document.getElementById(`status-${id}-mb`).innerText = "กำลังบริการ";
+            if(document.getElementById(`btn-start-${id}-mb`)) document.getElementById(`btn-start-${id}-mb`).outerHTML = `<button class="btn btn-sm btn-success w-100 py-2 mt-1 rounded-3" onclick="finishJob(${id})">เสร็จงาน</button>`;
+        }
+        // อัปเดตสถานะฝั่ง PC
+        if(document.getElementById(`status-${id}-pc`)) {
+            document.getElementById(`status-${id}-pc`).className = "badge bg-warning text-dark";
+            document.getElementById(`status-${id}-pc`).innerText = "กำลังบริการ";
+            document.getElementById(`action-${id}-pc`).innerHTML = `<button class="btn btn-sm btn-success px-3" onclick="finishJob(${id})">เสร็จงาน</button>`;
+        }
+    }
+
+    // ฟังก์ชันจบงาน (ไฮไลต์จางลง ล็อกปุ่ม และลดจำนวนคิว)
+    function finishJob(id) {
+        if(confirm("ยืนยันคิวเสร็จงาน คืนรถให้ลูกค้าเรียบร้อย?")) {
+            // ฝั่งมือถือ
+            if(document.getElementById(`car-${id}-mb`)) {
+                document.getElementById(`car-${id}-mb`).style.opacity = "0.3";
+                document.getElementById(`status-${id}-mb`).className = "badge bg-success text-white";
+                document.getElementById(`status-${id}-mb`).innerText = "เสร็จสิ้น";
+                document.getElementById(`car-${id}-mb`).querySelectorAll('button').forEach(btn => btn.disabled = true);
+            }
+            // ฝั่ง PC
+            if(document.getElementById(`car-${id}-pc`)) {
+                document.getElementById(`car-${id}-pc`).style.opacity = "0.3";
+                document.getElementById(`status-${id}-pc`).className = "badge bg-success text-white";
+                document.getElementById(`status-${id}-pc`).innerText = "เสร็จสิ้น";
+                document.getElementById(`action-${id}-pc`).innerHTML = `<span class="text-success small fw-bold">✓ ปิดงานแล้ว</span>`;
+            }
+            
+            // ลดจำนวนคิวรถปัจจุบันลงจำลองสถานการณ์จริง
+            let currentQueue = parseInt(document.getElementById('total-queue-pc').innerText) - 1;
+            if (currentQueue < 0) currentQueue = 0;
+            document.getElementById('total-queue-pc').innerText = currentQueue + " คัน";
+            document.getElementById('total-queue-mb').innerText = currentQueue + " คัน";
+        }
+    }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
