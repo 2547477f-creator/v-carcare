@@ -47,19 +47,19 @@
         <div class="sidebar d-none d-md-block">
             <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
             <nav class="nav flex-column">
-                <a class="nav-link" href="index.html"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
-                <a class="nav-link" href="pos.html"><i class="bi bi-plus-circle-fill"></i> รับรถหน้าร้าน (POS)</a>
-                <a class="nav-link" href="staff.html"><i class="bi bi-people-fill"></i> จัดการพนักงาน</a>
-                <a class="nav-link active" href="finance.html"><i class="bi bi-wallet2"></i> สรุปบัญชีรายรับ</a>
+                <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
+                <a class="nav-link" href="/pos"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
+                <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
+                <a class="nav-link active" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
             </nav>
         </div>
 
         <!-- แท็บสำหรับมือถือ -->
         <div class="fb-nav-tabs d-flex d-md-none">
-            <a href="index.html" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
-            <a href="pos.html" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>
-            <a href="staff.html" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
-            <a href="finance.html" class="fb-tab-item active"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
+            <a href="/" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
+            <a href="/pos" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>
+            <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
+            <a href="/finance" class="fb-tab-item active"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
         </div>
 
         <div class="main-content w-100 p-3 p-md-4">
@@ -108,9 +108,7 @@
                 </div>
             </div>
 
-            <!-- ========================================== -->
-            <!-- [เพิ่มใหม่] ตารางรายการประวัติ รายรับ - รายจ่าย -->
-            <!-- ========================================== -->
+            <!-- ตารางรายการประวัติ รายรับ - รายจ่าย -->
             <div class="card-custom p-3 p-md-4">
                 <h5 class="text-white fw-bold mb-3"><i class="bi bi-journal-text text-orange me-2"></i> ประวัติรายการรับ-จ่ายเงินในระบบ</h5>
                 <div class="table-responsive">
@@ -124,7 +122,7 @@
                             </tr>
                         </thead>
                         <tbody id="transaction-list">
-                            <!-- รายการจะถูกเขียนเติมแบบ Dynamic ผ่าน JavaScript ด้านล่าง -->
+                            <!-- รายการจะถูกเขียนเติมแบบ Dynamic ผ่าน JavaScript -->
                         </tbody>
                     </table>
                 </div>
@@ -134,7 +132,6 @@
     </div>
 
 <script>
-    // ชุดข้อมูลจำลองรายการบัญชีแต่ละช่วงเวลา (เมื่อกดสลับคิวเสร็จงาน รายรับจะมาโผล่ตรงนี้)
     const dataLogs = {
         'day': {
             title: "รายวัน (วันนี้)", values: [330, 0, 330], profit: "330.00",
@@ -171,7 +168,6 @@
     let chartMbInstance = null;
     let chartPcInstance = null;
 
-    // ฟังก์ชันวาด/อัปเดตแท่งกราฟ
     function renderFinanceChart(dataArray) {
         const chartConfig = {
             type: 'bar',
@@ -189,13 +185,10 @@
         if(document.getElementById('chart-pc')) chartPcInstance = new Chart(document.getElementById('chart-pc').getContext('2d'), chartConfig);
     }
 
-    // ฟังก์ชันสลับช่วงเวลา + เรนเดอร์ตารางประวัติสด
     function updateFinanceUI(mode) {
-        // 1. อัปเดตตัวเลขหน้าจอและกราฟ
         document.getElementById('summary-profit-val').innerText = dataLogs[mode].profit;
         renderFinanceChart(dataLogs[mode].values);
 
-        // 2. เคลียร์และสร้างแถวตารางรายการรับ-จ่ายใหม่ทั้งหมด
         let tbody = document.getElementById('transaction-list');
         tbody.innerHTML = "";
 
@@ -217,7 +210,6 @@
         });
     }
 
-    // ฟังก์ชันเมื่อกดปุ่มเมนูตัวกรอง
     function changePeriod(mode, btnElement) {
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         btnElement.classList.add('active');
@@ -240,15 +232,12 @@
         }
     }
 
-    // โหลดข้อมูลรายวัน (วันนี้) ขึ้นมารอทันทีเมื่อเปิดเว็บบนเบราว์เซอร์
     window.addEventListener('load', () => {
         updateFinanceUI('day');
     });
 
-    // ส่งออกไฟล์ Excel
     function exportExcel() {
         let rows = [["วัน-เวลา", "รายละเอียดรายการ", "ประเภท", "จำนวนเงิน (บาท)"]];
-        // ดึงรายการปัจจุบันในตารางออกมาแปลงลง Excel อัตโนมัติ
         let currentMode = document.querySelector('.filter-btn.active').innerText.includes('วัน') ? 'day' : 'month';
         if(document.querySelector('.filter-btn.active').innerText.includes('ปี')) currentMode = 'year';
         

@@ -50,19 +50,19 @@
         <div class="sidebar d-none d-md-block">
             <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
             <nav class="nav flex-column">
-                <a class="nav-link" href="index.html"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
-                <a class="nav-link active" href="pos.html"><i class="bi bi-plus-circle-fill"></i> รับรถหน้าร้าน (POS)</a>
-                <a class="nav-link" href="staff.html"><i class="bi bi-people-fill"></i> จัดการพนักงาน</a>
-                <a class="nav-link" href="finance.html"><i class="bi bi-wallet2"></i> สรุปบัญชีรายรับ</a>
+                <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
+                <a class="nav-link active" href="/pos"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
+                <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
+                <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
             </nav>
         </div>
 
         <!-- แท็บสำหรับมือถือ -->
         <div class="fb-nav-tabs d-flex d-md-none">
-            <a href="index.html" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
-            <a href="pos.html" class="fb-tab-item active"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>
-            <a href="staff.html" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
-            <a href="finance.html" class="fb-tab-item"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
+            <a href="/" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
+            <a href="/pos" class="fb-tab-item active"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>
+            <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
+            <a href="/finance" class="fb-tab-item"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
         </div>
 
         <!-- เนื้อหาหลัก -->
@@ -206,12 +206,12 @@
 <script>
     // ตารางเรตราคากลางแยกตามประเภทรถยนต์ (บาท)
     const priceMatrix = {
-        'motorcycle': { wash: 60,  vacuum: 0,   engine: 0,   under: 0,   glass: 0 },
-        'bigbike':    { wash: 100, vacuum: 0,   engine: 0,   under: 0,   glass: 0 },
-        'car':        { wash: 120, vacuum: 60,  engine: 250, under: 150, glass: 1500 },
-        'pickup':     { wash: 150, vacuum: 70,  engine: 250, under: 180, glass: 1800 },
-        'suv':        { wash: 180, vacuum: 80,  engine: 300, under: 200, glass: 2000 },
-        'van':        { wash: 220, vacuum: 100, engine: 300, under: 220, glass: 2500 }
+        'motorcycle': { wash: 60,   vacuum: 0,   engine: 0,   under: 0,   glass: 0 },
+        'bigbike':    { wash: 100,  vacuum: 0,   engine: 0,   under: 0,   glass: 0 },
+        'car':        { wash: 120,  vacuum: 60,  engine: 250, under: 150, glass: 1500 },
+        'pickup':     { wash: 150,  vacuum: 70,  engine: 250, under: 180, glass: 1800 },
+        'suv':        { wash: 180,  vacuum: 80,  engine: 300, under: 200, glass: 2000 },
+        'van':        { wash: 220,  vacuum: 100, engine: 300, under: 220, glass: 2500 }
     };
 
     // ฟังก์ชันเมื่อเปลี่ยนประเภทรถ -> คอยล็อกเงื่อนไขสองล้อ
