@@ -1,161 +1,159 @@
 import os
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from dotenv import load_dotenv
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from werkzeug.security import check_password_hash
 
-# 1. ประกาศสร้างตัวแปร app และตั้งค่า Path
-backend_dir = os.path.dirname(os.path.abspath(__file__))
-frontend_dir = os.path.join(backend_dir, '..', 'frontend')
+# โหลดตัวแปรสภาพแวดล้อมจากไฟล์ .env (ที่อยู่ระดับ Root)
+load_dotenv()
+
+# --------------------------------------------------
+# ตั้งค่า Path โฟลเดอร์ templates และ static ให้ถูกต้อง
+# --------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, '..', 'frontend')
 
 app = Flask(
     __name__,
-    template_folder=os.path.join(frontend_dir, 'templates'),
-    static_folder=os.path.join(frontend_dir, 'static')
+    template_folder=os.path.join(FRONTEND_DIR, 'templates'),
+    static_folder=os.path.join(FRONTEND_DIR, 'static')
 )
 
-app.secret_key = 'v_carcare_secret_key_2026'
+# ตั้งค่า Secret Key สำหรับจัดการ Session
+app.secret_key = os.getenv("SECRET_KEY", "default_secret_key_vcarcare")
 
+# --------------------------------------------------
+# ฟังก์ชันเชื่อมต่อฐานข้อมูล PostgreSQL
+# --------------------------------------------------
+def get_db_connection():
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "localhost"),
+            database=os.getenv("DB_NAME", "vcarcare_db"),
+            user=os.getenv("DB_USER", "postgres"),
+            password=os.getenv("DB_PASS", "1234"),
+            port=os.getenv("DB_PORT", "5432"),
+            cursor_factory=RealDictCursor
+        )
+        return conn
+    except Exception as e:
+        print("\n" + "="*50)
+        print(f"❌ DATABASE CONNECTION ERROR:")
+        print(e)
+        print("="*50 + "\n")
+        return None
 
-# ---------------------------------------------------------
-# Helper Decorators (ตัวคุมสิทธิ์การเข้าถึงแต่ละ Role)
-# ---------------------------------------------------------
+# --------------------------------------------------
+# Decorator ตรวจสอบการเข้าสู่ระบบ
+# --------------------------------------------------
 def login_required(f):
-    """ตรวจสอบว่าผู้ใช้ล็อกอินหรือยัง"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user_role' not in session:
-            if request.path.startswith('/api/'):
-                return jsonify({"status": "error", "message": "Login required"}), 401
+        if 'logged_in' not in session:
             flash('กรุณาเข้าสู่ระบบก่อนใช้งาน', 'warning')
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
-def role_required(allowed_roles):
-    """ตรวจสอบระดับสิทธิ์ (Manager / Staff)"""
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if 'user_role' not in session:
-                return redirect(url_for('login'))
-            if session.get('user_role') not in allowed_roles:
-                flash('คุณไม่มีสิทธิ์เข้าถึงหน้านี้', 'error')
-                return redirect(url_for('pos') if session.get('user_role') == 'staff' else url_for('login'))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-
-# ---------------------------------------------------------
-# Page Routes (ส่วนการแสดงผลหน้าเว็บ HTML)
-# ---------------------------------------------------------
-
-@app.route('/')
-@login_required
-def index():
-    """หน้าแรก / ภาพรวมระบบ (ถ้ายังไม่ล็อกอินจะเด้งไป /login)"""
-    return render_template('index.html')
-
+# --------------------------------------------------
+# Routes: ระบบล็อกอิน & ออกจากระบบ
+# --------------------------------------------------
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """หน้าล็อคอินเข้าสู่ระบบ (แสดงฟอร์มเสมอเมื่อเข้า URL นี้)"""
+    if 'logged_in' in session:
+        return redirect(url_for('index'))
+
     if request.method == 'POST':
-        role_type = request.form.get('role_type')
-        
-        # ล็อคอินสำหรับผู้จัดการ
-        if role_type == 'manager':
-            username = request.form.get('username')
-            password = request.form.get('password')
-            
-            if username == 'admin' and password == '1234':
-                session['user_role'] = 'manager'
-                session['user_name'] = 'ผู้จัดการ'
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        conn = get_db_connection()
+        if conn is None:
+            flash('ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาตรวจสอบการตั้งค่า PostgreSQL (เช็ก Error ใน Terminal)', 'danger')
+            return render_template('login.html')
+
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM users WHERE username = %s;", (username,))
+            user = cur.fetchone()
+            cur.close()
+            conn.close()
+
+            # ตรวจสอบชื่อผู้ใช้และรหัสผ่าน (Hash)
+            if user and check_password_hash(user['password_hash'], password):
+                session['logged_in'] = True
+                session['user_id'] = user['id']
+                session['username'] = user['username']
+                session['fullname'] = user.get('fullname', user['username'])
+                session['role'] = user.get('role', 'staff')
+
+                flash(f"ยินดีต้อนรับคุณ {session['fullname']}", 'success')
                 return redirect(url_for('index'))
             else:
-                flash('Username หรือ Password ไม่ถูกต้อง!', 'error')
-
-        # ล็อคอินสำหรับพนักงาน
-        elif role_type == 'staff':
-            staff_id = request.form.get('staff_id')
-            pin_code = request.form.get('pin_code')
-            
-            if pin_code == '1234':
-                session['user_role'] = 'staff'
-                session['user_name'] = 'พนักงาน'
-                return redirect(url_for('pos'))
-            else:
-                flash('รหัส PIN ไม่ถูกต้อง!', 'error')
+                flash('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง!', 'danger')
+        except Exception as e:
+            flash(f'เกิดข้อผิดพลาดในการตรวจสอบข้อมูล: {e}', 'danger')
 
     return render_template('login.html')
 
+
 @app.route('/logout')
 def logout():
-    """ออกจากระบบ"""
     session.clear()
     flash('ออกจากระบบเรียบร้อยแล้ว', 'info')
     return redirect(url_for('login'))
 
+# --------------------------------------------------
+# Routes: หน้าหลักการทำงานระบบ
+# --------------------------------------------------
+
+# 1. หน้าภาพรวมระบบ (Dashboard / Kanban Board)
+@app.route('/')
+@login_required
+def index():
+    return render_template('index.html')
+
+
+# 2. หน้ารับรถหน้าร้าน (POS System)
 @app.route('/pos')
 @login_required
-@role_required(['manager', 'staff'])
 def pos():
-    """ระบบ POS บันทึกการขาย/บริการ"""
     return render_template('pos.html')
 
+
+# 3. หน้าจัดการพนักงาน (Staff Management)
 @app.route('/staff')
 @login_required
-@role_required(['manager', 'staff'])
 def staff():
-    """ระบบลงเวลาพนักงาน"""
     return render_template('staff.html')
 
+
+# 4. หน้าสรุปบัญชีรายรับ (Finance Summary)
 @app.route('/finance')
 @login_required
-@role_required(['manager'])
 def finance():
-    """แดชบอร์ดสรุปรายรับ-รายจ่าย (เฉพาะ Manager)"""
     return render_template('finance.html')
 
+
+# 5. หน้าติดตามสถานะรถ (Customer Tracking)
 @app.route('/track')
-@login_required
 def track():
-    """ติดตามสถานะการล้างรถสำหรับลูกค้า"""
     return render_template('track.html')
 
-
-# ---------------------------------------------------------
+# --------------------------------------------------
 # API Endpoints
-# ---------------------------------------------------------
-
-@app.route('/api/customers', methods=['POST'])
+# --------------------------------------------------
+@app.route('/api/queue', methods=['POST'])
 @login_required
-def add_customer():
-    data = request.json or {}
-    phone = data.get('phone')
-    line_id = data.get('line_id')
-    
-    return jsonify({
-        "status": "success",
-        "message": "บันทึกข้อมูลลูกค้าเรียบร้อยแล้ว",
-        "data": {"phone": phone, "line_id": line_id}
-    }), 201
+def add_queue():
+    data = request.get_json()
+    return jsonify({"status": "success", "message": "บันทึกคิวเรียบร้อยแล้ว", "data": data})
 
-
-@app.route('/api/staff/check-in', methods=['POST'])
-@login_required
-def staff_check_in():
-    data = request.json or {}
-    employee_id = data.get('employee_id')
-    method = data.get('method')
-    
-    return jsonify({
-        "status": "success",
-        "message": f"ลงเวลาสำเร็จ ({method})",
-        "employee_id": employee_id
-    }), 200
-
-
-# ---------------------------------------------------------
-# Main Execution
-# ---------------------------------------------------------
+# --------------------------------------------------
+# สั่งรัน Server
+# --------------------------------------------------
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    print("🚀 เริ่มต้นเซิร์ฟเวอร์ที่ http://127.0.0.1:5000")
+    app.run(debug=True, host='127.0.0.1', port=5000)
