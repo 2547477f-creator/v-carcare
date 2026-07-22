@@ -1,90 +1,168 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>V CarCare - แดชบอร์ดระบบ</title>
-    
+
     <!-- Bootstrap 5 CSS & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-    
+
     <!-- Global Style Sheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        .sidebar {
+            width: 260px;
+            background-color: #1A1A1A;
+            min-height: 100vh;
+            padding: 20px;
+            border-right: 1px solid #2A2A2A;
+        }
+
+        .sidebar .nav-link {
+            color: #A0A0A0;
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .sidebar .nav-link:hover {
+            color: #FFF;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar .nav-link.active {
+            background-color: #FF6B00 !important;
+            color: #000000 !important;
+            font-weight: bold;
+        }
+
+        .sidebar .nav-link.text-danger {
+            color: #FF4D4D !important;
+        }
+
+        /* Style เพิ่มเติมสำหรับ Kanban Column 3 ช่อง */
+        .kanban-col {
+            background-color: #1E1E1E;
+            border: 1px solid #2D2D2D;
+            border-radius: 16px;
+            padding: 16px;
+            min-height: 450px;
+        }
+
+        .queue-card {
+            background-color: #2A2A2A;
+            border: 1px solid #3A3A3A;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+            transition: transform 0.2s;
+        }
+
+        .queue-card:hover {
+            border-color: #555;
+        }
+    </style>
 </head>
+
 <body>
 
-    <!-- แท็บสำหรับมือถือ -->
-    <div class="d-block d-md-none">
-        <div class="fb-nav-tabs">
-            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i><span>ออกจากระบบ</span></a>
-            <a href="/" class="fb-tab-item active"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
-            <a href="/pos" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>
-            <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
-            <a href="/finance" class="fb-tab-item"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
+    <!-- ==================== Mobile View ==================== -->
+    <div class="d-block d-md-none p-3">
+        <!-- Navigation / Top Tab -->
+        <div class="fb-nav-tabs mb-3">
+            <a href="/" class="fb-tab-item active"><i class="bi bi-speedometer2 me-1"></i>ภาพรวม</a>
         </div>
 
-        <div class="container-fluid p-3">
-            <h4 class="fw-bold text-white mb-3">สถานะร้านวันนี้ (Mobile)</h4>
-            <div class="row g-2 mb-3">
-                <div class="col-6">
-                    <div class="card-custom p-3 border-start border-orange border-4">
-                        <small class="text-secondary">ในคิวทั้งหมด</small>
-                        <h3 class="fw-bold m-0 text-white" id="total-queue-mb">2 คัน</h3>
-                    </div>
+        <!-- Summary Cards Mobile -->
+        <div class="row g-2 mb-3">
+            <div class="col-6">
+                <div class="card-custom p-3 border-start border-orange border-4">
+                    <small class="text-secondary d-block">ในคิวทั้งหมด</small>
+                    <h3 class="fw-bold m-0 text-white" id="total-queue-mb">2 คัน</h3>
                 </div>
-                <div class="col-6">
-                    <div class="card-custom p-3 border-start border-success border-4">
-                        <small class="text-secondary">รายได้วันนี้</small>
-                        <h3 class="fw-bold text-success m-0">330 บ.</h3>
+            </div>
+            <div class="col-6">
+                <div class="card-custom p-3 border-start border-success border-4">
+                    <small class="text-secondary d-block">รายได้วันนี้</small>
+                    <h3 class="fw-bold text-success m-0">330 บ.</h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanban Mobile (แบบ Tab / เรียงต่อกัน) -->
+        <div class="d-flex flex-column gap-3">
+            <!-- 1. รอล้าง -->
+            <div class="kanban-col">
+                <h6 class="text-secondary fw-bold mb-3"><i class="bi bi-clock me-2"></i>รถที่กำลังรอล้าง</h6>
+                <div id="col-pending-mb">
+                    <div class="queue-card" id="car-2-mb">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="fw-bold text-white fs-5">มม 8888 นบ.</span>
+                            <span class="badge bg-secondary">80 บ.</span>
+                        </div>
+                        <small class="text-secondary d-block mb-2">มอเตอร์ไซค์ • ล้างภายนอก</small>
+                        <button class="btn btn-sm btn-outline-warning w-100 py-2 mt-1 rounded-3" onclick="startJob(2)">เริ่มงาน</button>
                     </div>
                 </div>
             </div>
-            
-            <div class="card-custom p-3">
-                <h6 class="text-orange fw-bold mb-3"><i class="bi bi-clock-history me-2"></i> คิวรถปัจจุบัน</h6>
-                <div id="queue-container-mb">
-                    <div class="p-3 mb-2 rounded-3" style="background-color: #2A2A2A; border: 1px solid #3A3A3A;" id="car-1-mb">
+
+            <!-- 2. กำลังล้าง -->
+            <div class="kanban-col">
+                <h6 class="text-warning fw-bold mb-3"><i class="bi bi-arrow-repeat me-2"></i>รถที่กำลังล้าง</h6>
+                <div id="col-progress-mb">
+                    <div class="queue-card" id="car-1-mb">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <span class="fw-bold text-white fs-5">กข 1234 กทม.</span>
-                            <span class="badge bg-warning text-dark" id="status-1-mb">กำลังบริการ</span>
+                            <span class="badge bg-warning text-dark">250 บ.</span>
                         </div>
-                        <small class="text-secondary d-block mb-2">รถเก๋ง • ล้างภายนอก + ดูดฝุ่น</small>
+                        <small class="text-secondary d-block mb-2">รถเก๋ง (S/M) • ล้างภายนอก + ดูดฝุ่น</small>
                         <button class="btn btn-sm btn-success w-100 py-2 mt-1 rounded-3" onclick="finishJob(1)">เสร็จงาน</button>
                     </div>
-                    <div class="p-3 mb-2 rounded-3" style="background-color: #2A2A2A; border: 1px solid #3A3A3A;" id="car-2-mb">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="fw-bold text-white fs-5">มม 8888 นบ.</span>
-                            <span class="badge bg-secondary text-light" id="status-2-mb">รอคิว</span>
-                        </div>
-                        <small class="text-secondary d-block mb-2">มอเตอร์ไซค์ • ล้างภายนอก</small>
-                        <button class="btn btn-sm btn-outline-warning w-100 py-2 mt-1 rounded-3" onclick="startJob(2)" id="btn-start-2-mb">เริ่มงาน</button>
-                    </div>
+                </div>
+            </div>
+
+            <!-- 3. ล้างเสร็จแล้ว -->
+            <div class="kanban-col">
+                <h6 class="text-success fw-bold mb-3"><i class="bi bi-check-circle me-2"></i>รถที่ล้างเสร็จแล้ว</h6>
+                <div id="col-done-mb">
+                    <!-- รายการที่เสร็จแล้วจะย้ายมาที่นี่ -->
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ส่วนของ PC -->
+
+    <!-- ==================== PC View ==================== -->
     <div class="d-none d-md-block">
-        <div class="wrapper">
+        <div class="wrapper d-flex">
+            <!-- Sidebar -->
             <div class="sidebar">
                 <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
                 <nav class="nav flex-column">
-                    <a class="nav-link logout-link text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
                     <a class="nav-link active" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
                     <a class="nav-link" href="/pos"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
                     <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
                     <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
+                    <a class="nav-link logout-link text-danger mt-2" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
                 </nav>
             </div>
 
-            <div class="main-content">
+            <!-- Main Content -->
+            <div class="main-content flex-grow-1 p-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h2 class="fw-bold text-white m-0">แดชบอร์ดภาพรวมร้าน</h2>
                     <span class="badge bg-danger p-2 fs-6"><i class="bi bi-broadcast me-2"></i>Live Mode</span>
                 </div>
 
+                <!-- Summary Cards PC -->
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <div class="card-custom p-4 border-start border-orange border-5">
@@ -100,88 +178,129 @@
                     </div>
                 </div>
 
-                <div class="card-custom p-4">
-                    <h5 class="text-white fw-bold mb-3"><i class="bi bi-table text-orange me-2"></i> ตารางคิวรถกำลังใช้บริการ</h5>
-                    <div class="table-responsive">
-                        <table class="table table-dark table-hover align-middle m-0">
-                            <thead>
-                                <tr class="text-secondary border-secondary">
-                                    <th>ทะเบียนรถ</th>
-                                    <th>ประเภทรถ</th>
-                                    <th>บริการที่เลือก</th>
-                                    <th>ราคา</th>
-                                    <th>สถานะงาน</th>
-                                    <th class="text-end">การจัดการคิว</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr class="border-secondary" id="car-1-pc">
-                                    <td class="fw-bold text-white">กข 1234 กรุงเทพฯ</td>
-                                    <td><span class="badge bg-secondary">รถเก๋ง (S/M)</span></td>
-                                    <td>ล้างภายนอก + ดูดฝุ่นภายใน</td>
-                                    <td class="text-orange fw-bold">250.00 บ.</td>
-                                    <td><span class="badge bg-warning text-dark" id="status-1-pc">กำลังบริการ</span></td>
-                                    <td class="text-end" id="action-1-pc"><button class="btn btn-sm btn-success px-3" onclick="finishJob(1)">เสร็จงาน</button></td>
-                                </tr>
-                                <tr class="border-secondary" id="car-2-pc">
-                                    <td class="fw-bold text-white">มม 8888 นนทบุรี</td>
-                                    <td><span class="badge bg-secondary">มอเตอร์ไซค์</span></td>
-                                    <td>ล้างภายนอก</td>
-                                    <td class="text-orange fw-bold">80.00 บ.</td>
-                                    <td><span class="badge bg-secondary text-light" id="status-2-pc">รอคิว</span></td>
-                                    <td class="text-end" id="action-2-pc"><button class="btn btn-sm btn-outline-warning px-3" onclick="startJob(2)">เริ่มงาน</button></td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <!-- Kanban Board 3 ช่อง PC -->
+                <div class="row g-3">
+                    <!-- ช่องที่ 1: รอล้าง -->
+                    <div class="col-md-4">
+                        <div class="kanban-col">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="text-secondary fw-bold m-0"><i class="bi bi-clock me-2"></i>รอล้าง</h5>
+                                <span class="badge bg-secondary rounded-pill" id="count-pending">1</span>
+                            </div>
+                            <div id="col-pending-pc">
+                                <div class="queue-card" id="car-2-pc">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="fw-bold text-white fs-5">มม 8888 นนทบุรี</span>
+                                        <span class="badge bg-secondary">มอเตอร์ไซค์</span>
+                                    </div>
+                                    <p class="text-secondary small mb-2">บริการ: ล้างภายนอก</p>
+                                    <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary">
+                                        <span class="text-orange fw-bold">80.00 บ.</span>
+                                        <button class="btn btn-sm btn-outline-warning px-3" onclick="startJob(2)">เริ่มงาน</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ช่องที่ 2: กำลังล้าง -->
+                    <div class="col-md-4">
+                        <div class="kanban-col border-warning">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="text-warning fw-bold m-0"><i class="bi bi-arrow-repeat me-2"></i>กำลังล้าง</h5>
+                                <span class="badge bg-warning text-dark rounded-pill" id="count-progress">1</span>
+                            </div>
+                            <div id="col-progress-pc">
+                                <div class="queue-card" id="car-1-pc">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="fw-bold text-white fs-5">กข 1234 กรุงเทพฯ</span>
+                                        <span class="badge bg-secondary">รถเก๋ง (S/M)</span>
+                                    </div>
+                                    <p class="text-secondary small mb-2">บริการ: ล้างภายนอก + ดูดฝุ่น</p>
+                                    <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary">
+                                        <span class="text-orange fw-bold">250.00 บ.</span>
+                                        <button class="btn btn-sm btn-success px-3" onclick="finishJob(1)">เสร็จงาน</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ช่องที่ 3: ล้างเสร็จแล้ว -->
+                    <div class="col-md-4">
+                        <div class="kanban-col border-success">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="text-success fw-bold m-0"><i class="bi bi-check-circle me-2"></i>ล้างเสร็จแล้ว</h5>
+                                <span class="badge bg-success rounded-pill" id="count-done">0</span>
+                            </div>
+                            <div id="col-done-pc">
+                                <!-- รายการที่เสร็จแล้วจะย้ายมาตรงนี้ -->
+                            </div>
+                        </div>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>
 
-<script>
-    // ฟังก์ชันเริ่มงาน (ทำงานพร้อมกันทั้งคอมและมือถือ)
-    function startJob(id) {
-        // อัปเดตสถานะฝั่งมือถือ
-        if(document.getElementById(`status-${id}-mb`)) {
-            document.getElementById(`status-${id}-mb`).className = "badge bg-warning text-dark";
-            document.getElementById(`status-${id}-mb`).innerText = "กำลังบริการ";
-            if(document.getElementById(`btn-start-${id}-mb`)) document.getElementById(`btn-start-${id}-mb`).outerHTML = `<button class="btn btn-sm btn-success w-100 py-2 mt-1 rounded-3" onclick="finishJob(${id})">เสร็จงาน</button>`;
-        }
-        // อัปเดตสถานะฝั่ง PC
-        if(document.getElementById(`status-${id}-pc`)) {
-            document.getElementById(`status-${id}-pc`).className = "badge bg-warning text-dark";
-            document.getElementById(`status-${id}-pc`).innerText = "กำลังบริการ";
-            document.getElementById(`action-${id}-pc`).innerHTML = `<button class="btn btn-sm btn-success px-3" onclick="finishJob(${id})">เสร็จงาน</button>`;
-        }
-    }
+    <!-- JavaScript Logic สำหรับย้ายการ์ดข้ามช่อง -->
+    <script>
+        function startJob(id) {
+            // ย้ายการ์ดฝั่ง PC ไปช่องกำลังล้าง
+            const pcCard = document.getElementById(`car-${id}-pc`);
+            if (pcCard) {
+                const actionArea = pcCard.querySelector('button');
+                actionArea.outerHTML = `<button class="btn btn-sm btn-success px-3" onclick="finishJob(${id})">เสร็จงาน</button>`;
+                document.getElementById('col-progress-pc').appendChild(pcCard);
+            }
 
-    // ฟังก์ชันจบงาน (ไฮไลต์จางลง ล็อกปุ่ม และลดจำนวนคิว)
-    function finishJob(id) {
-        if(confirm("ยืนยันคิวเสร็จงาน คืนรถให้ลูกค้าเรียบร้อย?")) {
-            // ฝั่งมือถือ
-            if(document.getElementById(`car-${id}-mb`)) {
-                document.getElementById(`car-${id}-mb`).style.opacity = "0.3";
-                document.getElementById(`status-${id}-mb`).className = "badge bg-success text-white";
-                document.getElementById(`status-${id}-mb`).innerText = "เสร็จสิ้น";
-                document.getElementById(`car-${id}-mb`).querySelectorAll('button').forEach(btn => btn.disabled = true);
+            // ย้ายการ์ดฝั่ง Mobile
+            const mbCard = document.getElementById(`car-${id}-mb`);
+            if (mbCard) {
+                const actionArea = mbCard.querySelector('button');
+                actionArea.outerHTML = `<button class="btn btn-sm btn-success w-100 py-2 mt-1 rounded-3" onclick="finishJob(${id})">เสร็จงาน</button>`;
+                document.getElementById('col-progress-mb').appendChild(mbCard);
             }
-            // ฝั่ง PC
-            if(document.getElementById(`car-${id}-pc`)) {
-                document.getElementById(`car-${id}-pc`).style.opacity = "0.3";
-                document.getElementById(`status-${id}-pc`).className = "badge bg-success text-white";
-                document.getElementById(`status-${id}-pc`).innerText = "เสร็จสิ้น";
-                document.getElementById(`action-${id}-pc`).innerHTML = `<span class="text-success small fw-bold">✓ ปิดงานแล้ว</span>`;
-            }
-            
-            // ลดจำนวนคิวรถปัจจุบันลงจำลองสถานการณ์จริง
-            let currentQueue = parseInt(document.getElementById('total-queue-pc').innerText) - 1;
-            if (currentQueue < 0) currentQueue = 0;
-            document.getElementById('total-queue-pc').innerText = currentQueue + " คัน";
-            document.getElementById('total-queue-mb').innerText = currentQueue + " คัน";
+
+            updateCounts();
         }
-    }
-</script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+        function finishJob(id) {
+            if (confirm("ยืนยันคิวเสร็จงาน คืนรถให้ลูกค้าเรียบร้อย?")) {
+                // ย้ายการ์ดฝั่ง PC ไปช่องเสร็จแล้ว
+                const pcCard = document.getElementById(`car-${id}-pc`);
+                if (pcCard) {
+                    const actionArea = pcCard.querySelector('button');
+                    actionArea.outerHTML = `<span class="text-success small fw-bold"><i class="bi bi-check-all me-1"></i>เรียบร้อย</span>`;
+                    document.getElementById('col-done-pc').appendChild(pcCard);
+                }
+
+                // ย้ายการ์ดฝั่ง Mobile
+                const mbCard = document.getElementById(`car-${id}-mb`);
+                if (mbCard) {
+                    const actionArea = mbCard.querySelector('button');
+                    actionArea.outerHTML = `<div class="text-center text-success small fw-bold pt-1"><i class="bi bi-check-all me-1"></i>เรียบร้อย</div>`;
+                    document.getElementById('col-done-mb').appendChild(mbCard);
+                }
+
+                // ลดคิวรถปัจจุบัน
+                let currentQueue = parseInt(document.getElementById('total-queue-pc').innerText) - 1;
+                if (currentQueue < 0) currentQueue = 0;
+                document.getElementById('total-queue-pc').innerText = currentQueue + " คัน";
+                document.getElementById('total-queue-mb').innerText = currentQueue + " คัน";
+
+                updateCounts();
+            }
+        }
+
+        function updateCounts() {
+            document.getElementById('count-pending').innerText = document.getElementById('col-pending-pc').children.length;
+            document.getElementById('count-progress').innerText = document.getElementById('col-progress-pc').children.length;
+            document.getElementById('count-done').innerText = document.getElementById('col-done-pc').children.length;
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

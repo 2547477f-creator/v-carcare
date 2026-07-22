@@ -1,300 +1,317 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>V CarCare - รับรถหน้าร้าน (POS)</title>
+
+    <!-- Bootstrap 5 CSS & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Global Style Sheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
     <style>
-        body { background-color: #121212; color: #E0E0E0; font-family: sans-serif; }
-        .text-orange { color: #FF6B00; }
-        .bg-orange { background-color: #FF6B00; color: #121212; font-weight: bold; }
-        .bg-orange:hover { background-color: #E05E00; color: #121212; }
-        .card-custom { background-color: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 12px; }
-        .form-control-custom { background-color: #2A2A2A; border: 1px solid #3A3A3A; color: #FFFFFF; }
-        .form-control-custom:focus { background-color: #3A3A3A; color: #FFF; border-color: #FF6B00; box-shadow: none; }
-        
-        /* สไตล์วิทยุเลือกประเภทรถยนต์แบบปุ่มสไตล์โมเดิร์น */
-        .type-card { border: 1px solid #3A3A3A; background-color: #1A1A1A; color: #A0A0A0; padding: 15px; text-align: center; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
-        .type-card:hover { border-color: #FF6B00; color: #FFF; }
-        .type-radio:checked + .type-card { background-color: #FF6B00; color: #121212; border-color: #FF6B00; font-weight: bold; }
-
-        /* สไตล์กล่อง Checkbox บริการ */
-        .service-checkbox { transform: scale(1.2); cursor: pointer; }
-        .service-checkbox:checked { background-color: #FF6B00; border-color: #FF6B00; }
-        .disabled-service { opacity: 0.4; pointer-events: none; }
-
-        @media (max-width: 767.98px) {
-            body { padding-top: 75px; padding-bottom: 40px; }
-            .fb-nav-tabs { position: fixed; top: 0; left: 0; right: 0; height: 65px; background-color: #1A1A1A; border-bottom: 1px solid #2A2A2A; display: flex; justify-content: space-around; align-items: stretch; z-index: 1050; }
-            .fb-tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #8E8E93; text-decoration: none; font-size: 11px; font-weight: bold; border-bottom: 3px solid transparent; }
-            .fb-tab-item i { font-size: 22px; margin-bottom: 2px; }
-            .fb-tab-item.active { color: #FF6B00; border-bottom-color: #FF6B00; }
+        .sidebar {
+            width: 260px;
+            background-color: #1A1A1A;
+            min-height: 100vh;
+            padding: 20px;
+            border-right: 1px solid #2A2A2A;
         }
 
-        @media (min-width: 768px) {
-            .wrapper { display: flex; min-height: 100vh; }
-            .sidebar { width: 260px; background-color: #1A1A1A; border-right: 1px solid #2A2A2A; padding: 20px; }
-            .sidebar .nav-link { color: #8E8E93; padding: 12px 15px; border-radius: 8px; margin-bottom: 5px; font-weight: bold; }
-            .sidebar .nav-link:hover { color: #FFFFFF; background-color: #2A2A2A; }
-            .sidebar .nav-link.active { color: #121212; background-color: #FF6B00; }
-            .main-content { flex-grow: 1; padding: 30px; background-color: #121212; }
+        .sidebar .nav-link {
+            color: #A0A0A0;
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .sidebar .nav-link:hover {
+            color: #FFF;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar .nav-link.active {
+            background-color: #FF6B00 !important;
+            color: #000000 !important;
+            font-weight: bold;
+        }
+
+        .sidebar .nav-link.text-danger {
+            color: #FF4D4D !important;
+        }
+
+        /* Form Custom Design */
+        .form-card {
+            background-color: #1E1E1E;
+            border: 1px solid #2D2D2D;
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .form-control, .form-select {
+            background-color: #2A2A2A;
+            border: 1px solid #3A3A3A;
+            color: #FFF;
+            border-radius: 10px;
+            padding: 10px 14px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            background-color: #2A2A2A;
+            border-color: #FF6B00;
+            color: #FFF;
+            box-shadow: none;
+        }
+
+        .service-checkbox-card {
+            background-color: #2A2A2A;
+            border: 1px solid #3A3A3A;
+            border-radius: 10px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .service-checkbox-card:hover {
+            border-color: #FF6B00;
+        }
+
+        .price-summary-box {
+            background-color: #141414;
+            border: 2px dashed #FF6B00;
+            border-radius: 16px;
+            padding: 20px;
         }
     </style>
 </head>
+
 <body>
 
-    <div class="wrapper">
-        <!-- Sidebar สำหรับ PC -->
+    <div class="wrapper d-flex">
+        <!-- Sidebar -->
         <div class="sidebar d-none d-md-block">
             <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
             <nav class="nav flex-column">
-                <a class="nav-link logout-link text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
                 <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
                 <a class="nav-link active" href="/pos"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
                 <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
                 <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
+                <a class="nav-link logout-link text-danger mt-2" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
             </nav>
         </div>
 
-        <!-- แท็บสำหรับมือถือ -->
-        <div class="fb-nav-tabs d-flex d-md-none">
-            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i><span>ออกจากระบบ</span></a>
-            <a href="/" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
-            <a href="/pos" class="fb-tab-item active"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>
-            <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
-            <a href="/finance" class="fb-tab-item"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
-        </div>
+        <!-- Main Content -->
+        <div class="main-content flex-grow-1 p-4">
+            <h2 class="fw-bold text-white mb-4"><i class="bi bi-plus-circle-fill text-orange me-2"></i>บันทึกรับรถหน้าร้าน (POS)</h2>
 
-        <!-- เนื้อหาหลัก -->
-        <div class="main-content w-100 p-3 p-md-4">
-            <h2 class="fw-bold text-white mb-4 d-none d-md-block"><i class="bi bi-plus-circle text-orange me-2"></i> ออกตั๋วรับรถเข้าบริการ</h2>
-            
-            <form id="pos-ticket-form" onsubmit="submitTicket(event)">
+            <form id="posForm" onsubmit="submitForm(event)">
                 <div class="row g-4">
-                    <!-- ฝั่งซ้าย: กรอกข้อมูลและเลือกประเภท -->
-                    <div class="col-lg-8">
-                        <div class="card-custom p-3 p-md-4 mb-4">
-                            <h5 class="text-white fw-bold mb-3"><i class="bi bi-card-text text-orange me-2"></i> ข้อมูลรถยนต์พื้นฐาน</h5>
+                    <!-- ฝั่งซ้าย: ข้อมูลลูกค้าและประเภทรถ -->
+                    <div class="col-lg-7">
+                        <div class="form-card mb-4">
+                            <h5 class="text-orange fw-bold mb-3"><i class="bi bi-person-lines-fill me-2"></i>ข้อมูลลูกค้า & รถยนต์</h5>
+                            
                             <div class="row g-3">
-                                <div class="col-6">
-                                    <label class="text-secondary small form-label">เลขทะเบียนรถ</label>
-                                    <input type="text" class="form-control form-control-custom py-2" placeholder="เช่น กข 1234" required id="car-plate">
+                                <!-- ทะเบียนรถ -->
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary">ทะเบียนรถ <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" placeholder="เช่น กข 1234 กรุงเทพฯ" required id="licensePlate">
                                 </div>
-                                <div class="col-6">
-                                    <label class="text-secondary small form-label">จังหวัด</label>
-                                    <input type="text" class="form-control form-control-custom py-2" placeholder="เช่น กรุงเทพฯ" required id="car-province">
+
+                                <!-- เบอร์โทรศัพท์ -->
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary">เบอร์โทรศัพท์ <span class="text-danger">*</span></label>
+                                    <input type="tel" class="form-control" placeholder="08X-XXX-XXXX" required id="phone">
+                                </div>
+
+                                <!-- Line ID -->
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary">Line ID (ถ้ามี)</label>
+                                    <input type="text" class="form-control" placeholder="ไอดีไลน์ลูกค้า" id="lineId">
+                                </div>
+
+                                <!-- ประเภทรถ -->
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary">ประเภทยานพาหนะ <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="vehicleCategory" onchange="updateSizeOptions()" required>
+                                        <option value="">-- เลือกประเภทรถ --</option>
+                                        <option value="car">รถยนต์ / เก๋ง / SUV / รถตู้</option>
+                                        <option value="bike">มอเตอร์ไซค์</option>
+                                    </select>
+                                </div>
+
+                                <!-- ขนาดรถ (Size) -->
+                                <div class="col-12">
+                                    <label class="form-label text-secondary">ขนาดรถ (Size) <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="vehicleSize" onchange="calculatePrice()" required disabled>
+                                        <option value="">-- กรุณาเลือกประเภทรถก่อน --</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- 1. ส่วนแยกประเภทรถ -->
-                        <div class="card-custom p-3 p-md-4 mb-4">
-                            <h5 class="text-white fw-bold mb-1"><i class="bi bi-car-front text-orange me-2"></i> 1. เลือกประเภทรถ</h5>
-                            <p class="text-secondary small mb-3">*มอเตอร์ไซค์และบิ๊กไบค์ล้างได้เฉพาะภายนอกเท่านั้น</p>
-                            
-                            <div class="row g-2">
-                                <div class="col-4 col-md-2">
-                                    <input type="radio" name="vehicle_type" id="type-moto" value="motorcycle" class="d-none type-radio" checked onchange="handleVehicleTypeChange()">
-                                    <label for="type-moto" class="w-100 type-card"><i class="bi bi-bicycle d-block fs-3 mb-1"></i> มอเตอร์ไซค์</label>
-                                </div>
-                                <div class="col-4 col-md-2">
-                                    <input type="radio" name="vehicle_type" id="type-bigbike" value="bigbike" class="d-none type-radio" onchange="handleVehicleTypeChange()">
-                                    <label for="type-bigbike" class="w-100 type-card"><i class="bi bi-scooter d-block fs-3 mb-1"></i> บิ๊กไบค์</label>
-                                </div>
-                                <div class="col-4 col-md-2">
-                                    <input type="radio" name="vehicle_type" id="type-car" value="car" class="d-none type-radio" onchange="handleVehicleTypeChange()">
-                                    <label for="type-car" class="w-100 type-card"><i class="bi bi-car-front-fill d-block fs-3 mb-1"></i> รถเก๋ง</label>
-                                </div>
-                                <div class="col-4 col-md-2">
-                                    <input type="radio" name="vehicle_type" id="type-pickup" value="pickup" class="d-none type-radio" onchange="handleVehicleTypeChange()">
-                                    <label for="type-pickup" class="w-100 type-card"><i class="bi bi-truck d-block fs-3 mb-1"></i> รถกระบะ</label>
-                                </div>
-                                <div class="col-4 col-md-2">
-                                    <input type="radio" name="vehicle_type" id="type-suv" value="suv" class="d-none type-radio" onchange="handleVehicleTypeChange()">
-                                    <!-- แก้ไขคลาสไอคอนตรงนี้เป็น bi-truck-front-fill -->
-                                    <label for="type-suv" class="w-100 type-card"><i class="bi bi-truck-front-fill d-block fs-3 mb-1"></i> รถ SUV</label>
-                                </div>
-                                <div class="col-4 col-md-2">
-                                    <input type="radio" name="vehicle_type" id="type-van" value="van" class="d-none type-radio" onchange="handleVehicleTypeChange()">
-                                    <label for="type-van" class="w-100 type-card"><i class="bi bi-bus-front d-block fs-3 mb-1"></i> รถตู้</label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 2. เลือกบริการ -->
-                        <div class="card-custom p-3 p-md-4">
-                            <h5 class="text-white fw-bold mb-3"><i class="bi bi-gear-wide-connected text-orange me-2"></i> 2. เลือกแพ็กเกจบริการ (เลือกได้มากกว่า 1 อย่าง)</h5>
-                            
-                            <div class="list-group list-group-flush bg-transparent">
-                                <!-- ล้างภายนอก -->
-                                <label class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-center py-3 px-1" style="cursor:pointer;">
-                                    <div class="d-flex align-items-center">
-                                        <input type="checkbox" class="form-check-input service-checkbox me-3" id="srv-wash" value="wash" checked onchange="calculatePrice()">
-                                        <div>
-                                            <span class="fw-bold d-block">ล้างทำความสะอาดภายนอก</span>
-                                            <small class="text-secondary">ทำความสะอาดรอบคันและเป่าแห้ง</small>
-                                        </div>
-                                    </div>
-                                    <span class="text-orange fw-bold" id="price-wash">60 บ.</span>
-                                </label>
-
-                                <!-- ดูดฝุ่น -->
-                                <label id="box-vacuum" class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-center py-3 px-1" style="cursor:pointer;">
-                                    <div class="d-flex align-items-center">
-                                        <input type="checkbox" class="form-check-input service-checkbox me-3" id="srv-vacuum" value="vacuum" onchange="calculatePrice()">
-                                        <div>
-                                            <span class="fw-bold d-block">ดูดฝุ่นและเช็ดทำความสะอาดภายใน</span>
-                                            <small class="text-secondary">ดูดฝุ่นเบาะ พรม และคอนโซลหน้าทั้งหมด</small>
-                                        </div>
-                                    </div>
-                                    <span class="text-orange fw-bold" id="price-vacuum">40 บ.</span>
-                                </label>
-
-                                <!-- ล้างห้องเครื่อง -->
-                                <label id="box-engine" class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-center py-3 px-1" style="cursor:pointer;">
-                                    <div class="d-flex align-items-center">
-                                        <input type="checkbox" class="form-check-input service-checkbox me-3" id="srv-engine" value="engine" onchange="calculatePrice()">
-                                        <div>
-                                            <span class="fw-bold d-block">ล้างทำความสะอาดห้องเครื่อง</span>
-                                            <small class="text-secondary">ขจัดคราบน้ำมันและสิ่งสกปรกในห้องเครื่อง</small>
-                                        </div>
-                                    </div>
-                                    <span class="text-orange fw-bold" id="price-engine">200 บ.</span>
-                                </label>
-
-                                <!-- อัดฉีดช่วงล่าง -->
-                                <label id="box-under" class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-center py-3 px-1" style="cursor:pointer;">
-                                    <div class="d-flex align-items-center">
-                                        <input type="checkbox" class="form-check-input service-checkbox me-3" id="srv-under" value="under" onchange="calculatePrice()">
-                                        <div>
-                                            <span class="fw-bold d-block">อัดฉีดคราบสิ่งสกปรกช่วงล่าง</span>
-                                            <small class="text-secondary">ฉีดล้างดินโคลนสะสมใต้ท้องรถอย่างละเอียด</small>
-                                        </div>
-                                    </div>
-                                    <span class="text-orange fw-bold" id="price-under">100 บ.</span>
-                                </label>
-
-                                <!-- เคลือบแก้ว -->
-                                <label id="box-glass" class="list-group-item bg-transparent text-white border-none d-flex justify-content-between align-items-center py-3 px-1" style="cursor:pointer;">
-                                    <div class="d-flex align-items-center">
-                                        <input type="checkbox" class="form-check-input service-checkbox me-3" id="srv-glass" value="glass" onchange="calculatePrice()">
-                                        <div>
-                                            <span class="fw-bold d-block">เคลือบแก้วเซรามิกพรีเมียม (Glass Coating)</span>
-                                            <small class="text-secondary">เคลือบเงาสีรถกันรอยขีดข่วนและคราบน้ำสะเก็ด</small>
-                                        </div>
-                                    </div>
-                                    <span class="text-orange fw-bold" id="price-glass">500 บ.</span>
-                                </label>
+                        <!-- เลือกบริการ -->
+                        <div class="form-card">
+                            <h5 class="text-orange fw-bold mb-3"><i class="bi bi-card-checklist me-2"></i>เลือกบริการ</h5>
+                            <div class="d-flex flex-column gap-2" id="serviceContainer">
+                                <p class="text-secondary small m-0">กรุณาเลือกประเภทและขนาดรถก่อนเพื่อดูรายการบริการ</p>
                             </div>
                         </div>
                     </div>
 
-                    <!-- ฝั่งขวา: กล่องราคาสรุปผล -->
-                    <div class="col-lg-4">
-                        <div class="card-custom p-4 text-center sticky-top" style="top: 20px; z-index: 10;">
-                            <h6 class="text-secondary fw-bold text-uppercase small mb-2">ยอดค่าบริการรวมสุทธิ</h6>
-                            <h1 class="display-3 fw-bold text-success my-2"><span id="total-price-label">60</span><span class="fs-4 text-muted ms-1">บ.</span></h1>
-                            <p class="text-secondary small mb-4">ตรวจเช็กประเภทรถและรายการติ๊กขวาก่อนกดยืนยัน</p>
-                            
-                            <button type="submit" class="btn bg-orange w-100 py-3 rounded-3 shadow fs-5"><i class="bi bi-printer-fill me-2"></i> บันทึกและพิมพ์ใบรับรถ</button>
+                    <!-- ฝั่งขวา: สรุปยอดเงินและปุ่มบันทึก -->
+                    <div class="col-lg-5">
+                        <div class="price-summary-box text-center mb-4">
+                            <span class="text-secondary d-block mb-1">ยอดรวมทั้งหมด</span>
+                            <h1 class="display-4 fw-bold text-orange m-0" id="totalPrice">0.00</h1>
+                            <span class="text-secondary fs-5">บาท</span>
                         </div>
+
+                        <div class="form-card mb-4">
+                            <h5 class="text-white fw-bold mb-3"><i class="bi bi-wallet2 text-orange me-2"></i>ช่องทางชำระเงิน</h5>
+                            <div class="d-flex gap-3">
+                                <div class="form-check flex-fill p-3 border border-secondary rounded-3">
+                                    <input class="form-check-input" type="radio" name="paymentMethod" id="payCash" value="cash" checked>
+                                    <label class="form-check-label text-white fw-bold" for="payCash">
+                                        <i class="bi bi-cash-stack me-1 text-success"></i> เงินสด
+                                    </label>
+                                </div>
+                                <div class="form-check flex-fill p-3 border border-secondary rounded-3">
+                                    <input class="form-check-input" type="radio" name="paymentMethod" id="payTransfer" value="transfer">
+                                    <label class="form-check-label text-white fw-bold" for="payTransfer">
+                                        <i class="bi bi-qr-code-scan me-1 text-info"></i> โอนเงิน
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-warning btn-lg w-100 py-3 fw-bold fs-5 rounded-3 text-dark" style="background-color: #FF6B00; border: none;">
+                            <i class="bi bi-check-circle-fill me-2"></i>บันทึกเข้าคิว
+                        </button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
 
-<script>
-    // ตารางเรตราคากลางแยกตามประเภทรถยนต์ (บาท)
-    const priceMatrix = {
-        'motorcycle': { wash: 60,   vacuum: 0,   engine: 0,   under: 0,   glass: 0 },
-        'bigbike':    { wash: 100,  vacuum: 0,   engine: 0,   under: 0,   glass: 0 },
-        'car':        { wash: 120,  vacuum: 60,  engine: 250, under: 150, glass: 1500 },
-        'pickup':     { wash: 150,  vacuum: 70,  engine: 250, under: 180, glass: 1800 },
-        'suv':        { wash: 180,  vacuum: 80,  engine: 300, under: 200, glass: 2000 },
-        'van':        { wash: 220,  vacuum: 100, engine: 300, under: 220, glass: 2500 }
-    };
+    <!-- JavaScript Calculation Logic -->
+    <script>
+        // ตารางราคารถยนต์
+        const carPrices = {
+            'S': { wash: 100, washVacuum: 160, fullFlush: 360, engineWash: 260, fullEngine: 460, ozone: 500, wax: 460 },
+            'M': { wash: 120, washVacuum: 180, fullFlush: 380, engineWash: 280, fullEngine: 480, ozone: 500, wax: 480 },
+            'L': { wash: 140, washVacuum: 220, fullFlush: 420, engineWash: 320, fullEngine: 520, ozone: 600, wax: 620 },
+            'XL': { wash: 160, washVacuum: 260, fullFlush: 460, engineWash: 360, fullEngine: 560, ozone: 600, wax: 860 }
+        };
 
-    // ฟังก์ชันเมื่อเปลี่ยนประเภทรถ -> คอยล็อกเงื่อนไขสองล้อ
-    function handleVehicleTypeChange() {
-        const selectedType = document.querySelector('input[name="vehicle_type"]:checked').value;
-        const otherServices = ['vacuum', 'engine', 'under', 'glass'];
+        // ตารางราคามอเตอร์ไซค์
+        const bikePrices = {
+            'S': 80,   // 50-150 cc
+            'M': 100,  // 150-300 cc
+            'L': 120   // >300 cc
+        };
 
-        if (selectedType === 'motorcycle' || selectedType === 'bigbike') {
-            // มอเตอร์ไซค์และบิ๊กไบค์ล้างได้แค่ภายนอก -> สั่งปลดติ๊กและล็อกอันอื่นทันที
-            otherServices.forEach(srv => {
-                let checkbox = document.getElementById(`srv-${srv}`);
-                checkbox.checked = false;
-                checkbox.disabled = true;
-                document.getElementById(`box-${srv}`).classList.add('disabled-service');
-            });
-            document.getElementById('srv-wash').checked = true;
-        } else {
-            // รถยนต์ประเภทอื่นๆ -> ปลดล็อกให้ติ๊กเลือกผสมได้อิสระ
-            otherServices.forEach(srv => {
-                let checkbox = document.getElementById(`srv-${srv}`);
-                checkbox.disabled = false;
-                document.getElementById(`box-${srv}`).classList.remove('disabled-service');
-            });
+        function updateSizeOptions() {
+            const category = document.getElementById('vehicleCategory').value;
+            const sizeSelect = document.getElementById('vehicleSize');
+            sizeSelect.innerHTML = '<option value="">-- เลือกขนาดรถ --</option>';
+            sizeSelect.disabled = false;
+
+            if (category === 'car') {
+                sizeSelect.innerHTML += `
+                    <option value="S">S - รถเก๋งเล็ก (Yaris, March, Brio)</option>
+                    <option value="M">M - รถเก๋งกลาง/ใหญ่ (Civic, Altis, Benz C/E-Class)</option>
+                    <option value="L">L - รถ SUV / ครอบครัว (Fortuner, CR-V, Pajero)</option>
+                    <option value="XL">XL - รถตู้ (Alphard, Commuter)</option>
+                `;
+            } else if (category === 'bike') {
+                sizeSelect.innerHTML += `
+                    <option value="S">S - มอเตอร์ไซค์เล็ก (50 - 150 cc)</option>
+                    <option value="M">M - มอเตอร์ไซค์กลาง (150 - 300 cc)</option>
+                    <option value="L">L - บิ๊กไบค์ (>300 cc ขึ้นไป)</option>
+                `;
+            } else {
+                sizeSelect.disabled = true;
+            }
+
+            renderServices();
+            calculatePrice();
         }
 
-        updateServicePriceLabels(selectedType);
-        calculatePrice();
-    }
+        function renderServices() {
+            const category = document.getElementById('vehicleCategory').value;
+            const container = document.getElementById('serviceContainer');
+            container.innerHTML = '';
 
-    // ฟังก์ชันช่วยแสดงราคาของแต่ละบริการบนหน้าจอ
-    function updateServicePriceLabels(type) {
-        document.getElementById('price-wash').innerText   = priceMatrix[type].wash + " บ.";
-        document.getElementById('price-vacuum').innerText = priceMatrix[type].vacuum > 0 ? priceMatrix[type].vacuum + " บ." : "-";
-        document.getElementById('price-engine').innerText = priceMatrix[type].engine > 0 ? priceMatrix[type].engine + " บ." : "-";
-        document.getElementById('price-under').innerText  = priceMatrix[type].under > 0 ? priceMatrix[type].under + " บ." : "-";
-        document.getElementById('price-glass').innerText  = priceMatrix[type].glass > 0 ? priceMatrix[type].glass + " บ." : "-";
-    }
-
-    // ฟังก์ชันคำนวณเงินรวม
-    function calculatePrice() {
-        const selectedType = document.querySelector('input[name="vehicle_type"]:checked').value;
-        let total = 0;
-
-        if (document.getElementById('srv-wash').checked)   total += priceMatrix[selectedType].wash;
-        if (document.getElementById('srv-vacuum').checked) total += priceMatrix[selectedType].vacuum;
-        if (document.getElementById('srv-engine').checked) total += priceMatrix[selectedType].engine;
-        if (document.getElementById('srv-under').checked)  total += priceMatrix[selectedType].under;
-        if (document.getElementById('srv-glass').checked)  total += priceMatrix[selectedType].glass;
-
-        document.getElementById('total-price-label').innerText = total;
-    }
-
-    // ฟังก์ชันเมื่อกดปุ่มบันทึกและออกตั๋วรับรถ
-    function submitTicket(event) {
-        event.preventDefault();
-        
-        const total = parseInt(document.getElementById('total-price-label').innerText);
-        
-        // Validation: ป้องกันกรณีไม่ได้เลือกบริการใดๆ เลย
-        if (total === 0) {
-            alert('⚠️ กรุณาเลือกบริการอย่างน้อย 1 รายการก่อนทำการบันทึก');
-            return;
+            if (category === 'car') {
+                container.innerHTML = `
+                    <label class="service-checkbox-card d-flex justify-content-between align-items-center">
+                        <div><input type="checkbox" class="form-check-input me-2 service-item" value="wash" onchange="calculatePrice()"> ล้างสี</div>
+                    </label>
+                    <label class="service-checkbox-card d-flex justify-content-between align-items-center">
+                        <div><input type="checkbox" class="form-check-input me-2 service-item" value="washVacuum" onchange="calculatePrice()"> ล้างสี-ดูดฝุ่น</div>
+                    </label>
+                    <label class="service-checkbox-card d-flex justify-content-between align-items-center">
+                        <div><input type="checkbox" class="form-check-input me-2 service-item" value="fullFlush" onchange="calculatePrice()"> ล้างสี-ดูดฝุ่น-ล้างอัดฉีด</div>
+                    </label>
+                    <label class="service-checkbox-card d-flex justify-content-between align-items-center">
+                        <div><input type="checkbox" class="form-check-input me-2 service-item" value="engineWash" onchange="calculatePrice()"> ล้างสี-ดูดฝุ่น-ล้างห้องเครื่อง</div>
+                    </label>
+                    <label class="service-checkbox-card d-flex justify-content-between align-items-center">
+                        <div><input type="checkbox" class="form-check-input me-2 service-item" value="fullEngine" onchange="calculatePrice()"> ล้างสี-ดูดฝุ่น-ล้างอัดฉีด-ล้างห้องเครื่อง</div>
+                    </label>
+                    <label class="service-checkbox-card d-flex justify-content-between align-items-center">
+                        <div><input type="checkbox" class="form-check-input me-2 service-item" value="ozone" onchange="calculatePrice()"> อบโอโซนปรับอากาศฆ่าเชื้อ</div>
+                    </label>
+                    <label class="service-checkbox-card d-flex justify-content-between align-items-center">
+                        <div><input type="checkbox" class="form-check-input me-2 service-item" value="wax" onchange="calculatePrice()"> ขัดเคลือบสี</div>
+                    </label>
+                `;
+            } else if (category === 'bike') {
+                container.innerHTML = `
+                    <label class="service-checkbox-card d-flex justify-content-between align-items-center">
+                        <div><input type="checkbox" class="form-check-input me-2 service-item" value="wash" checked disabled onchange="calculatePrice()"> ล้างสีมอเตอร์ไซค์</div>
+                    </label>
+                `;
+            }
         }
 
-        const plate = document.getElementById('car-plate').value;
-        const province = document.getElementById('car-province').value;
-        
-        alert(`🎉 บันทึกข้อมูลคิวสำเร็จ!\nทะเบียน: ${plate} ${province}\nยอดรวมทั้งสิ้น: ${total} บาท\n(ส่งคำสั่งพิมพ์ใบเสร็จ/ใบรับรถไปยังเครื่องพิมพ์หน้าร้านแล้ว)`);
-        
-        // รีเซ็ตฟอร์มกลับค่าเริ่มต้น
-        document.getElementById('pos-ticket-form').reset();
-        handleVehicleTypeChange();
-    }
+        function calculatePrice() {
+            const category = document.getElementById('vehicleCategory').value;
+            const size = document.getElementById('vehicleSize').value;
+            let total = 0;
 
-    // สั่งคำนวณเซ็ตค่าเริ่มต้นเมื่อโหลดหน้าเว็บ
-    window.addEventListener('load', () => {
-        handleVehicleTypeChange();
-    });
-</script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+            if (category && size) {
+                if (category === 'bike') {
+                    total = bikePrices[size] || 0;
+                } else if (category === 'car') {
+                    const checkboxes = document.querySelectorAll('.service-item:checked');
+                    checkboxes.forEach(cb => {
+                        const serviceKey = cb.value;
+                        if (carPrices[size] && carPrices[size][serviceKey]) {
+                            total += carPrices[size][serviceKey];
+                        }
+                    });
+                }
+            }
+
+            document.getElementById('totalPrice').innerText = total.toFixed(2);
+        }
+
+        function submitForm(e) {
+            e.preventDefault();
+            alert("บันทึกข้อมูลเข้าคิวเรียบร้อยแล้ว!");
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>
