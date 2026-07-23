@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>V CarCare - ติดตามสถานะคิวรถของคุณ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { 
+            background-color: #121212; 
+            color: #E0E0E0; 
+            font-family: sans-serif;
+            padding-bottom: 40px;
+        }
+        .text-orange { color: #FF6B00; }
+        .bg-orange { background-color: #FF6B00; color: #121212; }
+        .card-custom { background-color: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 16px; }
+        
+        .client-container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .step-indicator {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            padding: 0 5px;
+        }
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 22px; left: 25px; right: 25px;
+            height: 4px; background-color: #2A2A2A;
+            z-index: 1;
+        }
+        .step-progress-line {
+            position: absolute;
+            top: 22px; left: 25px; width: 0%;
+            height: 4px; background-color: #FF6B00;
+            z-index: 2; transition: width 0.4s ease-in-out;
+        }
+        .step-item {
+            position: relative;
+            z-index: 3;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 60px;
+        }
+        .step-node {
+            width: 44px; height: 44px; border-radius: 50%;
+            background-color: #2A2A2A; border: 3px solid #1A1A1A;
+            display: flex; align-items: center; justify-content: center;
+            color: #8E8E93; font-weight: bold; transition: all 0.3s;
+        }
+        .step-node.active {
+            background-color: #FF6B00; color: #121212; border-color: #1A1A1A;
+            box-shadow: 0 0 15px rgba(255, 107, 0, 0.4);
+        }
+        .step-node.done {
+            background-color: #198754; color: white; border-color: #1A1A1A;
+        }
+        .step-label {
+            font-size: 11px; text-align: center; margin-top: 6px; color: #8E8E93; transition: color 0.3s;
+        }
+        .step-label.active { color: #FFFFFF; font-weight: bold; }
+        .step-label.done { color: #198754; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid p-3 client-container">
+    
+    <div class="text-center my-4">
+        <h2 class="text-orange fw-bold m-0">V <span class="text-white fs-4">CARCARE</span></h2>
+        <small class="text-secondary">ระบบติดตามสถานะคิวรถอัตโนมัติ</small>
+    </div>
+
+    <!-- ช่องกรอกหมายเลขคิว -->
+    <div class="card-custom p-3 mb-4">
+        <label class="text-secondary small fw-bold mb-2 d-block">กรอกหมายเลขคิวของคุณ (เช่น Q20260723-0001)</label>
+        <div class="input-group">
+            <input type="text" id="queue-input" class="form-control form-control-custom" placeholder="Q20260723-0001">
+            <button class="btn bg-orange fw-bold" onclick="lookupQueue()"><i class="bi bi-search"></i> ค้นหา</button>
+        </div>
+    </div>
+
+    <div id="result-area" style="display:none;">
+        <!-- ข้อมูลตั๋วคิวลูกค้า -->
+        <div class="card-custom p-4 text-center mb-4 border-top border-orange border-4">
+            <span class="badge bg-dark border border-secondary text-secondary mb-2 px-3 py-2 fs-6 rounded-pill">คิวของคุณ</span>
+            <h2 class="text-white fw-bold my-1" id="car-plate">-</h2>
+            <p class="text-secondary m-0" id="car-detail">-</p>
+            
+            <div class="mt-3 p-2 rounded bg-dark d-inline-block border border-secondary">
+                <small class="text-secondary">บริการที่คุณเลือก:</small>
+                <span class="text-warning fw-bold d-block" id="selected-services">-</span>
+            </div>
+        </div>
+
+        <!-- กล่องแสดงสถานะการบริการแบบสเต็ป -->
+        <div class="card-custom p-4 mb-4">
+            <h6 class="text-white fw-bold mb-4 text-center"><i class="bi bi-info-circle text-orange me-2"></i> สถานะการบริการปัจจุบัน</h6>
+            
+            <div class="step-indicator">
+                <div class="step-progress-line" id="progress-line"></div>
+                
+                <div class="step-item">
+                    <div class="step-node" id="node-1"><i class="bi bi-clock"></i></div>
+                    <div class="step-label" id="label-1">รอคิว</div>
+                </div>
+                <div class="step-item">
+                    <div class="step-node" id="node-2"><i class="bi bi-droplet-fill"></i></div>
+                    <div class="step-label" id="label-2">กำลังล้าง</div>
+                </div>
+                <div class="step-item">
+                    <div class="step-node" id="node-3"><i class="bi bi-stars"></i></div>
+                    <div class="step-label" id="label-3">เช็ดแห้ง/เคลือบ</div>
+                </div>
+                <div class="step-item">
+                    <div class="step-node" id="node-4"><i class="bi bi-check-lg"></i></div>
+                    <div class="step-label" id="label-4">พร้อมรับรถ</div>
+                </div>
+            </div>
+
+            <div class="p-3 text-center rounded-3" id="status-box" style="background-color: rgba(255,107,0,0.05); border: 1px dashed #FF6B00;">
+                <h5 class="text-orange fw-bold mb-1" id="status-title">-</h5>
+                <small class="text-secondary" id="status-desc">ระบบจะอัปเดตอัตโนมัติเมื่อพนักงานเปลี่ยนสถานะงาน</small>
+            </div>
+        </div>
+
+        <div class="card-custom p-3 text-center mb-4">
+            <div class="small text-secondary mb-1">ยอดชำระโดยประมาณ</div>
+            <h4 class="text-success fw-bold m-0" id="estimated-amount">-</h4>
+            <hr class="border-secondary my-2">
+            <p class="small text-muted m-0" style="font-size: 11px;">*กรุณาแสดงหน้าจอนี้ให้พนักงานดูตอนรับรถคืน</p>
+        </div>
+    </div>
+
+    <div id="error-area" class="alert alert-danger text-center" style="display:none;"></div>
+</div>
+
+<script>
+    // แผนที่สถานะจากฐานข้อมูล -> ขั้นตอนที่แสดงผล (1-4)
+    const STATUS_TO_STEP = {
+        pending: 1,
+        in_progress: 2,
+        drying: 3,
+        ready: 4,
+        completed: 4,
+    };
+
+    const statusConfig = {
+        1: {
+            title: "อยู่ระหว่างรอคิวเข้าล้าง",
+            desc: "รถของคุณถูกลงทะเบียนในระบบเรียบร้อยแล้ว กำลังรอพนักงานเข้าประจำสถานี",
+            boxBg: "rgba(142, 142, 147, 0.1)", boxBorder: "#8E8E93", titleColor: "#FFFFFF"
+        },
+        2: {
+            title: "กำลังล้างทำความสะอาดภายนอก",
+            desc: "พนักงานกำลังฉีดล้างคราบสกปรก และลงโฟมทำความสะอาดรอบคัน",
+            boxBg: "rgba(255, 107, 0, 0.08)", boxBorder: "#FF6B00", titleColor: "#FF6B00"
+        },
+        3: {
+            title: "กำลังเช็ดแห้ง / ดูดฝุ่น / เคลือบเงา",
+            desc: "รถออกจากช่องล้างแล้ว กำลังเป่าแห้ง ดูดฝุ่นภายใน และเคลือบเงายาง/สีรถ",
+            boxBg: "rgba(13, 202, 240, 0.08)", boxBorder: "#0dcaf0", titleColor: "#0dcaf0"
+        },
+        4: {
+            title: "🎉 บริการเสร็จสิ้น พร้อมรับรถคืน!",
+            desc: "ตรวจเช็กความเรียบร้อยเรียบร้อยแล้ว กรุณาติดต่อชำระเงิน/รับรถที่เคาน์เตอร์",
+            boxBg: "rgba(25, 135, 84, 0.15)", boxBorder: "#198754", titleColor: "#25c974"
+        }
+    };
+
+    let pollTimer = null;
+    let currentQueue = null;
+
+    function renderStep(stepIndex) {
+        const progressLine = document.getElementById('progress-line');
+        const percentages = { 1: '0%', 2: '33.33%', 3: '66.66%', 4: '100%' };
+        progressLine.style.width = percentages[stepIndex];
+
+        for (let i = 1; i <= 4; i++) {
+            const node = document.getElementById(`node-${i}`);
+            const label = document.getElementById(`label-${i}`);
+            node.classList.remove('active', 'done');
+            label.classList.remove('active', 'done');
+
+            if (i < stepIndex) {
+                node.classList.add('done');
+                label.classList.add('done');
+                node.innerHTML = '<i class="bi bi-check-lg"></i>';
+            } else if (i === stepIndex) {
+                node.classList.add('active');
+                label.classList.add('active');
+                const icons = { 1: 'bi-clock', 2: 'bi-droplet-fill', 3: 'bi-stars', 4: 'bi-check-lg' };
+                node.innerHTML = `<i class="bi ${icons[i]}"></i>`;
+            } else {
+                node.innerHTML = i;
+            }
+        }
+
+        const config = statusConfig[stepIndex];
+        const statusBox = document.getElementById('status-box');
+        statusBox.style.backgroundColor = config.boxBg;
+        statusBox.style.borderColor = config.boxBorder;
+        document.getElementById('status-title').style.color = config.titleColor;
+        document.getElementById('status-title').innerText = config.title;
+        document.getElementById('status-desc').innerText = config.desc;
+    }
+
+    function renderOrder(order) {
+        document.getElementById('result-area').style.display = 'block';
+        document.getElementById('error-area').style.display = 'none';
+
+        const plateLabel = order.license_plate + (order.province ? ' ' + order.province : '');
+        const typeLabel = order.vehicle_category === 'bike' ? 'มอเตอร์ไซค์' : 'รถยนต์';
+        document.getElementById('car-plate').innerText = plateLabel;
+        document.getElementById('car-detail').innerText = `${typeLabel} (${order.size_code})`;
+
+        const serviceNames = (order.items || []).map(i => i.service_name).join(' + ');
+        document.getElementById('selected-services').innerText = serviceNames || '-';
+        document.getElementById('estimated-amount').innerText = Number(order.total_amount).toFixed(2) + ' บาท';
+
+        const step = STATUS_TO_STEP[order.status] || 1;
+        renderStep(step);
+    }
+
+    async function fetchStatus(queueNo) {
+        try {
+            const res = await fetch(`/api/track/${encodeURIComponent(queueNo)}`);
+            const data = await res.json();
+            if (!res.ok) {
+                document.getElementById('result-area').style.display = 'none';
+                document.getElementById('error-area').style.display = 'block';
+                document.getElementById('error-area').innerText = data.message || 'ไม่พบหมายเลขคิวนี้';
+                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                return;
+            }
+            renderOrder(data.data);
+        } catch (err) {
+            document.getElementById('error-area').style.display = 'block';
+            document.getElementById('error-area').innerText = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+        }
+    }
+
+    function lookupQueue() {
+        const queueNo = document.getElementById('queue-input').value.trim();
+        if (!queueNo) return;
+        currentQueue = queueNo;
+
+        if (pollTimer) clearInterval(pollTimer);
+        fetchStatus(queueNo);
+        pollTimer = setInterval(() => fetchStatus(queueNo), 6000); // อัปเดตอัตโนมัติทุก 6 วินาที
+
+        // เก็บหมายเลขคิวไว้เพื่อให้กลับมาดูซ้ำได้จากลิงก์เดิม
+        const url = new URL(window.location);
+        url.searchParams.set('q', queueNo);
+        window.history.replaceState({}, '', url);
+    }
+
+    document.getElementById('queue-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') lookupQueue();
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const params = new URLSearchParams(window.location.search);
+        const q = params.get('q');
+        if (q) {
+            document.getElementById('queue-input').value = q;
+            lookupQueue();
+        }
+    });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

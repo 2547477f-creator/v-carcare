@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>V CarCare - แดชบอร์ดระบบ</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        .sidebar {
+            width: 260px;
+            background-color: #1A1A1A;
+            min-height: 100vh;
+            padding: 20px;
+            border-right: 1px solid #2A2A2A;
+        }
+
+        .sidebar .nav-link {
+            color: #A0A0A0;
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .sidebar .nav-link:hover {
+            color: #FFF;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar .nav-link.active {
+            background-color: #FF6B00 !important;
+            color: #000000 !important;
+            font-weight: bold;
+        }
+
+        .sidebar .nav-link.text-danger {
+            color: #FF4D4D !important;
+        }
+
+        .kanban-col {
+            background-color: #1E1E1E;
+            border: 1px solid #2D2D2D;
+            border-radius: 16px;
+            padding: 16px;
+            min-height: 300px;
+        }
+
+        .queue-card {
+            background-color: #2A2A2A;
+            border: 1px solid #3A3A3A;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+            transition: transform 0.2s;
+        }
+
+        .queue-card:hover {
+            border-color: #555;
+        }
+
+        .empty-hint {
+            color: #6c757d;
+            font-size: 13px;
+            text-align: center;
+            padding: 20px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ==================== Mobile View ==================== -->
+    <div class="d-block d-md-none p-3">
+        <div class="fb-nav-tabs mb-3">
+            <a href="/" class="fb-tab-item active"><i class="bi bi-speedometer2 me-1"></i>ภาพรวม</a>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-6">
+                <div class="card-custom p-3 border-start border-orange border-4">
+                    <small class="text-secondary d-block">ในคิวทั้งหมด</small>
+                    <h3 class="fw-bold m-0 text-white" id="total-queue-mb">0 คัน</h3>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="card-custom p-3 border-start border-success border-4">
+                    <small class="text-secondary d-block">รายได้วันนี้</small>
+                    <h3 class="fw-bold text-success m-0" id="today-income-mb">0 บ.</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex flex-column gap-3">
+            <div class="kanban-col">
+                <h6 class="text-secondary fw-bold mb-3"><i class="bi bi-clock me-2"></i>รถที่กำลังรอล้าง</h6>
+                <div id="col-pending-mb"></div>
+            </div>
+            <div class="kanban-col">
+                <h6 class="text-warning fw-bold mb-3"><i class="bi bi-arrow-repeat me-2"></i>รถที่กำลังล้าง</h6>
+                <div id="col-progress-mb"></div>
+            </div>
+            <div class="kanban-col">
+                <h6 class="text-success fw-bold mb-3"><i class="bi bi-check-circle me-2"></i>รถที่ล้างเสร็จแล้ว</h6>
+                <div id="col-done-mb"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ==================== PC View ==================== -->
+    <div class="d-none d-md-block">
+        <div class="wrapper d-flex">
+            <div class="sidebar">
+                <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
+                <p class="text-center text-secondary small mb-4">{{ session_name }} ({{ session_role }})</p>
+                <nav class="nav flex-column">
+                    <a class="nav-link active" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
+                    <a class="nav-link" href="/pos"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
+                    {% if session_role == 'manager' %}
+                    <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
+                    <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
+                    {% endif %}
+                    <a class="nav-link logout-link text-danger mt-2" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
+                </nav>
+            </div>
+
+            <div class="main-content flex-grow-1 p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="fw-bold text-white m-0">แดชบอร์ดภาพรวมร้าน</h2>
+                    <span class="badge bg-danger p-2 fs-6"><i class="bi bi-broadcast me-2"></i>Live Mode</span>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="card-custom p-4 border-start border-orange border-5">
+                            <h5>รถในคิวปัจจุบัน</h5>
+                            <h2 class="fw-bold text-white" id="total-queue-pc">0 คัน</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card-custom p-4 border-start border-success border-5">
+                            <h5>ยอดเงินสด/โอนวันนี้</h5>
+                            <h2 class="fw-bold text-success" id="today-income-pc">0.00 บาท</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="kanban-col">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="text-secondary fw-bold m-0"><i class="bi bi-clock me-2"></i>รอล้าง</h5>
+                                <span class="badge bg-secondary rounded-pill" id="count-pending">0</span>
+                            </div>
+                            <div id="col-pending-pc"></div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="kanban-col border-warning">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="text-warning fw-bold m-0"><i class="bi bi-arrow-repeat me-2"></i>กำลังล้าง</h5>
+                                <span class="badge bg-warning text-dark rounded-pill" id="count-progress">0</span>
+                            </div>
+                            <div id="col-progress-pc"></div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="kanban-col border-success">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="text-success fw-bold m-0"><i class="bi bi-check-circle me-2"></i>ล้างเสร็จแล้ว (วันนี้)</h5>
+                                <span class="badge bg-success rounded-pill" id="count-done">0</span>
+                            </div>
+                            <div id="col-done-pc"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STATUS_LABELS = {
+            pending: 'รอล้าง',
+            in_progress: 'กำลังล้าง',
+            drying: 'กำลังเช็ดแห้ง/เคลือบ',
+            ready: 'พร้อมรับรถ',
+            completed: 'เสร็จสิ้น',
+        };
+
+        let completedTodayCache = [];
+
+        function vehicleLabel(order) {
+            const plate = order.license_plate + (order.province ? ' ' + order.province : '');
+            const typeLabel = order.vehicle_category === 'bike' ? 'มอเตอร์ไซค์' : 'รถยนต์';
+            return `${plate} • ${typeLabel} (${order.size_code})`;
+        }
+
+        function buildCard(order, target) {
+            const wrap = document.createElement('div');
+            wrap.className = 'queue-card';
+            wrap.id = `order-${order.order_id}-${target}`;
+
+            let actionHtml = '';
+            if (order.status === 'pending') {
+                actionHtml = `<button class="btn btn-sm btn-outline-warning px-3" onclick="advanceOrder(${order.order_id}, 'in_progress')">เริ่มงาน</button>`;
+            } else if (order.status === 'in_progress' || order.status === 'drying' || order.status === 'ready') {
+                actionHtml = `<button class="btn btn-sm btn-success px-3" onclick="advanceOrder(${order.order_id}, 'completed')">เสร็จงาน</button>`;
+            } else {
+                actionHtml = `<span class="text-success small fw-bold"><i class="bi bi-check-all me-1"></i>เรียบร้อย</span>`;
+            }
+
+            wrap.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold text-white fs-6">${vehicleLabel(order)}</span>
+                    <span class="badge bg-secondary">${order.queue_no}</span>
+                </div>
+                <p class="text-secondary small mb-2">บริการ: ${order.services_summary || '-'}</p>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary">
+                    <span class="text-orange fw-bold">${Number(order.total_amount).toFixed(2)} บ.</span>
+                    ${actionHtml}
+                </div>`;
+            return wrap;
+        }
+
+        async function advanceOrder(orderId, newStatus) {
+            if (newStatus === 'completed' && !confirm('ยืนยันคิวเสร็จงาน คืนรถให้ลูกค้าเรียบร้อย?')) return;
+            try {
+                const res = await fetch(`/api/orders/${orderId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                if (!res.ok) throw new Error('update failed');
+                await loadOrders();
+            } catch (err) {
+                alert('อัปเดตสถานะไม่สำเร็จ: ' + err.message);
+            }
+        }
+
+        async function loadOrders() {
+            try {
+                const res = await fetch('/api/orders');
+                if (!res.ok) throw new Error('โหลดข้อมูลคิวไม่สำเร็จ');
+                const orders = await res.json();
+
+                const pending = orders.filter(o => o.status === 'pending');
+                const progress = orders.filter(o => ['in_progress', 'drying', 'ready'].includes(o.status));
+
+                // Desktop columns
+                const colPendingPc = document.getElementById('col-pending-pc');
+                const colProgressPc = document.getElementById('col-progress-pc');
+                const colPendingMb = document.getElementById('col-pending-mb');
+                const colProgressMb = document.getElementById('col-progress-mb');
+                [colPendingPc, colProgressPc, colPendingMb, colProgressMb].forEach(el => el.innerHTML = '');
+
+                pending.forEach(o => {
+                    colPendingPc.appendChild(buildCard(o, 'pc'));
+                    colPendingMb.appendChild(buildCard(o, 'mb'));
+                });
+                progress.forEach(o => {
+                    colProgressPc.appendChild(buildCard(o, 'pc'));
+                    colProgressMb.appendChild(buildCard(o, 'mb'));
+                });
+
+                document.getElementById('count-pending').innerText = pending.length;
+                document.getElementById('count-progress').innerText = progress.length;
+                document.getElementById('total-queue-pc').innerText = (pending.length + progress.length) + ' คัน';
+                document.getElementById('total-queue-mb').innerText = (pending.length + progress.length) + ' คัน';
+
+                if (pending.length === 0 && progress.length === 0) {
+                    // no-op, keep empty
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function loadTodaySummary() {
+            {% if session_role == 'manager' %}
+            try {
+                const res = await fetch('/api/finance/summary?period=day');
+                if (!res.ok) return;
+                const data = await res.json();
+                const income = Number(data.summary.total_income || 0);
+                document.getElementById('today-income-pc').innerText = income.toFixed(2) + ' บาท';
+                document.getElementById('today-income-mb').innerText = income.toFixed(0) + ' บ.';
+
+                const doneCount = data.transactions.filter(t => t.transaction_type === 'income').length;
+                document.getElementById('count-done').innerText = doneCount;
+            } catch (err) {
+                console.error(err);
+            }
+            {% endif %}
+        }
+
+        function refreshAll() {
+            loadOrders();
+            loadTodaySummary();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            refreshAll();
+            setInterval(refreshAll, 8000); // อัปเดตอัตโนมัติทุก 8 วินาที
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

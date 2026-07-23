@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>V CarCare - บัญชีการเงิน</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        .filter-btn { 
+            border: 1px solid #3A3A3A; 
+            background-color: #1A1A1A; 
+            color: #A0A0A0; 
+            padding: 10px 16px; 
+            font-weight: bold; 
+            transition: all 0.2s; 
+        }
+        .filter-btn:hover { color: #FFF; background-color: #2A2A2A; }
+        .filter-btn.active { background-color: #FF6B00; color: #121212; border-color: #FF6B00; }
+        
+        #custom-date-box { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="wrapper">
+        <div class="sidebar d-none d-md-block">
+            <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
+            <nav class="nav flex-column">
+                <a class="nav-link logout-link text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
+                <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
+                <a class="nav-link" href="/pos"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
+                <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
+                <a class="nav-link active" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
+            </nav>
+        </div>
+
+        <div class="fb-nav-tabs d-flex d-md-none">
+            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i><span>ออกจากระบบ</span></a>
+            <a href="/" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
+            <a href="/pos" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>
+            <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
+            <a href="/finance" class="fb-tab-item active"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
+        </div>
+
+        <div class="main-content w-100 p-3 p-md-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+                <h2 class="fw-bold text-white m-0 d-none d-md-block">รายงานทางบัญชีการเงิน</h2>
+                <button class="btn btn-success fw-bold py-3 py-md-2 px-4 shadow" onclick="exportExcel()">
+                    <i class="bi bi-file-earmark-excel me-2"></i> ดาวน์โหลดรายงาน Excel (.xlsx)
+                </button>
+            </div>
+
+            <!-- ระบบตัวกรองเวลา -->
+            <div class="card-custom p-3 mb-4">
+                <h6 class="text-secondary small fw-bold mb-2"><i class="bi bi-funnel-fill text-orange me-1"></i> เลือกช่วงเวลาเรียกดูรายงาน</h6>
+                <div class="d-flex flex-wrap gap-1 mb-3">
+                    <button class="btn filter-btn rounded-3 active" onclick="changePeriod('day', this)">รายวัน (วันนี้)</button>
+                    <button class="btn filter-btn rounded-3" onclick="changePeriod('month', this)">รายเดือน (เดือนนี้)</button>
+                    <button class="btn filter-btn rounded-3" onclick="changePeriod('year', this)">รายปี (ปีนี้)</button>
+                    <button class="btn filter-btn rounded-3" onclick="changePeriod('custom', this)"><i class="bi bi-calendar3 me-1"></i> กำหนดช่วงวันเอง</button>
+                </div>
+                
+                <div class="row g-2" id="custom-date-box">
+                    <div class="col-6 col-md-3">
+                        <label class="text-secondary small form-label">วันที่เริ่มต้น</label>
+                        <input type="date" id="start-date" class="form-control form-control-custom" onchange="triggerCustomDate()">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label class="text-secondary small form-label">วันที่สิ้นสุด</label>
+                        <input type="date" id="end-date" class="form-control form-control-custom" onchange="triggerCustomDate()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- เพิ่มรายจ่าย -->
+            <div class="card-custom p-3 mb-4">
+                <h6 class="text-secondary small fw-bold mb-2"><i class="bi bi-plus-circle text-orange me-1"></i> เพิ่มรายการรายจ่าย</h6>
+                <div class="row g-2">
+                    <div class="col-6 col-md-3">
+                        <input type="text" id="expense-category" class="form-control form-control-custom" placeholder="หมวดหมู่ เช่น ค่าแรง">
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <input type="text" id="expense-desc" class="form-control form-control-custom" placeholder="รายละเอียด">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <input type="number" id="expense-amount" class="form-control form-control-custom" placeholder="จำนวนเงิน">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <button class="btn bg-orange text-dark fw-bold w-100" onclick="addExpense()">บันทึกรายจ่าย</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ส่วนแสดงผลยอดรวมและกราฟ -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-8">
+                    <div class="card-custom p-3 p-md-4">
+                        <h5 class="text-white fw-bold mb-3">กราฟวิเคราะห์ยอด <span id="chart-title-label" class="text-orange">รายวัน</span></h5>
+                        <div class="d-block d-md-none" style="position: relative; height: 180px;"><canvas id="chart-mb"></canvas></div>
+                        <div class="d-none d-md-block" style="position: relative; height: 280px;"><canvas id="chart-pc"></canvas></div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card-custom p-4 text-center h-100 d-flex flex-column justify-content-center border-start border-orange border-5">
+                        <small class="text-secondary d-block fw-bold fs-6">สรุปกำไรสุทธิช่วงเวลาที่เลือก</small>
+                        <h1 class="text-success fw-bold display-4 my-2" id="summary-profit-val">0.00</h1>
+                        <span class="text-muted small">คำนวณจากรายรับ-รายจ่ายจริงในระบบ</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ตารางรายการประวัติ รายรับ - รายจ่าย -->
+            <div class="card-custom p-3 p-md-4">
+                <h5 class="text-white fw-bold mb-3"><i class="bi bi-journal-text text-orange me-2"></i> ประวัติรายการรับ-จ่ายเงินในระบบ</h5>
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover align-middle m-0" id="transaction-table">
+                        <thead>
+                            <tr class="text-secondary border-secondary">
+                                <th>วัน-เวลา</th>
+                                <th>รายละเอียดรายการ</th>
+                                <th>ประเภท</th>
+                                <th class="text-end">จำนวนเงิน</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transaction-list">
+                            <tr><td colspan="4" class="text-secondary small">กำลังโหลดข้อมูล...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+<script>
+    let currentMode = 'day';
+    let currentTransactions = [];
+    let chartMbInstance = null;
+    let chartPcInstance = null;
+
+    const PERIOD_TITLES = {
+        day: 'รายวัน (วันนี้)',
+        month: 'รายเดือน (เดือนนี้)',
+        year: 'รายปี (ปีนี้)',
+        custom: 'กำหนดช่วงวันเอง'
+    };
+
+    function formatDateTime(iso) {
+        const d = new Date(iso);
+        return d.toLocaleString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderFinanceChart(income, expense, profit) {
+        const isMobile = window.innerWidth < 768;
+        const targetCanvasId = isMobile ? 'chart-mb' : 'chart-pc';
+        const canvasEl = document.getElementById(targetCanvasId);
+        if (!canvasEl) return;
+
+        if (chartMbInstance) { chartMbInstance.destroy(); chartMbInstance = null; }
+        if (chartPcInstance) { chartPcInstance.destroy(); chartPcInstance = null; }
+
+        const chartConfig = {
+            type: 'bar',
+            data: {
+                labels: ['รายรับทั้งหมด', 'รายจ่ายในร้าน', 'กำไรสุทธิ'],
+                datasets: [{ 
+                    data: [income, expense, profit], 
+                    backgroundColor: ['#28a745', '#dc3545', '#FF6B00'], 
+                    borderRadius: 6,
+                    borderWidth: 0 
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` จำนวน: ${ctx.raw.toLocaleString()} บาท`
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { color: '#A0A0A0' }, grid: { display: false } },
+                    y: { ticks: { color: '#A0A0A0' }, grid: { color: '#2A2A2A' } }
+                }
+            }
+        };
+
+        const ctx = canvasEl.getContext('2d');
+        if (isMobile) {
+            chartMbInstance = new Chart(ctx, chartConfig);
+        } else {
+            chartPcInstance = new Chart(ctx, chartConfig);
+        }
+    }
+
+    async function loadFinance(period, start, end) {
+        let url = `/api/finance/summary?period=${period}`;
+        if (period === 'custom' && start && end) {
+            url += `&start=${start}&end=${end}`;
+        }
+
+        const tbody = document.getElementById('transaction-list');
+        tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">กำลังโหลดข้อมูล...</td></tr>';
+
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('โหลดข้อมูลบัญชีไม่สำเร็จ');
+            const data = await res.json();
+
+            const income = Number(data.summary.total_income || 0);
+            const expense = Number(data.summary.total_expense || 0);
+            const profit = Number(data.summary.net_profit || 0);
+
+            document.getElementById('summary-profit-val').innerText = profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            renderFinanceChart(income, expense, profit);
+
+            currentTransactions = data.transactions;
+            tbody.innerHTML = '';
+
+            if (currentTransactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">ไม่มีรายการในช่วงเวลานี้</td></tr>';
+                return;
+            }
+
+            currentTransactions.forEach(item => {
+                const isIncome = item.transaction_type === 'income';
+                const typeBadge = isIncome
+                    ? `<span class="badge bg-success-subtle text-success border border-success">รายรับ</span>`
+                    : `<span class="badge bg-danger-subtle text-danger border border-danger">รายจ่าย</span>`;
+                const amountClass = isIncome ? 'text-success fw-bold' : 'text-danger fw-bold';
+                const sign = isIncome ? '+' : '-';
+
+                const rowHtml = `
+                    <tr class="border-secondary">
+                        <td class="text-secondary small">${formatDateTime(item.occurred_at)}</td>
+                        <td class="text-white fw-semibold">${item.description}</td>
+                        <td>${typeBadge}</td>
+                        <td class="text-end ${amountClass}">${sign}${Number(item.amount).toFixed(2)} บ.</td>
+                    </tr>`;
+                tbody.insertAdjacentHTML('beforeend', rowHtml);
+            });
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`;
+        }
+    }
+
+    function changePeriod(mode, btnElement) {
+        currentMode = mode;
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        btnElement.classList.add('active');
+
+        if (mode === 'custom') {
+            document.getElementById('custom-date-box').style.display = 'flex';
+        } else {
+            document.getElementById('custom-date-box').style.display = 'none';
+            document.getElementById('chart-title-label').innerText = PERIOD_TITLES[mode];
+            loadFinance(mode);
+        }
+    }
+
+    function triggerCustomDate() {
+        let start = document.getElementById('start-date').value;
+        let end = document.getElementById('end-date').value;
+        if (start && end) {
+            document.getElementById('chart-title-label').innerText = `ช่วงวันที่ ${start} ถึง ${end}`;
+            loadFinance('custom', start, end);
+        }
+    }
+
+    async function addExpense() {
+        const category = document.getElementById('expense-category').value.trim() || 'general';
+        const description = document.getElementById('expense-desc').value.trim();
+        const amount = document.getElementById('expense-amount').value;
+
+        if (!description || !amount || isNaN(amount)) {
+            alert('กรุณากรอกรายละเอียดและจำนวนเงินให้ถูกต้อง');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/finance/transactions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transaction_type: 'expense', category, description, amount: parseFloat(amount) })
+            });
+            if (!res.ok) throw new Error('บันทึกรายจ่ายไม่สำเร็จ');
+
+            document.getElementById('expense-category').value = '';
+            document.getElementById('expense-desc').value = '';
+            document.getElementById('expense-amount').value = '';
+
+            loadFinance(currentMode,
+                document.getElementById('start-date').value,
+                document.getElementById('end-date').value);
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
+    function exportExcel() {
+        let rows = [["วัน-เวลา", "รายละเอียดรายการ", "ประเภท", "จำนวนเงิน (บาท)"]];
+        
+        currentTransactions.forEach(item => {
+            rows.push([
+                formatDateTime(item.occurred_at),
+                item.description,
+                item.transaction_type === 'income' ? 'รายรับ' : 'รายจ่าย',
+                Number(item.amount)
+            ]);
+        });
+
+        let sheet = XLSX.utils.aoa_to_sheet(rows);
+        let book = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(book, sheet, "Report");
+        XLSX.writeFile(book, `v-carcare-finance-${currentMode}.xlsx`);
+    }
+
+    window.addEventListener('load', () => {
+        loadFinance('day');
+    });
+
+    window.addEventListener('resize', () => {
+        // re-render only; loadFinance recalculates from live data on demand
+    });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

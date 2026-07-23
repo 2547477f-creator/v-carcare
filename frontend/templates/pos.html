@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>V CarCare - รับรถหน้าร้าน (POS)</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        .sidebar {
+            width: 260px;
+            background-color: #1A1A1A;
+            min-height: 100vh;
+            padding: 20px;
+            border-right: 1px solid #2A2A2A;
+        }
+
+        .sidebar .nav-link {
+            color: #A0A0A0;
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .sidebar .nav-link:hover {
+            color: #FFF;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .sidebar .nav-link.active {
+            background-color: #FF6B00 !important;
+            color: #000000 !important;
+            font-weight: bold;
+        }
+
+        .sidebar .nav-link.text-danger {
+            color: #FF4D4D !important;
+        }
+
+        .form-card {
+            background-color: #1E1E1E;
+            border: 1px solid #2D2D2D;
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .form-control, .form-select {
+            background-color: #2A2A2A;
+            border: 1px solid #3A3A3A;
+            color: #FFF;
+            border-radius: 10px;
+            padding: 10px 14px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            background-color: #2A2A2A;
+            border-color: #FF6B00;
+            color: #FFF;
+            box-shadow: none;
+        }
+
+        .service-checkbox-card {
+            background-color: #2A2A2A;
+            border: 1px solid #3A3A3A;
+            border-radius: 10px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .service-checkbox-card:hover {
+            border-color: #FF6B00;
+        }
+
+        .price-summary-box {
+            background-color: #141414;
+            border: 2px dashed #FF6B00;
+            border-radius: 16px;
+            padding: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="wrapper d-flex">
+        <div class="sidebar d-none d-md-block">
+            <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
+            <p class="text-center text-secondary small mb-4">{{ session_name }} ({{ session_role }})</p>
+            <nav class="nav flex-column">
+                <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
+                <a class="nav-link active" href="/pos"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
+                {% if session_role == 'manager' %}
+                <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
+                <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
+                {% endif %}
+                <a class="nav-link logout-link text-danger mt-2" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
+            </nav>
+        </div>
+
+        <div class="main-content flex-grow-1 p-4">
+            <h2 class="fw-bold text-white mb-4"><i class="bi bi-plus-circle-fill text-orange me-2"></i>บันทึกรับรถหน้าร้าน (POS)</h2>
+
+            <div id="alert-box"></div>
+
+            <form id="posForm" onsubmit="submitForm(event)">
+                <div class="row g-4">
+                    <!-- ฝั่งซ้าย -->
+                    <div class="col-lg-7">
+                        <div class="form-card mb-4">
+                            <h5 class="text-orange fw-bold mb-3"><i class="bi bi-person-lines-fill me-2"></i>ข้อมูลลูกค้า & รถยนต์</h5>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary">ทะเบียนรถ <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" placeholder="เช่น กข 1234" required id="licensePlate">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary">จังหวัด</label>
+                                    <input type="text" class="form-control" placeholder="เช่น กรุงเทพมหานคร" id="province">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary">เบอร์โทรศัพท์ <span class="text-danger">*</span></label>
+                                    <input type="tel" class="form-control" placeholder="08X-XXX-XXXX" required id="phone">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary">Line ID (ถ้ามี)</label>
+                                    <input type="text" class="form-control" placeholder="ไอดีไลน์ลูกค้า" id="lineId">
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary">ประเภทยานพาหนะ <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="vehicleCategory" onchange="loadServices()" required>
+                                        <option value="">-- เลือกประเภทรถ --</option>
+                                        <option value="car">รถยนต์ / เก๋ง / SUV / รถตู้</option>
+                                        <option value="bike">มอเตอร์ไซค์</option>
+                                    </select>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label text-secondary">ขนาดรถ (Size) <span class="text-danger">*</span></label>
+                                    <select class="form-select" id="vehicleSize" onchange="loadServices()" required disabled>
+                                        <option value="">-- กรุณาเลือกประเภทรถก่อน --</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-card">
+                            <h5 class="text-orange fw-bold mb-3"><i class="bi bi-card-checklist me-2"></i>เลือกบริการ</h5>
+                            <div class="d-flex flex-column gap-2" id="serviceContainer">
+                                <p class="text-secondary small m-0">กรุณาเลือกประเภทและขนาดรถก่อนเพื่อดูรายการบริการ</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ฝั่งขวา -->
+                    <div class="col-lg-5">
+                        <div class="price-summary-box text-center mb-4">
+                            <span class="text-secondary d-block mb-1">ยอดรวมทั้งหมด</span>
+                            <h1 class="display-4 fw-bold text-orange m-0" id="totalPrice">0.00</h1>
+                            <span class="text-secondary fs-5">บาท</span>
+                        </div>
+
+                        <div class="form-card mb-4">
+                            <h5 class="text-white fw-bold mb-3"><i class="bi bi-wallet2 text-orange me-2"></i>ช่องทางชำระเงิน</h5>
+                            <div class="d-flex gap-3">
+                                <div class="form-check flex-fill p-3 border border-secondary rounded-3">
+                                    <input class="form-check-input" type="radio" name="paymentMethod" id="payCash" value="cash" checked>
+                                    <label class="form-check-label text-white fw-bold" for="payCash">
+                                        <i class="bi bi-cash-stack me-1 text-success"></i> เงินสด
+                                    </label>
+                                </div>
+                                <div class="form-check flex-fill p-3 border border-secondary rounded-3">
+                                    <input class="form-check-input" type="radio" name="paymentMethod" id="payTransfer" value="transfer">
+                                    <label class="form-check-label text-white fw-bold" for="payTransfer">
+                                        <i class="bi bi-qr-code-scan me-1 text-info"></i> โอนเงิน
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="submitBtn" class="btn btn-warning btn-lg w-100 py-3 fw-bold fs-5 rounded-3 text-dark" style="background-color: #FF6B00; border: none;">
+                            <i class="bi bi-check-circle-fill me-2"></i>บันทึกเข้าคิว
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentServices = []; // จากฐานข้อมูลจริง ตาม category+size ที่เลือก
+
+        function updateSizeOptions() {
+            const category = document.getElementById('vehicleCategory').value;
+            const sizeSelect = document.getElementById('vehicleSize');
+            sizeSelect.innerHTML = '<option value="">-- เลือกขนาดรถ --</option>';
+            sizeSelect.disabled = false;
+
+            if (category === 'car') {
+                sizeSelect.innerHTML += `
+                    <option value="S">S - รถเก๋งเล็ก (Yaris, March, Brio)</option>
+                    <option value="M">M - รถเก๋งกลาง/ใหญ่ (Civic, Altis, Benz C/E-Class)</option>
+                    <option value="L">L - รถ SUV / ครอบครัว (Fortuner, CR-V, Pajero)</option>
+                    <option value="XL">XL - รถตู้ (Alphard, Commuter)</option>
+                `;
+            } else if (category === 'bike') {
+                sizeSelect.innerHTML += `
+                    <option value="S">S - มอเตอร์ไซค์เล็ก (50 - 150 cc)</option>
+                    <option value="M">M - มอเตอร์ไซค์กลาง (150 - 300 cc)</option>
+                    <option value="L">L - บิ๊กไบค์ (>300 cc ขึ้นไป)</option>
+                `;
+            } else {
+                sizeSelect.disabled = true;
+            }
+        }
+
+        async function loadServices() {
+            const category = document.getElementById('vehicleCategory').value;
+            const size = document.getElementById('vehicleSize').value;
+            const container = document.getElementById('serviceContainer');
+
+            // ถ้าเพิ่งเปลี่ยนประเภทรถ ให้สร้างตัวเลือกขนาดใหม่ก่อน
+            if (document.getElementById('vehicleSize').options.length <= 1 || document.getElementById('vehicleSize').disabled !== (category === '')) {
+                // no-op guard, handled below
+            }
+
+            if (!category) {
+                container.innerHTML = '<p class="text-secondary small m-0">กรุณาเลือกประเภทและขนาดรถก่อนเพื่อดูรายการบริการ</p>';
+                calculatePrice();
+                return;
+            }
+
+            if (document.getElementById('vehicleSize').innerHTML === '' || document.getElementById('vehicleSize').disabled) {
+                updateSizeOptions();
+            }
+
+            if (!size) {
+                container.innerHTML = '<p class="text-secondary small m-0">กรุณาเลือกขนาดรถเพื่อดูรายการบริการและราคา</p>';
+                calculatePrice();
+                return;
+            }
+
+            container.innerHTML = '<p class="text-secondary small m-0"><i class="bi bi-hourglass-split me-1"></i>กำลังโหลดรายการบริการ...</p>';
+
+            try {
+                const res = await fetch(`/api/services?category=${encodeURIComponent(category)}&size=${encodeURIComponent(size)}`);
+                if (!res.ok) throw new Error('โหลดรายการบริการไม่สำเร็จ');
+                currentServices = await res.json();
+
+                if (currentServices.length === 0) {
+                    container.innerHTML = '<p class="text-warning small m-0">ไม่พบราคาบริการสำหรับตัวเลือกนี้ กรุณาติดต่อผู้จัดการ</p>';
+                    return;
+                }
+
+                container.innerHTML = currentServices.map((s, idx) => `
+                    <label class="service-checkbox-card d-flex justify-content-between align-items-center">
+                        <div>
+                            <input type="checkbox" class="form-check-input me-2 service-item"
+                                   data-service-id="${s.service_id}" data-price="${s.price}"
+                                   ${currentServices.length === 1 ? 'checked' : ''}
+                                   onchange="calculatePrice()">
+                            ${s.name}
+                        </div>
+                        <span class="text-orange fw-bold">${Number(s.price).toFixed(0)} บ.</span>
+                    </label>
+                `).join('');
+
+                calculatePrice();
+            } catch (err) {
+                container.innerHTML = `<p class="text-danger small m-0">เกิดข้อผิดพลาด: ${err.message}</p>`;
+            }
+        }
+
+        function calculatePrice() {
+            const checkboxes = document.querySelectorAll('.service-item:checked');
+            let total = 0;
+            checkboxes.forEach(cb => total += parseFloat(cb.dataset.price));
+            document.getElementById('totalPrice').innerText = total.toFixed(2);
+        }
+
+        function showAlert(message, type) {
+            document.getElementById('alert-box').innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>`;
+        }
+
+        async function submitForm(e) {
+            e.preventDefault();
+
+            const category = document.getElementById('vehicleCategory').value;
+            const size = document.getElementById('vehicleSize').value;
+            const selectedServices = Array.from(document.querySelectorAll('.service-item:checked'))
+                .map(cb => ({ service_id: parseInt(cb.dataset.serviceId) }));
+
+            if (!category || !size) {
+                showAlert('กรุณาเลือกประเภทและขนาดรถให้ครบถ้วน', 'warning');
+                return;
+            }
+            if (selectedServices.length === 0) {
+                showAlert('กรุณาเลือกบริการอย่างน้อย 1 รายการ', 'warning');
+                return;
+            }
+
+            const payload = {
+                license_plate: document.getElementById('licensePlate').value.trim(),
+                province: document.getElementById('province').value.trim(),
+                phone: document.getElementById('phone').value.trim(),
+                line_id: document.getElementById('lineId').value.trim(),
+                category: category,
+                size: size,
+                services: selectedServices,
+                payment_method: document.querySelector('input[name="paymentMethod"]:checked').value
+            };
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>กำลังบันทึก...';
+
+            try {
+                const res = await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.message || data.error || 'บันทึกไม่สำเร็จ');
+                }
+
+                showAlert(`บันทึกเข้าคิวสำเร็จ! หมายเลขคิวของคุณคือ <strong>${data.queue_no}</strong> ยอดรวม ${data.total_amount.toFixed(2)} บาท`, 'success');
+                document.getElementById('posForm').reset();
+                document.getElementById('serviceContainer').innerHTML = '<p class="text-secondary small m-0">กรุณาเลือกประเภทและขนาดรถก่อนเพื่อดูรายการบริการ</p>';
+                document.getElementById('vehicleSize').innerHTML = '<option value="">-- กรุณาเลือกประเภทรถก่อน --</option>';
+                document.getElementById('vehicleSize').disabled = true;
+                document.getElementById('totalPrice').innerText = '0.00';
+            } catch (err) {
+                showAlert('เกิดข้อผิดพลาด: ' + err.message, 'danger');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>บันทึกเข้าคิว';
+            }
+        }
+
+        document.getElementById('vehicleCategory').addEventListener('change', () => {
+            updateSizeOptions();
+            loadServices();
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
