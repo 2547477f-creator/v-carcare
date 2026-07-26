@@ -5,19 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>V CarCare - บัญชีการเงิน</title>
     
-    <!-- Bootstrap 5 CSS & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-    
-    <!-- Global Style Sheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-    <!-- External JS Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     
     <style>
-        /* สไตล์เฉพาะหน้ารายงานบัญชีการเงิน */
         .filter-btn { 
             border: 1px solid #3A3A3A; 
             background-color: #1A1A1A; 
@@ -35,7 +30,6 @@
 <body>
 
     <div class="wrapper">
-        <!-- Sidebar สำหรับ PC -->
         <div class="sidebar d-none d-md-block">
             <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
             <nav class="nav flex-column">
@@ -47,7 +41,6 @@
             </nav>
         </div>
 
-        <!-- แท็บสำหรับมือถือ -->
         <div class="fb-nav-tabs d-flex d-md-none">
             <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i><span>ออกจากระบบ</span></a>
             <a href="/" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
@@ -86,6 +79,25 @@
                 </div>
             </div>
 
+            <!-- เพิ่มรายจ่าย -->
+            <div class="card-custom p-3 mb-4">
+                <h6 class="text-secondary small fw-bold mb-2"><i class="bi bi-plus-circle text-orange me-1"></i> เพิ่มรายการรายจ่าย</h6>
+                <div class="row g-2">
+                    <div class="col-6 col-md-3">
+                        <input type="text" id="expense-category" class="form-control form-control-custom" placeholder="หมวดหมู่ เช่น ค่าแรง">
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <input type="text" id="expense-desc" class="form-control form-control-custom" placeholder="รายละเอียด">
+                    </div>
+                    <div class="col-6 col-md-2">
+                        <input type="number" id="expense-amount" class="form-control form-control-custom" placeholder="จำนวนเงิน">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <button class="btn bg-orange text-dark fw-bold w-100" onclick="addExpense()">บันทึกรายจ่าย</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- ส่วนแสดงผลยอดรวมและกราฟ -->
             <div class="row g-3 mb-4">
                 <div class="col-md-8">
@@ -98,8 +110,8 @@
                 <div class="col-md-4">
                     <div class="card-custom p-4 text-center h-100 d-flex flex-column justify-content-center border-start border-orange border-5">
                         <small class="text-secondary d-block fw-bold fs-6">สรุปกำไรสุทธิช่วงเวลาที่เลือก</small>
-                        <h1 class="text-success fw-bold display-4 my-2" id="summary-profit-val">330.00</h1>
-                        <span class="text-muted small">คำนวณจากการปิดคิวงานคาร์แคร์สด</span>
+                        <h1 class="text-success fw-bold display-4 my-2" id="summary-profit-val">0.00</h1>
+                        <span class="text-muted small">คำนวณจากรายรับ-รายจ่ายจริงในระบบ</span>
                     </div>
                 </div>
             </div>
@@ -118,7 +130,7 @@
                             </tr>
                         </thead>
                         <tbody id="transaction-list">
-                            <!-- รายการถูกดึงและสร้างแบบ Dynamic จาก JavaScript -->
+                            <tr><td colspan="4" class="text-secondary small">กำลังโหลดข้อมูล...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -128,48 +140,27 @@
     </div>
 
 <script>
-    const dataLogs = {
-        'day': {
-            title: "รายวัน (วันนี้)", values: [330, 0, 330], profit: "330.00",
-            list: [
-                { time: "วันนี้, 11:20 น.", desc: "ล้างรถเสร็จงานสำเร็จ (ทะเบียน กข 1234)", type: "income", amount: "+250.00" },
-                { time: "วันนี้, 09:45 น.", desc: "ล้างรถเสร็จงานสำเร็จ (ทะเบียน มม 8888)", type: "income", amount: "+80.00" }
-            ]
-        },
-        'month': {
-            title: "รายเดือน (เดือนนี้)", values: [9850, 2450, 7400], profit: "7,400.00",
-            list: [
-                { time: "25 มิ.ย. 2026", desc: "สรุปยอดรายรับสะสมรอบสัปดาห์ที่ 3", type: "income", amount: "+4,500.00" },
-                { time: "15 มิ.ย. 2026", desc: "จ่ายค่าแรงช่างประจำวัน (สมชาย ขยันล้าง)", type: "expense", amount: "-350.00" },
-                { time: "10 มิ.ย. 2026", desc: "รายรับปิดคิวงานเคลือบแก้วรถใหญ่ (SUV)", type: "income", amount: "+5,350.00" },
-                { time: "01 มิ.ย. 2026", desc: "จ่ายค่าแรงพนักงานพาร์ทไทม์หน้าร้าน", type: "expense", amount: "-2,100.00" }
-            ]
-        },
-        'year': {
-            title: "รายปี (ปีนี้)", values: [118400, 35000, 83400], profit: "83,400.00",
-            list: [
-                { time: "มกราคม - มิถุนายน 2026", desc: "รวมรายได้ค่าบริการคาร์แคร์ครึ่งปีแรก", type: "income", amount: "+118,400.00" },
-                { time: "มกราคม - มิถุนายน 2026", desc: "รวมรายจ่ายต้นทุนและค่าแรงช่างในร้าน", type: "expense", amount: "-35,000.00" }
-            ]
-        },
-        'custom': {
-            title: "กำหนดช่วงวันเอง", values: [2500, 700, 1800], profit: "1,800.00",
-            list: [
-                { time: "ช่วงวันที่ระบุ", desc: "รวมยอดรายรับรถเข้าบริการล้างอัดฉีดขัดสี", type: "income", amount: "+2,500.00" },
-                { time: "ช่วงวันที่ระบุ", desc: "หักรายจ่ายรวมในระบบสถานี", type: "expense", amount: "-700.00" }
-            ]
-        }
-    };
-
     let currentMode = 'day';
+    let currentTransactions = [];
     let chartMbInstance = null;
     let chartPcInstance = null;
 
-    function renderFinanceChart(dataArray) {
+    const PERIOD_TITLES = {
+        day: 'รายวัน (วันนี้)',
+        month: 'รายเดือน (เดือนนี้)',
+        year: 'รายปี (ปีนี้)',
+        custom: 'กำหนดช่วงวันเอง'
+    };
+
+    function formatDateTime(iso) {
+        const d = new Date(iso);
+        return d.toLocaleString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function renderFinanceChart(income, expense, profit) {
         const isMobile = window.innerWidth < 768;
         const targetCanvasId = isMobile ? 'chart-mb' : 'chart-pc';
         const canvasEl = document.getElementById(targetCanvasId);
-
         if (!canvasEl) return;
 
         if (chartMbInstance) { chartMbInstance.destroy(); chartMbInstance = null; }
@@ -180,7 +171,7 @@
             data: {
                 labels: ['รายรับทั้งหมด', 'รายจ่ายในร้าน', 'กำไรสุทธิ'],
                 datasets: [{ 
-                    data: dataArray, 
+                    data: [income, expense, profit], 
                     backgroundColor: ['#28a745', '#dc3545', '#FF6B00'], 
                     borderRadius: 6,
                     borderWidth: 0 
@@ -212,33 +203,59 @@
         }
     }
 
-    function updateFinanceUI(mode) {
-        currentMode = mode;
-        document.getElementById('summary-profit-val').innerText = dataLogs[mode].profit;
-        renderFinanceChart(dataLogs[mode].values);
+    async function loadFinance(period, start, end) {
+        let url = `/api/finance/summary?period=${period}`;
+        if (period === 'custom' && start && end) {
+            url += `&start=${start}&end=${end}`;
+        }
 
-        let tbody = document.getElementById('transaction-list');
-        tbody.innerHTML = "";
+        const tbody = document.getElementById('transaction-list');
+        tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">กำลังโหลดข้อมูล...</td></tr>';
 
-        dataLogs[mode].list.forEach(item => {
-            let typeBadge = item.type === 'income' 
-                ? `<span class="badge bg-success-subtle text-success border border-success">รายรับ</span>` 
-                : `<span class="badge bg-danger-subtle text-danger border border-danger">รายจ่าย</span>`;
-            
-            let amountClass = item.type === 'income' ? 'text-success fw-bold' : 'text-danger fw-bold';
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('โหลดข้อมูลบัญชีไม่สำเร็จ');
+            const data = await res.json();
 
-            let rowHtml = `
-                <tr class="border-secondary">
-                    <td class="text-secondary small">${item.time}</td>
-                    <td class="text-white fw-semibold">${item.desc}</td>
-                    <td>${typeBadge}</td>
-                    <td class="text-end ${amountClass}">${item.amount} บ.</td>
-                </tr>`;
-            tbody.insertAdjacentHTML('beforeend', rowHtml);
-        });
+            const income = Number(data.summary.total_income || 0);
+            const expense = Number(data.summary.total_expense || 0);
+            const profit = Number(data.summary.net_profit || 0);
+
+            document.getElementById('summary-profit-val').innerText = profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            renderFinanceChart(income, expense, profit);
+
+            currentTransactions = data.transactions;
+            tbody.innerHTML = '';
+
+            if (currentTransactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">ไม่มีรายการในช่วงเวลานี้</td></tr>';
+                return;
+            }
+
+            currentTransactions.forEach(item => {
+                const isIncome = item.transaction_type === 'income';
+                const typeBadge = isIncome
+                    ? `<span class="badge bg-success-subtle text-success border border-success">รายรับ</span>`
+                    : `<span class="badge bg-danger-subtle text-danger border border-danger">รายจ่าย</span>`;
+                const amountClass = isIncome ? 'text-success fw-bold' : 'text-danger fw-bold';
+                const sign = isIncome ? '+' : '-';
+
+                const rowHtml = `
+                    <tr class="border-secondary">
+                        <td class="text-secondary small">${formatDateTime(item.occurred_at)}</td>
+                        <td class="text-white fw-semibold">${item.description}</td>
+                        <td>${typeBadge}</td>
+                        <td class="text-end ${amountClass}">${sign}${Number(item.amount).toFixed(2)} บ.</td>
+                    </tr>`;
+                tbody.insertAdjacentHTML('beforeend', rowHtml);
+            });
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`;
+        }
     }
 
     function changePeriod(mode, btnElement) {
+        currentMode = mode;
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         btnElement.classList.add('active');
 
@@ -246,8 +263,8 @@
             document.getElementById('custom-date-box').style.display = 'flex';
         } else {
             document.getElementById('custom-date-box').style.display = 'none';
-            document.getElementById('chart-title-label').innerText = dataLogs[mode].title;
-            updateFinanceUI(mode);
+            document.getElementById('chart-title-label').innerText = PERIOD_TITLES[mode];
+            loadFinance(mode);
         }
     }
 
@@ -256,19 +273,49 @@
         let end = document.getElementById('end-date').value;
         if (start && end) {
             document.getElementById('chart-title-label').innerText = `ช่วงวันที่ ${start} ถึง ${end}`;
-            updateFinanceUI('custom');
+            loadFinance('custom', start, end);
+        }
+    }
+
+    async function addExpense() {
+        const category = document.getElementById('expense-category').value.trim() || 'general';
+        const description = document.getElementById('expense-desc').value.trim();
+        const amount = document.getElementById('expense-amount').value;
+
+        if (!description || !amount || isNaN(amount)) {
+            alert('กรุณากรอกรายละเอียดและจำนวนเงินให้ถูกต้อง');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/finance/transactions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transaction_type: 'expense', category, description, amount: parseFloat(amount) })
+            });
+            if (!res.ok) throw new Error('บันทึกรายจ่ายไม่สำเร็จ');
+
+            document.getElementById('expense-category').value = '';
+            document.getElementById('expense-desc').value = '';
+            document.getElementById('expense-amount').value = '';
+
+            loadFinance(currentMode,
+                document.getElementById('start-date').value,
+                document.getElementById('end-date').value);
+        } catch (err) {
+            alert(err.message);
         }
     }
 
     function exportExcel() {
         let rows = [["วัน-เวลา", "รายละเอียดรายการ", "ประเภท", "จำนวนเงิน (บาท)"]];
         
-        dataLogs[currentMode].list.forEach(item => {
+        currentTransactions.forEach(item => {
             rows.push([
-                item.time, 
-                item.desc, 
-                item.type === 'income' ? 'รายรับ' : 'รายจ่าย', 
-                parseFloat(item.amount.replace(/[^0-9.-]/g, ''))
+                formatDateTime(item.occurred_at),
+                item.description,
+                item.transaction_type === 'income' ? 'รายรับ' : 'รายจ่าย',
+                Number(item.amount)
             ]);
         });
 
@@ -279,11 +326,11 @@
     }
 
     window.addEventListener('load', () => {
-        updateFinanceUI('day');
+        loadFinance('day');
     });
 
     window.addEventListener('resize', () => {
-        renderFinanceChart(dataLogs[currentMode].values);
+        // re-render only; loadFinance recalculates from live data on demand
     });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

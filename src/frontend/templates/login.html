@@ -84,7 +84,6 @@
             color: #FFF;
         }
 
-        /* ปุ่มแป้นตัวเลขสำหรับ PIN พนักงาน */
         .pin-keypad {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -118,7 +117,7 @@
             <small class="text-secondary">ระบบจัดการสถานีคาร์แคร์</small>
         </div>
 
-        <!-- แท็บสลับประเภทผู้ใช้ (Manager / Staff) -->
+        <!-- แท็บสลับประเภทผู้ใช้ -->
         <div class="d-flex gap-2 mb-4">
             <button type="button" class="role-tab-btn active" id="tab-manager" onclick="switchTab('manager')">
                 <i class="bi bi-person-badge me-1"></i> ผู้จัดการ
@@ -128,7 +127,7 @@
             </button>
         </div>
 
-        <!-- ข้อความแจ้งเตือนความผิดพลาดจาก Backend (Flask Flash Message) -->
+        <!-- ข้อความแจ้งเตือนจาก Backend (Flask Flash Message) -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -140,8 +139,8 @@
             {% endif %}
         {% endwith %}
 
-        <!-- ฟอร์ม 1: ล็อคอินสำหรับผู้จัดการ (Username + Password) -->
-        <form id="form-manager" action="/login" method="POST">
+        <!-- ฟอร์ม 1: ผู้จัดการ -->
+        <form id="form-manager" action="{{ url_for('login') }}" method="POST">
             <input type="hidden" name="role_type" value="manager">
             
             <div class="mb-3">
@@ -163,20 +162,24 @@
             <button type="submit" class="btn btn-orange w-100 shadow">
                 เข้าสู่ระบบผู้จัดการ <i class="bi bi-box-arrow-in-right ms-1"></i>
             </button>
+            <p class="text-center text-secondary small mt-3 mb-0">
+                ครั้งแรกที่ใช้งาน? เปิด <code>/setup-admin</code> เพื่อสร้างบัญชี admin (admin / admin123)
+            </p>
         </form>
 
-        <!-- ฟอร์ม 2: ล็อคอินสำหรับพนักงาน (เลือกชื่อ + PIN Code) -->
-        <form id="form-staff" action="/login" method="POST" style="display: none;">
+        <!-- ฟอร์ม 2: พนักงาน (ดึงรายชื่อจริงจากฐานข้อมูล) -->
+        <form id="form-staff" action="{{ url_for('login') }}" method="POST" style="display: none;">
             <input type="hidden" name="role_type" value="staff">
 
             <div class="mb-3">
                 <label class="form-label text-secondary small fw-bold">เลือกชื่อพนักงาน</label>
                 <select name="staff_id" class="form-select form-control-custom" required>
                     <option value="" selected disabled>-- เลือกชื่อช่าง / พนักงาน --</option>
-                    <!-- ตัวอย่างข้อมูล (ภายหลังดึงจาก MongoDB ได้) -->
-                    <option value="S01">สมชาย (ช่างล้าง)</option>
-                    <option value="S02">สมศักดิ์ (ช่างเคลือบแก้ว)</option>
-                    <option value="S03">วิชัย (พนักงานรับรถ)</option>
+                    {% for s in staff_list %}
+                    <option value="{{ s.id }}">{{ s.full_name }} ({{ s.position }})</option>
+                    {% else %}
+                    <option value="" disabled>ยังไม่มีพนักงานในระบบ</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -185,7 +188,6 @@
                 <input type="password" id="staff-pin" name="pin_code" class="form-control form-control-custom text-center fs-4 letter-spacing-2" placeholder="••••" maxlength="4" readonly required>
             </div>
 
-            <!-- ปุ่ม Keypad ตัวเลข 0-9 กดง่ายบนมือถือ/แท็บเล็ต -->
             <div class="pin-keypad">
                 <button type="button" class="pin-btn" onclick="pressPin('1')">1</button>
                 <button type="button" class="pin-btn" onclick="pressPin('2')">2</button>
@@ -204,11 +206,13 @@
             <button type="submit" class="btn btn-orange w-100 mt-3 shadow">
                 เข้าใช้งานหน้าร้าน <i class="bi bi-box-arrow-in-right ms-1"></i>
             </button>
+            <p class="text-center text-secondary small mt-3 mb-0">
+                พนักงานใหม่ยังไม่มีรหัส PIN? เปิด <code>/setup-staff-pins</code> เพื่อตั้งรหัสเริ่มต้น (1234)
+            </p>
         </form>
 
     </div>
 
-    <!-- JavaScript สลับแท็บและกด Keypad -->
     <script>
         function switchTab(role) {
             const tabManager = document.getElementById('tab-manager');
@@ -229,7 +233,6 @@
             }
         }
 
-        // ฟังก์ชันจัดการแป้นพิมพ์ตัวเลข PIN
         function pressPin(num) {
             const pinInput = document.getElementById('staff-pin');
             if (pinInput.value.length < 4) {
