@@ -80,13 +80,22 @@
     <!-- ==================== Mobile View ==================== -->
     <div class="d-block d-md-none p-3">
         <div class="fb-nav-tabs mb-3">
+            {% if session_role == 'manager' %}
+            <a href="/staff-advances" class="fb-tab-item"><i class="bi bi-cash-stack"></i>Advances</a>
+            {% endif %}
             <a href="/" class="fb-tab-item active"><i class="bi bi-speedometer2 me-1"></i>ภาพรวม</a>
+            <a href="/pos" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i>รับรถ</a>
+            {% if session_role == 'manager' %}
+            <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i>พนักงาน</a>
+            <a href="/finance" class="fb-tab-item"><i class="bi bi-wallet2"></i>บัญชี</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i>ออก</a>
         </div>
 
         <div class="row g-2 mb-3">
             <div class="col-6">
                 <div class="card-custom p-3 border-start border-orange border-4">
-                    <small class="text-secondary d-block">ในคิวทั้งหมด</small>
+                    <small class="text-secondary d-block">ในคิวปัจจุบัน</small>
                     <h3 class="fw-bold m-0 text-white" id="total-queue-mb">0 คัน</h3>
                 </div>
             </div>
@@ -103,13 +112,17 @@
                 <h6 class="text-secondary fw-bold mb-3"><i class="bi bi-clock me-2"></i>รถที่กำลังรอล้าง</h6>
                 <div id="col-pending-mb"></div>
             </div>
-            <div class="kanban-col">
+            <div class="kanban-col border-warning">
                 <h6 class="text-warning fw-bold mb-3"><i class="bi bi-arrow-repeat me-2"></i>รถที่กำลังล้าง</h6>
                 <div id="col-progress-mb"></div>
             </div>
-            <div class="kanban-col">
+            <div class="kanban-col border-success">
                 <h6 class="text-success fw-bold mb-3"><i class="bi bi-check-circle me-2"></i>รถที่ล้างเสร็จแล้ว</h6>
                 <div id="col-done-mb"></div>
+            </div>
+            <div class="kanban-col border-info">
+                <h6 class="text-info fw-bold mb-3"><i class="bi bi-check-all me-2"></i>ลูกค้ารับรถแล้ว</h6>
+                <div id="col-picked-mb"></div>
             </div>
         </div>
     </div>
@@ -126,9 +139,13 @@
                     <a class="nav-link" href="/pos"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
                     {% if session_role == 'manager' %}
                     <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
+                    {% if session_role == 'manager' %}
+                    <a class="nav-link" href="/staff-advances"><i class="bi bi-cash-stack me-2"></i> จัดการการเบิกพนักงาน</a>
+                    {% endif %}
                     <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
                     {% endif %}
-                    <a class="nav-link logout-link text-danger mt-2" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
+                    <a class="nav-link logout-link text-danger mt-2" href="{{ url_for('logout') }}"><i
+                            class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
                 </nav>
             </div>
 
@@ -153,8 +170,10 @@
                     </div>
                 </div>
 
+                <!-- ปรับเป็น 4 คอลัมน์ (col-md-3) -->
                 <div class="row g-3">
-                    <div class="col-md-4">
+                    <!-- 1. รอล้าง -->
+                    <div class="col-md-3">
                         <div class="kanban-col">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h5 class="text-secondary fw-bold m-0"><i class="bi bi-clock me-2"></i>รอล้าง</h5>
@@ -164,23 +183,38 @@
                         </div>
                     </div>
 
-                    <div class="col-md-4">
+                    <!-- 2. กำลังล้าง -->
+                    <div class="col-md-3">
                         <div class="kanban-col border-warning">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="text-warning fw-bold m-0"><i class="bi bi-arrow-repeat me-2"></i>กำลังล้าง</h5>
+                                <h5 class="text-warning fw-bold m-0"><i class="bi bi-arrow-repeat me-2"></i>กำลังล้าง
+                                </h5>
                                 <span class="badge bg-warning text-dark rounded-pill" id="count-progress">0</span>
                             </div>
                             <div id="col-progress-pc"></div>
                         </div>
                     </div>
 
-                    <div class="col-md-4">
+                    <!-- 3. ล้างเสร็จแล้ว -->
+                    <div class="col-md-3">
                         <div class="kanban-col border-success">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="text-success fw-bold m-0"><i class="bi bi-check-circle me-2"></i>ล้างเสร็จแล้ว (วันนี้)</h5>
+                                <h5 class="text-success fw-bold m-0"><i
+                                        class="bi bi-check-circle me-2"></i>ล้างเสร็จแล้ว</h5>
                                 <span class="badge bg-success rounded-pill" id="count-done">0</span>
                             </div>
                             <div id="col-done-pc"></div>
+                        </div>
+                    </div>
+
+                    <!-- 4. ลูกค้ารับรถแล้ว -->
+                    <div class="col-md-3">
+                        <div class="kanban-col border-info">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="text-info fw-bold m-0"><i class="bi bi-check-all me-2"></i>รับรถแล้ว</h5>
+                                <span class="badge bg-info text-dark rounded-pill" id="count-picked">0</span>
+                            </div>
+                            <div id="col-picked-pc"></div>
                         </div>
                     </div>
                 </div>
@@ -196,9 +230,8 @@
             drying: 'กำลังเช็ดแห้ง/เคลือบ',
             ready: 'พร้อมรับรถ',
             completed: 'เสร็จสิ้น',
+            picked_up: 'รับรถแล้ว'
         };
-
-        let completedTodayCache = [];
 
         function vehicleLabel(order) {
             const plate = order.license_plate + (order.province ? ' ' + order.province : '');
@@ -212,12 +245,15 @@
             wrap.id = `order-${order.order_id}-${target}`;
 
             let actionHtml = '';
+            // ปุ่มอัปเดตสถานะตามขั้นตอน
             if (order.status === 'pending') {
                 actionHtml = `<button class="btn btn-sm btn-outline-warning px-3" onclick="advanceOrder(${order.order_id}, 'in_progress')">เริ่มงาน</button>`;
             } else if (order.status === 'in_progress' || order.status === 'drying' || order.status === 'ready') {
-                actionHtml = `<button class="btn btn-sm btn-success px-3" onclick="advanceOrder(${order.order_id}, 'completed')">เสร็จงาน</button>`;
+                actionHtml = `<button class="btn btn-sm btn-success px-3" onclick="advanceOrder(${order.order_id}, 'completed')">ล้างเสร็จ</button>`;
+            } else if (order.status === 'completed') {
+                actionHtml = `<button class="btn btn-sm btn-info fw-bold px-3" onclick="advanceOrder(${order.order_id}, 'picked_up')">ลูกค้ารับรถ</button>`;
             } else {
-                actionHtml = `<span class="text-success small fw-bold"><i class="bi bi-check-all me-1"></i>เรียบร้อย</span>`;
+                actionHtml = `<span class="text-info small fw-bold"><i class="bi bi-check-all me-1"></i>ปิดงาน</span>`;
             }
 
             wrap.innerHTML = `
@@ -234,7 +270,9 @@
         }
 
         async function advanceOrder(orderId, newStatus) {
-            if (newStatus === 'completed' && !confirm('ยืนยันคิวเสร็จงาน คืนรถให้ลูกค้าเรียบร้อย?')) return;
+            if (newStatus === 'completed' && !confirm('ยืนยันว่ารถคันนี้ล้างเสร็จแล้ว?')) return;
+            if (newStatus === 'picked_up' && !confirm('ลูกค้ารับรถและชำระเงินเรียบร้อยแล้วใช่หรือไม่?')) return;
+
             try {
                 const res = await fetch(`/api/orders/${orderId}/status`, {
                     method: 'PUT',
@@ -242,7 +280,7 @@
                     body: JSON.stringify({ status: newStatus })
                 });
                 if (!res.ok) throw new Error('update failed');
-                await loadOrders();
+                await loadOrders(); // โหลดข้อมูลใหม่หลังจากอัปเดต
             } catch (err) {
                 alert('อัปเดตสถานะไม่สำเร็จ: ' + err.message);
             }
@@ -254,16 +292,29 @@
                 if (!res.ok) throw new Error('โหลดข้อมูลคิวไม่สำเร็จ');
                 const orders = await res.json();
 
+                // คัดกรองข้อมูลเข้า 4 ช่อง
                 const pending = orders.filter(o => o.status === 'pending');
                 const progress = orders.filter(o => ['in_progress', 'drying', 'ready'].includes(o.status));
+                const completed = orders.filter(o => o.status === 'completed');
+                const picked_up = orders.filter(o => o.status === 'picked_up');
 
-                // Desktop columns
+                // อ้างอิง Container ของ PC
                 const colPendingPc = document.getElementById('col-pending-pc');
                 const colProgressPc = document.getElementById('col-progress-pc');
+                const colDonePc = document.getElementById('col-done-pc');
+                const colPickedPc = document.getElementById('col-picked-pc');
+
+                // อ้างอิง Container ของ Mobile
                 const colPendingMb = document.getElementById('col-pending-mb');
                 const colProgressMb = document.getElementById('col-progress-mb');
-                [colPendingPc, colProgressPc, colPendingMb, colProgressMb].forEach(el => el.innerHTML = '');
+                const colDoneMb = document.getElementById('col-done-mb');
+                const colPickedMb = document.getElementById('col-picked-mb');
 
+                // ล้างข้อมูลเก่าออกก่อน
+                [colPendingPc, colProgressPc, colDonePc, colPickedPc,
+                    colPendingMb, colProgressMb, colDoneMb, colPickedMb].forEach(el => el.innerHTML = '');
+
+                // นำการ์ดไปใส่ตามช่อง
                 pending.forEach(o => {
                     colPendingPc.appendChild(buildCard(o, 'pc'));
                     colPendingMb.appendChild(buildCard(o, 'mb'));
@@ -272,15 +323,26 @@
                     colProgressPc.appendChild(buildCard(o, 'pc'));
                     colProgressMb.appendChild(buildCard(o, 'mb'));
                 });
+                completed.forEach(o => {
+                    colDonePc.appendChild(buildCard(o, 'pc'));
+                    colDoneMb.appendChild(buildCard(o, 'mb'));
+                });
+                picked_up.forEach(o => {
+                    colPickedPc.appendChild(buildCard(o, 'pc'));
+                    colPickedMb.appendChild(buildCard(o, 'mb'));
+                });
 
+                // อัปเดตตัวเลขบนหัวช่อง
                 document.getElementById('count-pending').innerText = pending.length;
                 document.getElementById('count-progress').innerText = progress.length;
-                document.getElementById('total-queue-pc').innerText = (pending.length + progress.length) + ' คัน';
-                document.getElementById('total-queue-mb').innerText = (pending.length + progress.length) + ' คัน';
+                document.getElementById('count-done').innerText = completed.length;
+                document.getElementById('count-picked').innerText = picked_up.length;
 
-                if (pending.length === 0 && progress.length === 0) {
-                    // no-op, keep empty
-                }
+                // อัปเดตรถที่ยังอยู่ในความดูแลของร้าน (ยังไม่ได้รับรถกลับ)
+                const activeQueue = pending.length + progress.length + completed.length;
+                document.getElementById('total-queue-pc').innerText = activeQueue + ' คัน';
+                document.getElementById('total-queue-mb').innerText = activeQueue + ' คัน';
+
             } catch (err) {
                 console.error(err);
             }
@@ -292,12 +354,12 @@
                 const res = await fetch('/api/finance/summary?period=day');
                 if (!res.ok) return;
                 const data = await res.json();
+
+                // อัปเดตรายได้
                 const income = Number(data.summary.total_income || 0);
                 document.getElementById('today-income-pc').innerText = income.toFixed(2) + ' บาท';
                 document.getElementById('today-income-mb').innerText = income.toFixed(0) + ' บ.';
 
-                const doneCount = data.transactions.filter(t => t.transaction_type === 'income').length;
-                document.getElementById('count-done').innerText = doneCount;
             } catch (err) {
                 console.error(err);
             }

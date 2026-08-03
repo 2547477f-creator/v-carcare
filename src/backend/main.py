@@ -1,3 +1,4 @@
+
 import os
 from dotenv import load_dotenv 
 load_dotenv()                   
@@ -189,6 +190,12 @@ def track():
     return render_template('track.html')
 
 
+@app.route('/face-checkin')
+def face_checkin():
+    """หน้าสำหรับสแกนหน้าเช็คอิน"""
+    return render_template('face_checkin.html')
+
+
 @app.route('/staff')
 @manager_required
 def staff_page():
@@ -199,6 +206,12 @@ def staff_page():
 @manager_required
 def finance():
     return render_template('finance.html', session_role=session.get("role"), session_name=session.get("display_name"))
+
+
+@app.route('/staff-advances')
+@manager_required
+def staff_advances_page():
+    return render_template('staff_advances.html', session_role=session.get("role"), session_name=session.get("display_name"))
 
 
 # ===================================================================
@@ -290,7 +303,7 @@ def get_orders():
         if status_filter:
             cur.execute(base_query + " WHERE o.status = %s ORDER BY o.created_at ASC;", (status_filter,))
         else:
-            cur.execute(base_query + " WHERE o.status != 'completed' AND o.status != 'cancelled' ORDER BY o.created_at ASC;")
+            cur.execute(base_query + " WHERE o.status != 'cancelled' ORDER BY o.created_at ASC;")
         orders = cur.fetchall()
         return jsonify(orders), 200
     finally:
@@ -302,7 +315,7 @@ def get_orders():
 @login_required
 def update_order_status(order_id):
     new_status = (request.json or {}).get('status')
-    valid_statuses = ('pending', 'in_progress', 'drying', 'ready', 'completed', 'cancelled')
+    valid_statuses = ('pending', 'in_progress', 'drying', 'ready', 'completed', 'picked_up', 'cancelled')
     if new_status not in valid_statuses:
         return jsonify({"status": "error", "message": "สถานะไม่ถูกต้อง"}), 400
 
@@ -667,6 +680,75 @@ def staff_attendance():
 # ===================================================================
 # 🔌 9. API: บัญชีการเงิน (finance.html)
 # ===================================================================
+# ===================================================================
+# API: Staff advances (staff_advances.html)
+# Stored as finance expenses so they are included in the finance report.
+# ===================================================================
+@app.route('/api/staff-advances', methods=['GET'])
+@manager_required
+def get_staff_advances():
+    staff_id = request.args.get('staff_id', type=int)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        query = """
+            SELECT ft.id, ft.staff_id, ft.amount, ft.description AS reason, ft.occurred_at AS created_at,
+                   s.employee_code, s.full_name
+            FROM finance_transactions ft
+            JOIN staff s ON s.id = ft.staff_id
+            WHERE ft.transaction_type = 'expense' AND ft.category = 'staff_advance'
+        """
+        params = []
+        if staff_id is not None:
+            query += " AND ft.staff_id = %s"
+            params.append(staff_id)
+        query += " ORDER BY ft.occurred_at DESC, ft.id DESC;"
+        cur.execute(query, params)
+        return jsonify(cur.fetchall()), 200
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/staff-advances', methods=['POST'])
+@manager_required
+def add_staff_advance():
+    data = request.json or {}
+    staff_id = data.get('staff_id')
+    reason = (data.get('reason') or '').strip()
+    try:
+        amount = float(data.get('amount'))
+    except (TypeError, ValueError):
+        amount = 0
+
+    if not isinstance(staff_id, (int, str)) or not str(staff_id).isdigit() or amount <= 0:
+        return jsonify({"status": "error", "message": "กรุณาระบุพนักงานและจำนวนเงินที่มากกว่า 0"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, full_name FROM staff WHERE id = %s;", (int(staff_id),))
+        staff_member = cur.fetchone()
+        if not staff_member:
+            return jsonify({"status": "error", "message": "ไม่พบพนักงาน"}), 404
+        description = reason or f"เบิกเงินพนักงาน: {staff_member['full_name']}"
+        cur.execute(
+            """INSERT INTO finance_transactions
+               (staff_id, transaction_type, category, description, amount)
+               VALUES (%s, 'expense', 'staff_advance', %s, %s) RETURNING *;""",
+            (staff_member['id'], description, amount)
+        )
+        advance = cur.fetchone()
+        conn.commit()
+        return jsonify({"status": "success", "advance": advance}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 def _period_to_range(period, start_str, end_str):
     today = date.today()
     if period == 'day':

@@ -45,12 +45,14 @@
                 <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
                 <a class="nav-link" href="/pos"><i class="bi bi-plus-circle-fill me-2"></i> รับรถหน้าร้าน (POS)</a>
                 <a class="nav-link active" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
+                <a class="nav-link" href="/staff-advances"><i class="bi bi-cash-stack me-2"></i> จัดการการเบิกพนักงาน</a>
                 <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
             </nav>
         </div>
 
         <!-- แท็บสำหรับมือถือ -->
         <div class="fb-nav-tabs d-flex d-md-none">
+            <a href="/staff-advances" class="fb-tab-item"><i class="bi bi-cash-stack"></i><span>Advances</span></a>
             <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i><span>ออกจากระบบ</span></a>
             <a href="/" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
             <a href="/pos" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>

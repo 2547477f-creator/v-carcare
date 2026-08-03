@@ -261,7 +261,7 @@ CREATE TABLE public.service_orders (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT service_orders_payment_method_check CHECK (((payment_method)::text = ANY ((ARRAY['cash'::character varying, 'transfer'::character varying, 'card'::character varying, 'other'::character varying])::text[]))),
-    CONSTRAINT service_orders_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'in_progress'::character varying, 'drying'::character varying, 'ready'::character varying, 'completed'::character varying, 'cancelled'::character varying])::text[])))
+    CONSTRAINT service_orders_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'in_progress'::character varying, 'drying'::character varying, 'ready'::character varying, 'completed'::character varying, 'picked_up'::character varying, 'cancelled'::character varying])::text[])))
 );
 
 

@@ -25,7 +25,7 @@ body {
 .form-select-custom { 
     background-color: #2A2A2A; 
     border: 1px solid #3A3A3A; 
-    color: #FFFFFF; 
+    color: #FFFFFF !important; /* บังคับให้ตัวหนังสือที่พิมพ์เป็นสีขาวชัดเจน */
     padding: 12px; 
     border-radius: 8px;
 }
@@ -34,9 +34,22 @@ body {
 .form-select-custom:focus {
     background-color: #2A2A2A;
     border-color: #FF6B00;
-    color: #FFFFFF;
+    color: #FFFFFF !important;
     box-shadow: 0 0 0 0.25rem rgba(255, 107, 0, 0.25);
 }
+
+/* ปรับสีข้อความ Placeholder (ข้อความตัวอย่างในช่องกรอก) ให้สว่างขึ้น อ่านง่าย */
+.form-control-custom::placeholder,
+.form-select-custom::placeholder,
+input::placeholder,
+textarea::placeholder {
+    color: #A0A0A0 !important; /* ปรับให้เป็นสีเทาสว่าง */
+    opacity: 1;
+}
+
+/* รองรับเว็บเบราว์เซอร์อื่นๆ สำหรับ Placeholder */
+input:-ms-input-placeholder, textarea:-ms-input-placeholder { color: #A0A0A0 !important; }
+input::-ms-input-placeholder, textarea::-ms-input-placeholder { color: #A0A0A0 !important; }
 
 /* Table Dark Theme */
 .table-dark-custom {
@@ -163,4 +176,17 @@ body {
         padding: 30px; 
         background-color: #121212; 
     }
+}
+
+/* Staff advances page */
+.staff-advances-page { color: #fff; }
+.staff-advances-page .app-shell { min-height: 100vh; display: flex; }
+.staff-advances-page .main-content { min-width: 0; }
+.staff-advances-page .card-custom { background-color: #1E1E1E; border-color: #2D2D2D; }
+
+@media print {
+    .staff-advances-page { background-color: #fff !important; color: #000 !important; }
+    .staff-advances-page .no-print { display: none !important; }
+    .staff-advances-page .card-custom { background-color: #fff !important; border: none !important; color: #000 !important; }
+    .staff-advances-page table { color: #000 !important; }
 }

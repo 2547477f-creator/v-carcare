@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สแกนหน้าเช็คอิน - V CarCare</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { background: #121212; color: #fff; min-height: 100vh; }
+        .scan-card { max-width: 560px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 16px; }
+        .camera-frame { aspect-ratio: 4 / 3; background: #090909; border: 2px solid #ff6b00; border-radius: 14px; overflow: hidden; position: relative; }
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .face-guide { position: absolute; inset: 12% 25%; border: 3px dashed rgba(255, 107, 0, .9); border-radius: 50%; pointer-events: none; }
+    </style>
+</head>
+<body class="d-flex align-items-center justify-content-center p-3">
+    <main class="scan-card w-100 p-4 text-center shadow-lg">
+        <h2 class="h4 fw-bold text-warning mb-2"><i class="bi bi-camera-fill me-2"></i>สแกนหน้าเช็คอิน</h2>
+        <p class="text-secondary small mb-4">จัดใบหน้าให้อยู่ในกรอบ แล้วกดบันทึกการเช็คอิน</p>
+
+        <div class="camera-frame mb-3">
+            <video id="camera-preview" autoplay playsinline muted></video>
+            <div class="face-guide"></div>
+        </div>
+        <p id="camera-status" class="small text-secondary mb-3">กด “เปิดกล้อง” เพื่อเริ่มสแกน</p>
+
+        <div class="d-grid gap-2">
+            <button id="start-camera" class="btn btn-warning fw-bold" type="button"><i class="bi bi-camera-video-fill me-2"></i>เปิดกล้อง</button>
+            <button id="stop-camera" class="btn btn-outline-secondary" type="button" disabled><i class="bi bi-camera-video-off me-2"></i>ปิดกล้อง</button>
+            <a href="{{ url_for('login') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-2"></i>กลับหน้าล็อกอิน</a>
+        </div>
+    </main>
+
+    <script>
+        const video = document.getElementById('camera-preview');
+        const status = document.getElementById('camera-status');
+        const startButton = document.getElementById('start-camera');
+        const stopButton = document.getElementById('stop-camera');
+        let stream = null;
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                video.srcObject = stream;
+                status.textContent = 'เปิดกล้องแล้ว — โปรดจัดใบหน้าให้อยู่ในกรอบ';
+                status.className = 'small text-success mb-3';
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            } catch (error) {
+                status.textContent = 'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์';
+                status.className = 'small text-danger mb-3';
+            }
+        }
+
+        function stopCamera() {
+            if (stream) stream.getTracks().forEach(track => track.stop());
+            stream = null;
+            video.srcObject = null;
+            status.textContent = 'ปิดกล้องแล้ว';
+            status.className = 'small text-secondary mb-3';
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        }
+
+        startButton.addEventListener('click', startCamera);
+        stopButton.addEventListener('click', stopCamera);
+        window.addEventListener('beforeunload', stopCamera);
+    </script>
+</body>
+</html>
