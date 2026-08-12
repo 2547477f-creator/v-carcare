@@ -1,10 +1,16 @@
-
 import os
-from dotenv import load_dotenv 
-load_dotenv()                   
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+import os
+import json
+import cv2
+import numpy as np
+from deepface import DeepFace
+import base64
+import uuid
+from dotenv import load_dotenv
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
+load_dotenv(os.path.join(ROOT_DIR, '.env'))
 
-from datetime import datetime, date, timedelta
-from functools import wraps
 from datetime import datetime, date, timedelta
 from functools import wraps
 
@@ -30,9 +36,10 @@ CORS(app, supports_credentials=True)
 # ===================================================================
 DB_CONFIG = {
     "host": os.environ.get("DB_HOST", "localhost"),
+    # Support both the documented DB_PASSWORD and the existing DB_PASS name.
     "database": os.environ.get("DB_NAME", "v_carcare"),
     "user": os.environ.get("DB_USER", "postgres"),
-    "password": os.environ.get("DB_PASSWORD", "postgres"),
+    "password": os.environ.get("DB_PASSWORD") or os.environ.get("DB_PASS", "postgres"),
     "port": os.environ.get("DB_PORT", "5432"),
 }
 
@@ -40,6 +47,134 @@ DB_CONFIG = {
 def get_db_connection():
     """เปิดการเชื่อมต่อกับฐานข้อมูล"""
     return psycopg2.connect(**DB_CONFIG, cursor_factory=RealDictCursor)
+
+
+def create_face_embedding(image_path):
+    """
+    สร้าง Face Embedding จากรูปภาพ
+
+    ลองไล่ detector backend หลายตัวตามลำดับความแม่นยำ เพราะ 'opencv'
+    (Haar Cascade) ตัวเดียวค่อนข้างไวต่อแสง/มุมหน้า/ระยะ ทำให้รูปที่
+    หน้าคนอยู่จริงๆ ถูกปฏิเสธว่า "ไม่พบใบหน้า" บ่อยเกินไป
+    """
+    detector_backends = ["retinaface", "mtcnn", "opencv"]
+
+    for backend in detector_backends:
+        try:
+            embedding = DeepFace.represent(
+                img_path=image_path,
+                model_name="Facenet512",
+                detector_backend=backend,
+                enforce_detection=True
+            )
+            return embedding[0]["embedding"]
+        except Exception as e:
+            print(f"[create_face_embedding] backend '{backend}' failed: {e}")
+            continue
+
+    # ลองทุก backend แล้วยังไม่เจอใบหน้าจริงๆ
+    return None
+
+
+FACE_MATCH_DISTANCE_THRESHOLD = 0.30  # ยิ่งน้อยยิ่งเข้มงวด (cosine distance ของ Facenet512)
+
+
+def _load_embedding(raw):
+    if raw is None:
+        return None
+
+    # PostgreSQL BYTEA
+    if isinstance(raw, (bytes, bytearray, memoryview)):
+        raw = bytes(raw).decode("utf-8")
+
+    if isinstance(raw, str):
+        return json.loads(raw)
+
+    return raw
+
+
+def _cosine_distance(a, b):
+    a = np.array(a, dtype=float)
+    b = np.array(b, dtype=float)
+    denom = (np.linalg.norm(a) * np.linalg.norm(b))
+    if denom == 0:
+        return 1.0
+    return 1 - (np.dot(a, b) / denom)
+
+
+def find_matching_app_user(captured_embedding):
+    """
+    เทียบ embedding ที่ถ่ายมากับทุกโปรไฟล์ใบหน้าที่บันทึกไว้
+    (ทั้งพนักงานและผู้จัดการ เพราะทุกคนมีแถวใน app_users)
+    คืนค่า app_user_id ที่ใกล้เคียงที่สุด ถ้าไม่มีใครผ่าน threshold คืน None
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT app_user_id, embedding FROM face_profiles WHERE app_user_id IS NOT NULL;")
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    best_user_id = None
+    best_distance = None
+
+    for row in rows:
+        stored_embedding = _load_embedding(row['embedding'])
+        print(type(stored_embedding))
+        print(stored_embedding)
+        distance = _cosine_distance(captured_embedding, stored_embedding)
+        if best_distance is None or distance < best_distance:
+            best_distance = distance
+            best_user_id = row['app_user_id']
+
+    if best_distance is not None and best_distance <= FACE_MATCH_DISTANCE_THRESHOLD:
+        return best_user_id
+    return None
+
+
+def _iso_week_bounds(iso_year, iso_week):
+    """คืนค่า (วันจันทร์, วันอาทิตย์) ของสัปดาห์ ISO ที่กำหนด"""
+    monday = date.fromisocalendar(iso_year, iso_week, 1)
+    sunday = date.fromisocalendar(iso_year, iso_week, 7)
+    return monday, sunday
+
+
+def _period_to_range(period, start_str, end_str):
+    """
+    แปลงค่า period ('day' | 'week' | 'month' | 'custom') พร้อม start/end
+    (รูปแบบ YYYY-MM-DD) ให้เป็นช่วงวันที่ (start_date, end_date)
+
+    หมายเหตุ: ฟังก์ชันนี้หายไปจากไฟล์ต้นฉบับแต่ถูกเรียกใช้ใน
+    /api/finance/summary จึงเพิ่มกลับเข้ามาเพื่อให้โค้ดรันได้
+    """
+    today = date.today()
+
+    if period == 'day':
+        return today, today
+
+    if period == 'week':
+        start = today - timedelta(days=today.weekday())
+        return start, today
+
+    if period == 'month':
+        start = today.replace(day=1)
+        return start, today
+
+    if period == 'custom':
+        try:
+            start = datetime.strptime(start_str, '%Y-%m-%d').date() if start_str else today
+        except ValueError:
+            start = today
+        try:
+            end = datetime.strptime(end_str, '%Y-%m-%d').date() if end_str else today
+        except ValueError:
+            end = today
+        return start, end
+
+    # ค่า default หากไม่ตรงกับรูปแบบใดเลย
+    return today, today
 
 
 # ===================================================================
@@ -176,6 +311,91 @@ def logout():
             conn.close()
     session.clear()
     return redirect(url_for('login'))
+
+
+@app.route('/api/face-login', methods=['POST'])
+def face_login():
+    """
+    ล็อกอินด้วยใบหน้า (ใช้แทนกรณีลืมรหัสผ่าน/PIN)
+    ใช้ได้ทั้งพนักงานและผู้จัดการ เพราะเทียบจาก app_users.id
+    """
+    data = request.json or {}
+    face_image_b64 = data.get('face_image')
+
+    if not face_image_b64:
+        return jsonify({"status": "error", "message": "ไม่พบรูปภาพ"}), 400
+
+    if ',' in face_image_b64:
+        face_image_b64 = face_image_b64.split(',')[1]
+
+    tmp_dir = os.path.join(app.static_folder, 'faces', 'tmp')
+    os.makedirs(tmp_dir, exist_ok=True)
+    tmp_path = os.path.join(tmp_dir, f"login_{uuid.uuid4().hex}.jpg")
+
+    try:
+        with open(tmp_path, 'wb') as fh:
+            fh.write(base64.b64decode(face_image_b64))
+
+        embedding = create_face_embedding(tmp_path)
+        if embedding is None:
+            return jsonify({"status": "error", "message": "ไม่พบใบหน้าในภาพ กรุณาลองใหม่"}), 400
+
+        matched_user_id = find_matching_app_user(embedding)
+        if matched_user_id is None:
+            return jsonify({"status": "error", "message": "ไม่พบใบหน้านี้ในระบบ กรุณาติดต่อผู้จัดการ"}), 401
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("SELECT * FROM app_users WHERE id = %s AND is_active = true;", (matched_user_id,))
+            user = cur.fetchone()
+            if not user:
+                return jsonify({"status": "error", "message": "บัญชีนี้ถูกปิดใช้งาน"}), 403
+
+            if user['role'] == 'manager':
+                session['user_id'] = user['id']
+                session['role'] = 'manager'
+                session['staff_id'] = None
+                session['display_name'] = user['username']
+                redirect_url = url_for('index')
+
+            else:  # staff
+                cur.execute("SELECT full_name FROM staff WHERE id = %s AND is_active = true;", (user['staff_id'],))
+                staff = cur.fetchone()
+                if not staff:
+                    return jsonify({"status": "error", "message": "ไม่พบข้อมูลพนักงาน หรือถูกปิดใช้งาน"}), 403
+
+                session['user_id'] = f"staff-{user['staff_id']}"
+                session['role'] = 'staff'
+                session['staff_id'] = user['staff_id']
+                session['display_name'] = staff['full_name']
+
+                # เช็คอินอัตโนมัติเหมือนตอนล็อกอินด้วย PIN (ถ้ายังไม่ได้เช็คอินวันนี้)
+                cur.execute(
+                    "SELECT id FROM staff_attendance WHERE staff_id = %s AND work_date = CURRENT_DATE;",
+                    (user['staff_id'],)
+                )
+                if not cur.fetchone():
+                    cur.execute(
+                        "INSERT INTO staff_attendance (staff_id, work_date, check_in_at, method) VALUES (%s, CURRENT_DATE, NOW(), 'face');",
+                        (user['staff_id'],)
+                    )
+                    conn.commit()
+
+                redirect_url = url_for('pos')
+
+            return jsonify({
+                "status": "success",
+                "role": session['role'],
+                "display_name": session['display_name'],
+                "redirect": redirect_url
+            }), 200
+        finally:
+            cur.close()
+            conn.close()
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 @app.route('/pos')
@@ -554,50 +774,6 @@ def get_staff():
         conn.close()
 
 
-@app.route('/api/staff', methods=['POST'])
-@manager_required
-def add_staff():
-    data = request.json or {}
-    full_name = (data.get('full_name') or '').strip()
-    position = (data.get('position') or 'Staff').strip()
-    daily_wage = data.get('daily_wage', 0)
-    pin_code = data.get('pin_code') or '1234'
-
-    if not full_name:
-        return jsonify({"status": "error", "message": "กรุณากรอกชื่อพนักงาน"}), 400
-
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute("SELECT COUNT(*) AS c FROM staff;")
-        next_no = cur.fetchone()['c'] + 1
-        employee_code = f"S{next_no:02d}"
-        pin_hash = generate_password_hash(str(pin_code))
-
-        cur.execute(
-            """INSERT INTO staff (employee_code, full_name, "position", daily_wage, pin_hash)
-               VALUES (%s, %s, %s, %s, %s) RETURNING id, employee_code, full_name, "position", daily_wage;""",
-            (employee_code, full_name, position, daily_wage, pin_hash)
-        )
-        new_staff = cur.fetchone()
-
-        # สร้างบัญชีล็อกอิน (username = employee_code) ให้พนักงานใหม่โดยอัตโนมัติ
-        cur.execute(
-            "INSERT INTO app_users (username, password_hash, role, staff_id) VALUES (%s, %s, 'staff', %s) ON CONFLICT (username) DO NOTHING;",
-            (employee_code, pin_hash, new_staff['id'])
-        )
-
-        conn.commit()
-        new_staff['pin_code'] = str(pin_code)
-        return jsonify({"status": "success", "staff": new_staff}), 201
-    except Exception as e:
-        conn.rollback()
-        return jsonify({"error": str(e)}), 500
-    finally:
-        cur.close()
-        conn.close()
-
-
 @app.route('/api/staff/<int:staff_id>', methods=['PUT'])
 @manager_required
 def update_staff(staff_id):
@@ -681,28 +857,46 @@ def staff_attendance():
 # 🔌 9. API: บัญชีการเงิน (finance.html)
 # ===================================================================
 # ===================================================================
-# API: Staff advances (staff_advances.html)
-# Stored as finance expenses so they are included in the finance report.
+# API: Staff withdrawals / advances (staff_advances.html)
+#
+# ระบบเบิกเงินพนักงานแบบมีขั้นตอนอนุมัติ (ตาราง staff_withdrawals):
+#   1) พนักงาน/ผู้จัดการ "ขอเบิก"      -> status = pending
+#   2) ผู้จัดการ "อนุมัติ" หรือ "ปฏิเสธ" -> status = approved / rejected
+#   3) ผู้จัดการ "จ่ายเงินจริง"         -> status = paid
+#      (ตอนนี้เท่านั้นที่จะไปโผล่เป็นรายจ่ายใน finance_transactions
+#       เพื่อไม่ให้ยอดเบิกที่ยังไม่อนุมัติ/ยังไม่จ่ายจริงปนกับบัญชีจริง)
+#   ผู้จัดการยกเลิกคำขอที่ pending/approved (ยังไม่จ่าย) ได้ -> cancelled
 # ===================================================================
-@app.route('/api/staff-advances', methods=['GET'])
+
+STAFF_WITHDRAWAL_MAX_PER_REQUEST = 3000
+STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK = 2
+
+
+@app.route('/api/staff-withdrawals', methods=['GET'])
 @manager_required
-def get_staff_advances():
+def get_staff_withdrawals():
     staff_id = request.args.get('staff_id', type=int)
+    status_filter = request.args.get('status')
+
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         query = """
-            SELECT ft.id, ft.staff_id, ft.amount, ft.description AS reason, ft.occurred_at AS created_at,
-                   s.employee_code, s.full_name
-            FROM finance_transactions ft
-            JOIN staff s ON s.id = ft.staff_id
-            WHERE ft.transaction_type = 'expense' AND ft.category = 'staff_advance'
+            SELECT sw.*, s.employee_code, s.full_name,
+                   approver.username AS approved_by_username
+            FROM staff_withdrawals sw
+            JOIN staff s ON s.id = sw.staff_id
+            LEFT JOIN app_users approver ON approver.id = sw.approved_by
+            WHERE 1 = 1
         """
         params = []
         if staff_id is not None:
-            query += " AND ft.staff_id = %s"
+            query += " AND sw.staff_id = %s"
             params.append(staff_id)
-        query += " ORDER BY ft.occurred_at DESC, ft.id DESC;"
+        if status_filter:
+            query += " AND sw.status = %s"
+            params.append(status_filter)
+        query += " ORDER BY sw.created_at DESC;"
         cur.execute(query, params)
         return jsonify(cur.fetchall()), 200
     finally:
@@ -710,56 +904,206 @@ def get_staff_advances():
         conn.close()
 
 
-@app.route('/api/staff-advances', methods=['POST'])
+@app.route('/api/staff-withdrawals', methods=['POST'])
 @manager_required
-def add_staff_advance():
+def create_staff_withdrawal():
+    """สร้างคำขอเบิกเงินใหม่ (สถานะ pending รอผู้จัดการอนุมัติ)"""
     data = request.json or {}
+
     staff_id = data.get('staff_id')
     reason = (data.get('reason') or '').strip()
+
     try:
         amount = float(data.get('amount'))
     except (TypeError, ValueError):
         amount = 0
 
-    if not isinstance(staff_id, (int, str)) or not str(staff_id).isdigit() or amount <= 0:
-        return jsonify({"status": "error", "message": "กรุณาระบุพนักงานและจำนวนเงินที่มากกว่า 0"}), 400
+    if not str(staff_id).isdigit() or amount <= 0:
+        return jsonify({"status": "error", "message": "กรุณาระบุพนักงานและจำนวนเงิน"}), 400
+
+    if amount > STAFF_WITHDRAWAL_MAX_PER_REQUEST:
+        return jsonify({
+            "status": "error",
+            "message": f"ขอเบิกได้ไม่เกิน {STAFF_WITHDRAWAL_MAX_PER_REQUEST:,.0f} บาทต่อครั้ง"
+        }), 400
+
+    today = date.today()
+    iso_year, iso_week, _ = today.isocalendar()
+    week_start, week_end = _iso_week_bounds(iso_year, iso_week)
 
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT id, full_name FROM staff WHERE id = %s;", (int(staff_id),))
+        # 1. เช็คข้อมูลพนักงาน
+        cur.execute("SELECT id, full_name, daily_wage FROM staff WHERE id = %s;", (int(staff_id),))
         staff_member = cur.fetchone()
         if not staff_member:
             return jsonify({"status": "error", "message": "ไม่พบพนักงาน"}), 404
-        description = reason or f"เบิกเงินพนักงาน: {staff_member['full_name']}"
+
+        # 2. รายได้สะสมในสัปดาห์นี้ (จากจำนวนวันที่เช็คอิน)
         cur.execute(
-            """INSERT INTO finance_transactions
-               (staff_id, transaction_type, category, description, amount)
-               VALUES (%s, 'expense', 'staff_advance', %s, %s) RETURNING *;""",
-            (staff_member['id'], description, amount)
+            """SELECT COUNT(*) AS work_days FROM staff_attendance
+               WHERE staff_id = %s AND work_date BETWEEN %s AND %s;""",
+            (int(staff_id), week_start, week_end)
         )
-        advance = cur.fetchone()
+        work_days = cur.fetchone()['work_days']
+        earned_income = work_days * float(staff_member['daily_wage'])
+
+        # 3. คำขอที่ยังมีผลอยู่ในสัปดาห์นี้ (ไม่นับที่ถูกปฏิเสธ/ยกเลิกไปแล้ว)
+        cur.execute(
+            """SELECT COUNT(*) AS req_count, COALESCE(SUM(request_amount), 0) AS req_total
+               FROM staff_withdrawals
+               WHERE staff_id = %s AND withdraw_week = %s AND withdraw_year = %s
+               AND status NOT IN ('rejected', 'cancelled');""",
+            (int(staff_id), iso_week, iso_year)
+        )
+        existing = cur.fetchone()
+
+        if existing['req_count'] >= STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK:
+            return jsonify({
+                "status": "error",
+                "message": f"พนักงานขอเบิกครบ {STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK} ครั้งในสัปดาห์นี้แล้ว"
+            }), 400
+
+        remaining_income = earned_income - float(existing['req_total'])
+        if amount > remaining_income:
+            return jsonify({
+                "status": "error",
+                "message": f"รายได้สะสมคงเหลือของสัปดาห์นี้ {remaining_income:.2f} บาท ไม่สามารถขอเบิกเกินได้"
+            }), 400
+
+        # 4. บันทึกคำขอ (รอผู้จัดการอนุมัติ)
+        description = reason or f"คำขอเบิกเงินพนักงาน {staff_member['full_name']}"
+
+        cur.execute(
+            """INSERT INTO staff_withdrawals
+                   (staff_id, request_amount, reason, withdraw_week, withdraw_year, status)
+               VALUES (%s, %s, %s, %s, %s, 'pending')
+               RETURNING *;""",
+            (int(staff_id), amount, description, iso_week, iso_year)
+        )
+        new_request = cur.fetchone()
         conn.commit()
-        return jsonify({"status": "success", "advance": advance}), 201
+
+        return jsonify({
+            "status": "success",
+            "withdrawal": new_request,
+            "work_days": work_days,
+            "earned_income": earned_income,
+            "remaining_after_this_request": remaining_income - amount
+        }), 201
+
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
+
     finally:
         cur.close()
         conn.close()
 
 
-def _period_to_range(period, start_str, end_str):
-    today = date.today()
-    if period == 'day':
-        return today, today
-    if period == 'month':
-        return today.replace(day=1), today
-    if period == 'year':
-        return today.replace(month=1, day=1), today
-    if period == 'custom' and start_str and end_str:
-        return datetime.strptime(start_str, "%Y-%m-%d").date(), datetime.strptime(end_str, "%Y-%m-%d").date()
-    return today, today
+@app.route('/api/staff-withdrawals/<int:withdrawal_id>/status', methods=['PUT'])
+@manager_required
+def update_staff_withdrawal_status(withdrawal_id):
+    """ผู้จัดการอนุมัติ / ปฏิเสธ / จ่ายเงินจริง / ยกเลิก คำขอเบิกเงิน"""
+    data = request.json or {}
+    new_status = data.get('status')
+    valid_statuses = ('approved', 'rejected', 'paid', 'cancelled')
+
+    if new_status not in valid_statuses:
+        return jsonify({"status": "error", "message": "สถานะไม่ถูกต้อง"}), 400
+
+    note = (data.get('note') or '').strip() or None
+    manager_app_user_id = session.get('user_id')
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM staff_withdrawals WHERE id = %s;", (withdrawal_id,))
+        withdrawal = cur.fetchone()
+        if not withdrawal:
+            return jsonify({"status": "error", "message": "ไม่พบคำขอเบิกเงินนี้"}), 404
+
+        if new_status == 'approved':
+            if withdrawal['status'] != 'pending':
+                return jsonify({"status": "error", "message": "อนุมัติได้เฉพาะคำขอที่ยังรออนุมัติเท่านั้น"}), 400
+
+            approved_amount_raw = data.get('approved_amount')
+            try:
+                approved_amount = float(approved_amount_raw) if approved_amount_raw is not None else float(withdrawal['request_amount'])
+            except (TypeError, ValueError):
+                return jsonify({"status": "error", "message": "จำนวนเงินที่อนุมัติไม่ถูกต้อง"}), 400
+
+            if approved_amount <= 0 or approved_amount > float(withdrawal['request_amount']):
+                return jsonify({"status": "error", "message": "จำนวนเงินที่อนุมัติต้องมากกว่า 0 และไม่เกินยอดที่ขอเบิก"}), 400
+
+            cur.execute(
+                """UPDATE staff_withdrawals
+                   SET status = 'approved', approved_amount = %s, approved_by = %s,
+                       approved_at = NOW(), note = COALESCE(%s, note), updated_at = NOW()
+                   WHERE id = %s RETURNING *;""",
+                (approved_amount, manager_app_user_id, note, withdrawal_id)
+            )
+
+        elif new_status == 'rejected':
+            if withdrawal['status'] != 'pending':
+                return jsonify({"status": "error", "message": "ปฏิเสธได้เฉพาะคำขอที่ยังรออนุมัติเท่านั้น"}), 400
+
+            cur.execute(
+                """UPDATE staff_withdrawals
+                   SET status = 'rejected', approved_by = %s, approved_at = NOW(),
+                       note = COALESCE(%s, note), updated_at = NOW()
+                   WHERE id = %s RETURNING *;""",
+                (manager_app_user_id, note, withdrawal_id)
+            )
+
+        elif new_status == 'cancelled':
+            if withdrawal['status'] not in ('pending', 'approved'):
+                return jsonify({"status": "error", "message": "ยกเลิกได้เฉพาะคำขอที่ยังไม่จ่ายเงินจริง"}), 400
+
+            cur.execute(
+                """UPDATE staff_withdrawals
+                   SET status = 'cancelled', note = COALESCE(%s, note), updated_at = NOW()
+                   WHERE id = %s RETURNING *;""",
+                (note, withdrawal_id)
+            )
+
+        elif new_status == 'paid':
+            if withdrawal['status'] != 'approved':
+                return jsonify({"status": "error", "message": "จ่ายเงินได้เฉพาะคำขอที่อนุมัติแล้วเท่านั้น"}), 400
+
+            pay_amount = float(withdrawal['approved_amount'])
+
+            cur.execute(
+                """UPDATE staff_withdrawals
+                   SET status = 'paid', paid_at = NOW(), note = COALESCE(%s, note), updated_at = NOW()
+                   WHERE id = %s RETURNING *;""",
+                (note, withdrawal_id)
+            )
+
+            # บันทึกเป็นรายจ่ายจริงในบัญชีก็ต่อเมื่อ "จ่ายเงินแล้ว" เท่านั้น
+            cur.execute(
+                """INSERT INTO finance_transactions
+                       (staff_id, transaction_type, category, description, amount)
+                   VALUES (%s, 'expense', 'staff_advance', %s, %s);""",
+                (
+                    withdrawal['staff_id'],
+                    f"เบิกเงินพนักงาน (คำขอ #{withdrawal_id}) {withdrawal['reason'] or ''}".strip(),
+                    pay_amount
+                )
+            )
+
+        updated = cur.fetchone()
+        conn.commit()
+        return jsonify({"status": "success", "withdrawal": updated}), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.route('/api/finance/summary', methods=['GET'])
@@ -838,5 +1182,223 @@ def add_transaction():
         conn.close()
 
 
+# ===================================================================
+# 🔌 API: เพิ่มพนักงานใหม่ + บันทึกรูปภาพและสกัด Face Embedding
+# ===================================================================
+@app.route('/api/manager/face-enroll', methods=['POST'])
+@manager_required
+def manager_face_enroll():
+    """ให้ผู้จัดการที่ล็อกอินอยู่ลงทะเบียน/เปลี่ยนใบหน้าของตัวเอง (สูงสุด 5 รูป)"""
+    data = request.json or {}
+    face_images = data.get('face_images', [])
+
+    if not face_images:
+        return jsonify({"status": "error", "message": "กรุณาถ่ายรูปใบหน้าอย่างน้อย 1 รูป"}), 400
+
+    app_user_id = session.get('user_id')
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # ลงทะเบียนใหม่ = ล้างโปรไฟล์ใบหน้าเดิมของผู้จัดการคนนี้ก่อน
+        cur.execute("DELETE FROM face_profiles WHERE app_user_id = %s;", (app_user_id,))
+
+        faces_dir = os.path.join(app.static_folder, 'faces')
+        os.makedirs(faces_dir, exist_ok=True)
+
+        saved_images = 0
+        for index, face_image_b64 in enumerate(face_images[:5]):
+            if ',' in face_image_b64:
+                face_image_b64 = face_image_b64.split(',')[1]
+
+            filename = f"manager_{app_user_id}_{index}_{uuid.uuid4().hex[:6]}.jpg"
+            filepath = os.path.join(faces_dir, filename)
+
+            with open(filepath, 'wb') as fh:
+                fh.write(base64.b64decode(face_image_b64))
+
+            embedding = create_face_embedding(filepath)
+            if embedding is None:
+                conn.rollback()
+                return jsonify({
+                    "status": "error",
+                    "message": f"ไม่พบใบหน้าในรูปที่ {index + 1}"
+                }), 400
+
+            cur.execute(
+                """INSERT INTO face_profiles (app_user_id, image_path, embedding, model_name)
+                   VALUES (%s, %s, %s, 'Facenet512');""",
+                (app_user_id, f"faces/{filename}", psycopg2.Binary(json.dumps(embedding).encode('utf-8')))
+            )
+            saved_images += 1
+
+        conn.commit()
+        return jsonify({
+            "status": "success",
+            "message": f"บันทึกใบหน้า {saved_images} รูปเรียบร้อย"
+        }), 201
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/staff', methods=['POST'])
+@manager_required
+def add_staff():
+    data = request.json or {}
+
+    full_name = (data.get('full_name') or '').strip()
+    position = (data.get('position') or 'Staff').strip()
+    daily_wage = data.get('daily_wage', 0)
+    pin_code = data.get('pin_code') or '1234'
+    face_images = data.get('face_images', [])
+
+    if not full_name:
+        return jsonify({
+            "status": "error",
+            "message": "กรุณากรอกชื่อพนักงาน"
+        }), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # =====================================================
+        # 1. สร้างรหัสพนักงาน
+        # =====================================================
+        # Do not use COUNT(*) here: staff may have been disabled/deleted while
+        # their app_users account remains, which can reuse an existing username
+        # (for example S02) and make INSERT ... RETURNING return None.
+        cur.execute(
+            """SELECT COALESCE(MAX(CAST(SUBSTRING(username FROM 2) AS INTEGER)), 0) AS max_no
+               FROM app_users
+               WHERE username ~ '^S[0-9]+$';"""
+        )
+        next_no = cur.fetchone()['max_no'] + 1
+        employee_code = f"S{next_no:02d}"
+
+        pin_hash = generate_password_hash(str(pin_code))
+
+        # =====================================================
+        # 2. เพิ่มข้อมูลพนักงาน
+        # =====================================================
+        cur.execute(
+            """
+            INSERT INTO staff
+                (employee_code, full_name, "position", daily_wage, pin_hash)
+            VALUES
+                (%s, %s, %s, %s, %s)
+            RETURNING id, employee_code, full_name, "position", daily_wage;
+            """,
+            (employee_code, full_name, position, daily_wage, pin_hash)
+        )
+        new_staff = cur.fetchone()
+
+        # =====================================================
+        # 3. สร้าง User Login ให้พนักงาน
+        # =====================================================
+        cur.execute(
+            """
+            INSERT INTO app_users
+                (username, password_hash, role, staff_id)
+            VALUES
+                (%s, %s, 'staff', %s)
+            ON CONFLICT(username) DO NOTHING
+            RETURNING id;
+            """,
+            (employee_code, pin_hash, new_staff['id'])
+        )
+        app_user_row = cur.fetchone()
+        if app_user_row:
+            new_app_user_id = app_user_row['id']
+        else:
+            # เผื่อกรณี ON CONFLICT ชนจนไม่ได้ id กลับมา ให้ query แยกอีกที
+            cur.execute("SELECT id FROM app_users WHERE staff_id = %s;", (new_staff['id'],))
+            existing_app_user = cur.fetchone()
+            if not existing_app_user:
+                raise RuntimeError("ไม่สามารถสร้างบัญชีล็อกอินสำหรับพนักงานได้")
+            new_app_user_id = existing_app_user['id']
+
+        # =====================================================
+        # 4. หากมีการส่งรูปใบหน้ามา ให้บันทึกทั้งหมด (สูงสุด 5 รูป)
+        #    และสร้าง Face Embedding ของแต่ละรูป
+        # =====================================================
+        saved_images = 0
+
+        if face_images:
+            faces_dir = os.path.join(app.static_folder, 'faces')
+            os.makedirs(faces_dir, exist_ok=True)
+
+            for index, face_image_b64 in enumerate(face_images[:5]):
+                # ตัด prefix data:image/jpeg;base64,
+                if ',' in face_image_b64:
+                    face_image_b64 = face_image_b64.split(',')[1]
+
+                filename = f"staff_{new_staff['id']}_{index}_{uuid.uuid4().hex[:6]}.jpg"
+                filepath = os.path.join(faces_dir, filename)
+
+                # decode และบันทึกรูป
+                image_data = base64.b64decode(face_image_b64)
+                with open(filepath, "wb") as fh:
+                    fh.write(image_data)
+
+                # สร้าง Face Embedding
+                embedding = create_face_embedding(filepath)
+
+                if embedding is None:
+                    conn.rollback()
+                    return jsonify({
+                        "status": "error",
+                        "message": f"ไม่พบใบหน้าในรูปที่ {index + 1}"
+                    }), 400
+
+                # บันทึก face profile
+                cur.execute(
+                    """
+                    INSERT INTO face_profiles
+                        (staff_id, app_user_id, image_path, embedding, model_name)
+                    VALUES
+                        (%s, %s, %s, %s, 'Facenet512');
+                    """,
+                    (new_staff["id"], new_app_user_id, f"faces/{filename}", psycopg2.Binary(json.dumps(embedding).encode('utf-8')))
+                )
+
+                saved_images += 1
+
+        conn.commit()
+
+        new_staff['pin_code'] = str(pin_code)
+
+        message = f"บันทึกรูปใบหน้า {saved_images} รูปเรียบร้อย" if saved_images else "เพิ่มพนักงานสำเร็จ"
+
+        return jsonify({
+            "status": "success",
+            "message": message,
+            "staff": new_staff
+        }), 201
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Run HTTP locally by default.  The previous hard-coded certificate files
+    # were not part of the project, so Flask failed before the app could start.
+    app.run(
+        host=os.environ.get('HOST', '0.0.0.0'),
+        port=int(os.environ.get('PORT', '5000')),
+        debug=os.environ.get('FLASK_DEBUG', '').lower() in {'1', 'true', 'yes'},
+    )

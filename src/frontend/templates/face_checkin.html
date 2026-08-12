@@ -27,10 +27,25 @@
         <p id="camera-status" class="small text-secondary mb-3">กด “เปิดกล้อง” เพื่อเริ่มสแกน</p>
 
         <div class="d-grid gap-2">
-            <button id="start-camera" class="btn btn-warning fw-bold" type="button"><i class="bi bi-camera-video-fill me-2"></i>เปิดกล้อง</button>
-            <button id="stop-camera" class="btn btn-outline-secondary" type="button" disabled><i class="bi bi-camera-video-off me-2"></i>ปิดกล้อง</button>
-            <a href="{{ url_for('login') }}" class="btn btn-outline-light"><i class="bi bi-arrow-left me-2"></i>กลับหน้าล็อกอิน</a>
-        </div>
+
+    <button id="start-camera" class="btn btn-warning fw-bold" type="button">
+        <i class="bi bi-camera-video-fill me-2"></i>เปิดกล้อง
+    </button>
+
+    <!-- เพิ่มอันนี้ -->
+    <button id="scan-face" class="btn btn-success fw-bold" type="button" disabled>
+        <i class="bi bi-person-check-fill me-2"></i>สแกนใบหน้า
+    </button>
+
+    <button id="stop-camera" class="btn btn-outline-secondary" type="button" disabled>
+        <i class="bi bi-camera-video-off me-2"></i>ปิดกล้อง
+    </button>
+
+    <a href="{{ url_for('login') }}" class="btn btn-outline-light">
+        <i class="bi bi-arrow-left me-2"></i>กลับหน้าล็อกอิน
+    </a>
+
+</div>
     </main>
 
     <script>
@@ -38,6 +53,7 @@
         const status = document.getElementById('camera-status');
         const startButton = document.getElementById('start-camera');
         const stopButton = document.getElementById('stop-camera');
+        const scanButton = document.getElementById('scan-face');
         let stream = null;
 
         async function startCamera() {
@@ -48,6 +64,7 @@
                 status.className = 'small text-success mb-3';
                 startButton.disabled = true;
                 stopButton.disabled = false;
+                scanButton.disabled = false;
             } catch (error) {
                 status.textContent = 'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์';
                 status.className = 'small text-danger mb-3';
@@ -62,10 +79,82 @@
             status.className = 'small text-secondary mb-3';
             startButton.disabled = false;
             stopButton.disabled = true;
+            scanButton.disabled = true;
+        }
+        async function scanFace() {
+
+    // ตรวจว่ากล้องเปิดหรือยัง
+    if (!stream) {
+        status.textContent = "กรุณาเปิดกล้องก่อน";
+        status.className = "small text-danger mb-3";
+        return;
+    }
+
+    status.textContent = "กำลังตรวจสอบใบหน้า...";
+    status.className = "small text-warning mb-3";
+
+    // จับภาพจากกล้อง
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+
+    // กลับภาพให้ตรง เพราะ preview ใช้ scaleX(-1)
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // แปลงเป็น Base64
+    const image = canvas.toDataURL("image/jpeg");
+
+    try {
+
+        const response = await fetch("/api/face-login", {
+
+            method: "POST",
+
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                face_image: image
+            })
+
+        });
+
+        const result = await response.json();
+
+        if (result.status === "success") {
+
+            status.textContent = "ยืนยันตัวตนสำเร็จ กำลังเข้าสู่ระบบ...";
+            status.className = "small text-success mb-3";
+
+            setTimeout(() => {
+                window.location.href = result.redirect;
+            }, 500);
+
+        } else {
+
+            status.textContent = result.message;
+            status.className = "small text-danger mb-3";
+
         }
 
+    } catch (err) {
+
+        console.error(err);
+
+        status.textContent = "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์";
+        status.className = "small text-danger mb-3";
+
+    }
+
+}
         startButton.addEventListener('click', startCamera);
         stopButton.addEventListener('click', stopCamera);
+        scanButton.addEventListener('click', scanFace);
         window.addEventListener('beforeunload', stopCamera);
     </script>
 </body>

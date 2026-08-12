@@ -7,7 +7,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-        /* สไตล์พิเศษสำหรับการปริ้นท์เอกสารออกมาให้ดูเป็นทางการ */
+    <style>
+        .status-badge { font-size: .78rem; padding: .35em .65em; }
+    </style>
 </head>
 <body class="staff-advances-page">
     <div class="app-shell">
@@ -43,37 +45,53 @@
             </div>
         </div>
 
-        <!-- ฟอร์มกรองรายคน และ ปุ่มเพิ่มการเบิก -->
+        <div id="alert-box"></div>
+
+        <!-- ฟอร์มกรองรายคน/สถานะ และ ปุ่มเพิ่มการเบิก -->
         <div class="row g-3 mb-4 no-print">
             <div class="col-md-4">
                 <label class="form-label text-secondary">เลือกพนักงานรายคน</label>
-                <select id="filter-staff" class="form-select bg-dark text-white border-secondary" onchange="loadAdvances()">
+                <select id="filter-staff" class="form-select bg-dark text-white border-secondary" onchange="loadWithdrawals()">
                     <option value="">-- แสดงทุกคน --</option>
                 </select>
             </div>
-            <div class="col-md-8 d-flex align-items-end justify-content-end">
-                <button class="btn btn-warning fw-bold" data-bs-toggle="modal" data-bs-target="#addAdvanceModal">
-                    <i class="bi bi-plus-circle me-1"></i> บันทึกการเบิกเงินใหม่
+            <div class="col-md-4">
+                <label class="form-label text-secondary">สถานะ</label>
+                <select id="filter-status" class="form-select bg-dark text-white border-secondary" onchange="loadWithdrawals()">
+                    <option value="">-- ทุกสถานะ --</option>
+                    <option value="pending">รออนุมัติ</option>
+                    <option value="approved">อนุมัติแล้ว (รอจ่าย)</option>
+                    <option value="paid">จ่ายเงินแล้ว</option>
+                    <option value="rejected">ปฏิเสธ</option>
+                    <option value="cancelled">ยกเลิก</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end justify-content-end">
+                <button class="btn btn-warning fw-bold w-100" data-bs-toggle="modal" data-bs-target="#addWithdrawalModal">
+                    <i class="bi bi-plus-circle me-1"></i> สร้างคำขอเบิกเงินใหม่
                 </button>
             </div>
         </div>
 
         <!-- ตารางแสดงรายการเบิกเงิน -->
         <div class="card card-custom p-3">
-            <h5 class="mb-3">ประวัติการเบิกเงิน</h5>
+            <h5 class="mb-3">ประวัติคำขอเบิกเงิน</h5>
             <div class="table-responsive">
                 <table class="table table-dark table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>วันเวลา</th>
+                            <th>วันที่ขอ</th>
                             <th>รหัสพนักงาน</th>
                             <th>ชื่อ-นามสกุล</th>
                             <th>เหตุผล/รายการเบิก</th>
-                            <th class="text-end">จำนวนเงิน</th>
+                            <th class="text-end">จำนวนที่ขอ</th>
+                            <th class="text-end">จำนวนที่อนุมัติ</th>
+                            <th class="text-center">สถานะ</th>
+                            <th class="text-center no-print">การดำเนินการ</th>
                         </tr>
                     </thead>
-                    <tbody id="advance-table-body">
-                        <tr><td colspan="5" class="text-center text-muted">กำลังโหลดข้อมูล...</td></tr>
+                    <tbody id="withdrawal-table-body">
+                        <tr><td colspan="8" class="text-center text-muted">กำลังโหลดข้อมูล...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -82,103 +100,292 @@
         </main>
     </div>
 
-    <!-- Modal: บันทึกการเบิกเงิน -->
-    <div class="modal fade" id="addAdvanceModal" tabindex="-1">
+    <!-- Modal: สร้างคำขอเบิกเงิน -->
+    <div class="modal fade" id="addWithdrawalModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content bg-dark text-white border-secondary">
                 <div class="modal-header border-secondary">
-                    <h5 class="modal-title">บันทึกเบิกเงินพนักงาน</h5>
+                    <h5 class="modal-title">สร้างคำขอเบิกเงินพนักงาน</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="advanceForm">
+                    <p class="text-secondary small">
+                        ขอเบิกได้สูงสุด <strong>3,000 บาท/ครั้ง</strong> และไม่เกิน <strong>2 ครั้ง/สัปดาห์</strong>
+                        โดยยอดรวมต้องไม่เกินรายได้สะสมของสัปดาห์นั้น คำขอจะถูกส่งไปรออนุมัติก่อนจ่ายจริง
+                    </p>
+                    <form id="withdrawalForm">
                         <div class="mb-3">
                             <label class="form-label">พนักงาน</label>
-                            <select id="modal-staff-id" class="form-select bg-dark text-white border-secondary" required>
+                            <select id="modal-staff-id" class="form-select bg-dark text-white border-secondary" required onchange="loadEligibility()">
                                 <option value="">-- เลือกพนักงาน --</option>
                             </select>
                         </div>
+
+                        <div id="eligibility-box" class="d-none alert alert-secondary py-2 px-3 mb-3 small">
+                            <div class="d-flex justify-content-between"><span>วันที่เช็คอินสัปดาห์นี้</span><strong id="elig-work-days">-</strong></div>
+                            <div class="d-flex justify-content-between"><span>รายได้สะสมสัปดาห์นี้</span><strong id="elig-earned">-</strong></div>
+                            <div class="d-flex justify-content-between"><span>เบิกไปแล้วสัปดาห์นี้</span><strong id="elig-used">-</strong></div>
+                            <div class="d-flex justify-content-between"><span>เหลือเบิกได้อีก</span><strong id="elig-remaining" class="text-warning">-</strong></div>
+                            <div class="d-flex justify-content-between"><span>จำนวนครั้งที่เหลือ</span><strong id="elig-requests-left">-</strong></div>
+                        </div>
+                        <div id="eligibility-loading" class="d-none text-secondary small mb-3">
+                            <span class="spinner-border spinner-border-sm me-1"></span>กำลังเช็ควงเงิน...
+                        </div>
+
                         <div class="mb-3">
-                            <label class="form-label">จำนวนเงิน (บาท)</label>
+                            <label class="form-label">จำนวนเงินที่ขอเบิก (บาท)</label>
                             <input type="number" step="0.01" id="modal-amount" class="form-control bg-dark text-white border-secondary" required>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">เหตุผล / รายละเอียดการเบิก</label>
                             <textarea id="modal-reason" class="form-control bg-dark text-white border-secondary" rows="2"></textarea>
                         </div>
-                        <button type="submit" class="btn btn-warning w-100 fw-bold">บันทึกข้อมูล</button>
+                        <button type="submit" class="btn btn-warning w-100 fw-bold" id="btn-submit-withdrawal">
+                            <i class="bi bi-send-check me-1"></i> ส่งคำขอเบิกเงิน
+                        </button>
                     </form>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            loadStaffDropdowns();
-            loadAdvances();
+    <!-- Modal: ปฏิเสธ/ยกเลิก (ขอเหตุผล) -->
+    <div class="modal fade" id="noteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="noteModalTitle">ระบุเหตุผล</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <textarea id="note-input" class="form-control bg-dark text-white border-secondary" rows="2" placeholder="เหตุผล (ไม่บังคับ)"></textarea>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="button" class="btn btn-danger fw-bold" id="btn-confirm-note">ยืนยัน</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            document.getElementById('advanceForm').addEventListener('submit', async (e) => {
+    <script>
+        let pendingNoteAction = null; // { id, status }
+
+        function showAlert(message, type) {
+            document.getElementById('alert-box').innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStaffDropdown();
+            loadWithdrawals();
+
+            document.getElementById('withdrawalForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
+
                 const payload = {
                     staff_id: document.getElementById('modal-staff-id').value,
                     amount: parseFloat(document.getElementById('modal-amount').value),
                     reason: document.getElementById('modal-reason').value
                 };
 
-                const res = await fetch('/api/staff-advances', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                const btn = document.getElementById('btn-submit-withdrawal');
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังส่งคำขอ...';
 
-                if (res.ok) {
-                    alert('บันทึกการเบิกสำเร็จ');
-                    location.reload();
-                } else {
-                    alert('เกิดข้อผิดพลาดในการบันทึก');
+                try {
+                    const res = await fetch('/api/staff-withdrawals', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+
+                    if (!res.ok) throw new Error(data.message || 'เกิดข้อผิดพลาดในการบันทึก');
+
+                    showAlert('ส่งคำขอเบิกเงินสำเร็จ รออนุมัติจากผู้จัดการ', 'success');
+
+                    const modalEl = document.getElementById('addWithdrawalModal');
+                    bootstrap.Modal.getInstance(modalEl).hide();
+                    document.getElementById('withdrawalForm').reset();
+                    resetEligibilityBox();
+
+                    await loadWithdrawals();
+
+                } catch (err) {
+                    showAlert(err.message, 'danger');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
                 }
+            });
+
+            document.getElementById('addWithdrawalModal').addEventListener('hidden.bs.modal', () => {
+                document.getElementById('withdrawalForm').reset();
+                resetEligibilityBox();
+            });
+
+            document.getElementById('btn-confirm-note').addEventListener('click', async () => {
+                if (!pendingNoteAction) return;
+                const note = document.getElementById('note-input').value.trim();
+                await changeStatus(pendingNoteAction.id, pendingNoteAction.status, note);
+                bootstrap.Modal.getInstance(document.getElementById('noteModal')).hide();
+                pendingNoteAction = null;
             });
         });
 
-        async function loadStaffDropdowns() {
+        async function loadStaffDropdown() {
             const res = await fetch('/api/staff?all=true');
             const staffList = await res.json();
-            
+
             const filterSelect = document.getElementById('filter-staff');
             const modalSelect = document.getElementById('modal-staff-id');
 
             staffList.forEach(s => {
-                const opt1 = `<option value="${s.id}">${s.employee_code} - ${s.full_name}</option>`;
-                const opt2 = `<option value="${s.id}">${s.employee_code} - ${s.full_name}</option>`;
-                filterSelect.insertAdjacentHTML('beforeend', opt1);
-                modalSelect.insertAdjacentHTML('beforeend', opt2);
+                const label = `${s.employee_code} - ${s.full_name}`;
+                filterSelect.insertAdjacentHTML('beforeend', `<option value="${s.id}">${label}</option>`);
+                modalSelect.insertAdjacentHTML('beforeend', `<option value="${s.id}">${label}</option>`);
             });
         }
 
-        async function loadAdvances() {
+        function formatBaht(n) {
+            return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2 }) + ' บ.';
+        }
+
+        function resetEligibilityBox() {
+            document.getElementById('eligibility-box').classList.add('d-none');
+            document.getElementById('eligibility-loading').classList.add('d-none');
+        }
+
+        async function loadEligibility() {
+            const staffId = document.getElementById('modal-staff-id').value;
+            resetEligibilityBox();
+
+            if (!staffId) return;
+
+            document.getElementById('eligibility-loading').classList.remove('d-none');
+
+            try {
+                const res = await fetch(`/api/staff-withdrawals/eligibility?staff_id=${staffId}`);
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.message || 'เช็ควงเงินไม่สำเร็จ');
+
+                document.getElementById('elig-work-days').textContent = `${data.work_days} วัน`;
+                document.getElementById('elig-earned').textContent = formatBaht(data.earned_income);
+                document.getElementById('elig-used').textContent = formatBaht(data.already_requested_this_week);
+                document.getElementById('elig-remaining').textContent = formatBaht(data.remaining_income);
+                document.getElementById('elig-requests-left').textContent = `${data.remaining_requests} ครั้ง`;
+
+                // ตั้ง max ให้ช่องกรอกจำนวนเงินตามยอดที่เหลือจริง เพื่อกันกรอกเกินตั้งแต่ต้น
+                document.getElementById('modal-amount').max = Math.min(data.remaining_income, data.max_per_request);
+
+                document.getElementById('eligibility-box').classList.remove('d-none');
+
+            } catch (err) {
+                showAlert(err.message, 'danger');
+            } finally {
+                document.getElementById('eligibility-loading').classList.add('d-none');
+            }
+        }
+
+        function statusBadge(status) {
+            const map = {
+                pending: ['text-bg-warning', 'รออนุมัติ'],
+                approved: ['text-bg-info', 'อนุมัติแล้ว (รอจ่าย)'],
+                paid: ['text-bg-success', 'จ่ายเงินแล้ว'],
+                rejected: ['text-bg-danger', 'ปฏิเสธ'],
+                cancelled: ['text-bg-secondary', 'ยกเลิก']
+            };
+            const [cls, label] = map[status] || ['text-bg-secondary', status];
+            return `<span class="badge status-badge ${cls}">${label}</span>`;
+        }
+
+        function actionButtons(item) {
+            const buttons = [];
+
+            if (item.status === 'pending') {
+                buttons.push(`<button class="btn btn-sm btn-success" onclick="changeStatus(${item.id}, 'approved')"><i class="bi bi-check-lg"></i> อนุมัติ</button>`);
+                buttons.push(`<button class="btn btn-sm btn-outline-danger" onclick="openNoteModal(${item.id}, 'rejected', 'เหตุผลที่ปฏิเสธ')"><i class="bi bi-x-lg"></i> ปฏิเสธ</button>`);
+            }
+
+            if (item.status === 'approved') {
+                buttons.push(`<button class="btn btn-sm btn-primary" onclick="changeStatus(${item.id}, 'paid')"><i class="bi bi-cash-coin"></i> จ่ายเงินแล้ว</button>`);
+            }
+
+            if (item.status === 'pending' || item.status === 'approved') {
+                buttons.push(`<button class="btn btn-sm btn-outline-secondary" onclick="openNoteModal(${item.id}, 'cancelled', 'เหตุผลที่ยกเลิก')"><i class="bi bi-slash-circle"></i> ยกเลิก</button>`);
+            }
+
+            return buttons.length
+                ? `<div class="d-flex gap-1 justify-content-center flex-wrap">${buttons.join('')}</div>`
+                : '<span class="text-secondary small">-</span>';
+        }
+
+        function openNoteModal(id, status, title) {
+            pendingNoteAction = { id, status };
+            document.getElementById('noteModalTitle').textContent = title;
+            document.getElementById('note-input').value = '';
+            new bootstrap.Modal(document.getElementById('noteModal')).show();
+        }
+
+        async function changeStatus(id, status, note) {
+            try {
+                const res = await fetch(`/api/staff-withdrawals/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status, note })
+                });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.message || 'ดำเนินการไม่สำเร็จ');
+
+                showAlert('อัปเดตสถานะเรียบร้อย', 'success');
+                await loadWithdrawals();
+
+            } catch (err) {
+                showAlert(err.message, 'danger');
+            }
+        }
+
+        async function loadWithdrawals() {
             const staffId = document.getElementById('filter-staff').value;
-            const url = staffId ? `/api/staff-advances?staff_id=${staffId}` : '/api/staff-advances';
-            
-            const res = await fetch(url);
+            const status = document.getElementById('filter-status').value;
+
+            const params = new URLSearchParams();
+            if (staffId) params.set('staff_id', staffId);
+            if (status) params.set('status', status);
+
+            const res = await fetch('/api/staff-withdrawals?' + params.toString());
             const data = await res.json();
-            
-            const tbody = document.getElementById('advance-table-body');
+
+            const tbody = document.getElementById('withdrawal-table-body');
             tbody.innerHTML = '';
 
             if (data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">ไม่พบข้อมูลการเบิกเงิน</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">ไม่พบข้อมูลการเบิกเงิน</td></tr>`;
                 return;
             }
 
             data.forEach(item => {
+                const approvedAmountText = item.approved_amount != null
+                    ? Number(item.approved_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) + ' บ.'
+                    : '-';
+
                 tbody.innerHTML += `
                     <tr>
                         <td>${new Date(item.created_at).toLocaleString('th-TH')}</td>
                         <td>${item.employee_code}</td>
                         <td>${item.full_name}</td>
                         <td>${item.reason || '-'}</td>
-                        <td class="text-end text-warning fw-bold">${Number(item.amount).toLocaleString('th-TH', {minimumFractionDigits: 2})} บ.</td>
+                        <td class="text-end text-warning fw-bold">${Number(item.request_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บ.</td>
+                        <td class="text-end">${approvedAmountText}</td>
+                        <td class="text-center">${statusBadge(item.status)}</td>
+                        <td class="text-center no-print">${actionButtons(item)}</td>
                     </tr>
                 `;
             });
