@@ -79,6 +79,23 @@ def create_face_embedding(image_path):
 FACE_MATCH_DISTANCE_THRESHOLD = 0.30  # ยิ่งน้อยยิ่งเข้มงวด (cosine distance ของ Facenet512)
 
 
+THAI_SERVICE_NAMES = {
+    'wash': 'ล้างภายนอก',
+    'washVacuum': 'ล้างภายนอกและดูดฝุ่น',
+    'fullFlush': 'ล้าง ดูดฝุ่น และฉีดล้างช่วงล่าง',
+    'engineWash': 'ล้าง ดูดฝุ่น และล้างห้องเครื่อง',
+    'fullEngine': 'ล้างครบชุด พร้อมล้างช่วงล่างและห้องเครื่อง',
+    'ozone': 'อบโอโซนกำจัดกลิ่น',
+    'wax': 'เคลือบแว็กซ์',
+}
+
+
+def ensure_thai_service_names(cur):
+    """อัปเดตชื่อบริการมาตรฐานเดิมให้เป็นภาษาไทย โดยไม่แก้รหัสบริการ"""
+    for code, name in THAI_SERVICE_NAMES.items():
+        cur.execute("UPDATE services SET name = %s WHERE code = %s AND name <> %s;", (name, code, name))
+
+
 def _load_embedding(raw):
     if raw is None:
         return None
@@ -404,6 +421,25 @@ def pos():
     return render_template('pos.html', session_role=session.get("role"), session_name=session.get("display_name"))
 
 
+@app.route('/register')
+@login_required
+def register():
+    return render_template('register.html', session_role=session.get("role"), session_name=session.get("display_name"))
+
+
+@app.route('/history')
+@login_required
+def history():
+    """ประวัติรถที่รับแล้ว — พนักงานและผู้จัดการเข้าดูได้"""
+    return render_template('history.html', session_role=session.get("role"), session_name=session.get("display_name"))
+
+
+@app.route('/service-management')
+@manager_required
+def service_management():
+    return render_template('service_management.html', session_role=session.get("role"), session_name=session.get("display_name"))
+
+
 @app.route('/track')
 def track():
     # หน้าลูกค้าติดตามสถานะ ไม่ต้องล็อกอิน (เข้าผ่านลิงก์/QR ได้เลย)
@@ -503,12 +539,13 @@ def setup_staff_pins():
 @login_required
 def get_orders():
     status_filter = request.args.get('status')
+    history_date = request.args.get('date')
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         base_query = """
             SELECT o.id AS order_id, o.queue_no, o.status, o.total_amount, o.payment_method,
-                   o.created_at, o.started_at, o.completed_at,
+                   o.created_at, o.started_at, o.completed_at, o.updated_at AS picked_up_at,
                    v.license_plate, v.province, v.category AS vehicle_category, v.size_code,
                    c.phone,
                    COALESCE(
@@ -520,7 +557,9 @@ def get_orders():
             JOIN vehicles v ON o.vehicle_id = v.id
             JOIN customers c ON o.customer_id = c.id
         """
-        if status_filter:
+        if status_filter and history_date:
+            cur.execute(base_query + " WHERE o.status = %s AND DATE(o.updated_at) = %s ORDER BY o.updated_at DESC;", (status_filter, history_date))
+        elif status_filter:
             cur.execute(base_query + " WHERE o.status = %s ORDER BY o.created_at ASC;", (status_filter,))
         else:
             cur.execute(base_query + " WHERE o.status != 'cancelled' ORDER BY o.created_at ASC;")
@@ -538,6 +577,8 @@ def update_order_status(order_id):
     valid_statuses = ('pending', 'in_progress', 'drying', 'ready', 'completed', 'picked_up', 'cancelled')
     if new_status not in valid_statuses:
         return jsonify({"status": "error", "message": "สถานะไม่ถูกต้อง"}), 400
+    if new_status == 'picked_up':
+        return jsonify({"status": "error", "message": "กรุณาชำระเงินผ่านปุ่มชำระเงินก่อนรับรถ"}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -558,6 +599,58 @@ def update_order_status(order_id):
             return jsonify({"status": "error", "message": "ไม่พบคิวนี้"}), 404
         conn.commit()
         return jsonify({"status": "success", "order": updated_order}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/orders/<int:order_id>/payment', methods=['POST'])
+@login_required
+def pay_and_pick_up_order(order_id):
+    payment_method = (request.json or {}).get('payment_method', 'cash')
+    if payment_method not in ('cash', 'transfer', 'card', 'other'):
+        return jsonify({"status": "error", "message": "ช่องทางชำระเงินไม่ถูกต้อง"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT o.queue_no, o.status, o.total_amount, v.license_plate
+               FROM service_orders o JOIN vehicles v ON v.id = o.vehicle_id
+               WHERE o.id = %s FOR UPDATE;""",
+            (order_id,)
+        )
+        order = cur.fetchone()
+        if not order:
+            conn.rollback()
+            return jsonify({"status": "error", "message": "ไม่พบคิวนี้"}), 404
+        if order['status'] != 'completed':
+            conn.rollback()
+            return jsonify({"status": "error", "message": "ชำระเงินได้เฉพาะรถที่ล้างเสร็จแล้ว"}), 400
+
+        cur.execute("SELECT 1 FROM payments WHERE order_id = %s AND status = 'paid';", (order_id,))
+        if cur.fetchone():
+            conn.rollback()
+            return jsonify({"status": "error", "message": "คิวนี้ชำระเงินแล้ว"}), 409
+
+        cur.execute(
+            "INSERT INTO payments (order_id, method, amount, status) VALUES (%s, %s, %s, 'paid');",
+            (order_id, payment_method, order['total_amount'])
+        )
+        cur.execute(
+            """INSERT INTO finance_transactions (order_id, transaction_type, category, description, amount)
+               VALUES (%s, 'income', 'service', %s, %s);""",
+            (order_id, f"รายรับจากคิว {order['queue_no']} (ทะเบียน {order['license_plate']})", order['total_amount'])
+        )
+        cur.execute(
+            "UPDATE service_orders SET status = 'picked_up', payment_method = %s, updated_at = NOW() WHERE id = %s;",
+            (payment_method, order_id)
+        )
+        conn.commit()
+        return jsonify({"status": "success", "message": "ชำระเงินสำเร็จและเปลี่ยนสถานะเป็นรับรถแล้ว"}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
@@ -607,6 +700,7 @@ def get_services_with_prices():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        ensure_thai_service_names(cur)
         cur.execute(
             """
             SELECT s.id AS service_id, s.code, s.name, s.estimated_minutes, sp.price
@@ -618,7 +712,188 @@ def get_services_with_prices():
             (category, size_code)
         )
         services = cur.fetchall()
+        conn.commit()
         return jsonify(services), 200
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _ensure_promotions_table(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS promotions (
+            id BIGSERIAL PRIMARY KEY, name VARCHAR(160) NOT NULL,
+            description TEXT, discount_type VARCHAR(10) NOT NULL CHECK (discount_type IN ('percent', 'fixed')),
+            discount_value NUMERIC(10,2) NOT NULL CHECK (discount_value >= 0),
+            starts_at DATE, ends_at DATE, is_active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+
+
+@app.route('/api/manage/services', methods=['GET', 'POST'])
+@manager_required
+def manage_services():
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        ensure_thai_service_names(cur)
+        if request.method == 'GET':
+            cur.execute("""SELECT s.id, s.code, s.name, s.category, s.estimated_minutes, s.is_active,
+                                  sp.id AS price_id, sp.vehicle_category, sp.size_code, sp.price
+                           FROM services s LEFT JOIN service_prices sp ON sp.service_id = s.id
+                           ORDER BY s.id, sp.vehicle_category, sp.size_code;""")
+            services = cur.fetchall()
+            conn.commit()
+            return jsonify(services)
+        data = request.json or {}
+        code = (data.get('code') or '').strip().lower().replace(' ', '_')
+        name = (data.get('name') or '').strip()
+        category = data.get('category', 'all')
+        minutes = data.get('estimated_minutes', 30)
+        prices = data.get('prices', [])
+        if not code or not name or category not in ('car', 'bike', 'all') or not prices:
+            return jsonify({'message': 'กรุณากรอกข้อมูลบริการและราคาให้ครบ'}), 400
+        cur.execute("INSERT INTO services (code, name, category, estimated_minutes) VALUES (%s, %s, %s, %s) RETURNING id;", (code, name, category, minutes))
+        service_id = cur.fetchone()['id']
+        for price in prices:
+            if price.get('vehicle_category') not in ('car', 'bike') or not price.get('size_code'):
+                raise ValueError('ข้อมูลราคามีรูปแบบไม่ถูกต้อง')
+            cur.execute("INSERT INTO service_prices (service_id, vehicle_category, size_code, price) VALUES (%s, %s, %s, %s);", (service_id, price['vehicle_category'], price['size_code'], price.get('price', 0)))
+        conn.commit()
+        return jsonify({'status': 'success', 'id': service_id}), 201
+    except (ValueError, psycopg2.Error) as e:
+        conn.rollback(); return jsonify({'message': str(e)}), 400
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/manage/services/<int:service_id>', methods=['PUT', 'DELETE'])
+@manager_required
+def manage_service(service_id):
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        if request.method == 'DELETE':
+            cur.execute("UPDATE services SET is_active = false WHERE id = %s RETURNING id;", (service_id,))
+        else:
+            data = request.json or {}
+            cur.execute("UPDATE services SET name = %s, estimated_minutes = %s, is_active = %s WHERE id = %s RETURNING id;", ((data.get('name') or '').strip(), data.get('estimated_minutes', 30), bool(data.get('is_active', True)), service_id))
+        if not cur.fetchone(): return jsonify({'message': 'ไม่พบบริการ'}), 404
+        conn.commit(); return jsonify({'status': 'success'})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/manage/service-prices/<int:price_id>', methods=['PUT'])
+@manager_required
+def update_service_price(price_id):
+    price = (request.json or {}).get('price')
+    try: price = float(price)
+    except (TypeError, ValueError): return jsonify({'message': 'ราคาไม่ถูกต้อง'}), 400
+    if price < 0: return jsonify({'message': 'ราคาต้องไม่น้อยกว่า 0'}), 400
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        cur.execute("UPDATE service_prices SET price = %s WHERE id = %s RETURNING id;", (price, price_id))
+        if not cur.fetchone(): return jsonify({'message': 'ไม่พบราคา'}), 404
+        conn.commit(); return jsonify({'status': 'success'})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/manage/promotions', methods=['GET', 'POST'])
+@manager_required
+def manage_promotions():
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        _ensure_promotions_table(cur)
+        if request.method == 'GET':
+            cur.execute("SELECT * FROM promotions ORDER BY is_active DESC, created_at DESC;")
+            conn.commit(); return jsonify(cur.fetchall())
+        data = request.json or {}
+        if not (data.get('name') or '').strip() or data.get('discount_type') not in ('percent', 'fixed'):
+            return jsonify({'message': 'กรุณากรอกชื่อและรูปแบบส่วนลด'}), 400
+        cur.execute("INSERT INTO promotions (name, description, discount_type, discount_value, starts_at, ends_at) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id;", ((data['name']).strip(), data.get('description'), data['discount_type'], data.get('discount_value', 0), data.get('starts_at') or None, data.get('ends_at') or None))
+        promotion_id = cur.fetchone()['id']; conn.commit(); return jsonify({'status': 'success', 'id': promotion_id}), 201
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/manage/promotions/<int:promotion_id>', methods=['DELETE'])
+@manager_required
+def delete_promotion(promotion_id):
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        _ensure_promotions_table(cur)
+        cur.execute("DELETE FROM promotions WHERE id = %s RETURNING id;", (promotion_id))
+        if not cur.fetchone(): return jsonify({'message': 'ไม่พบโปรโมชัน'}), 404
+        conn.commit(); return jsonify({'status': 'success'})
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/vehicles/lookup', methods=['GET'])
+@login_required
+def lookup_vehicle():
+    license_plate = (request.args.get('license_plate') or '').strip()
+    if not license_plate:
+        return jsonify({"status": "error", "message": "กรุณากรอกทะเบียนรถ"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """SELECT v.id AS vehicle_id, v.license_plate, v.province, v.category, v.size_code,
+                      c.phone, c.line_id
+               FROM vehicles v JOIN customers c ON c.id = v.customer_id
+               WHERE UPPER(REPLACE(v.license_plate, ' ', '')) = UPPER(REPLACE(%s, ' ', ''))
+               ORDER BY v.id DESC LIMIT 1;""",
+            (license_plate,)
+        )
+        vehicle = cur.fetchone()
+        if not vehicle:
+            return jsonify({"status": "error", "message": "ไม่พบทะเบียนนี้ กรุณาลงทะเบียนรถก่อน"}), 404
+        return jsonify({"status": "success", "data": vehicle}), 200
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/registrations', methods=['POST'])
+@login_required
+def register_vehicle():
+    data = request.json or {}
+    license_plate = (data.get('license_plate') or '').strip()
+    province = (data.get('province') or '').strip() or None
+    phone = (data.get('phone') or '').strip()
+    line_id = (data.get('line_id') or '').strip() or None
+    category = data.get('category')
+    size_code = data.get('size')
+    if not all((license_plate, phone, category, size_code)) or category not in ('car', 'bike'):
+        return jsonify({"status": "error", "message": "กรุณากรอกข้อมูลลูกค้าและรถให้ครบถ้วน"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id FROM customers WHERE phone = %s;", (phone,))
+        customer = cur.fetchone()
+        if customer:
+            customer_id = customer['id']
+            cur.execute("UPDATE customers SET line_id = COALESCE(%s, line_id), updated_at = NOW() WHERE id = %s;", (line_id, customer_id))
+        else:
+            cur.execute("INSERT INTO customers (phone, line_id) VALUES (%s, %s) RETURNING id;", (phone, line_id))
+            customer_id = cur.fetchone()['id']
+
+        cur.execute("SELECT id FROM vehicles WHERE license_plate = %s AND province IS NOT DISTINCT FROM %s;", (license_plate, province))
+        vehicle = cur.fetchone()
+        if vehicle:
+            cur.execute("UPDATE vehicles SET customer_id = %s, category = %s, size_code = %s WHERE id = %s;", (customer_id, category, size_code, vehicle['id']))
+            vehicle_id = vehicle['id']
+        else:
+            cur.execute("INSERT INTO vehicles (customer_id, license_plate, province, category, size_code) VALUES (%s, %s, %s, %s, %s) RETURNING id;", (customer_id, license_plate, province, category, size_code))
+            vehicle_id = cur.fetchone()['id']
+        conn.commit()
+        return jsonify({"status": "success", "vehicle_id": vehicle_id, "message": "ลงทะเบียนรถเรียบร้อยแล้ว"}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
     finally:
         cur.close()
         conn.close()
@@ -628,52 +903,26 @@ def get_services_with_prices():
 @login_required
 def create_order():
     data = request.json or {}
-    license_plate = (data.get('license_plate') or '').strip()
-    province = (data.get('province') or '').strip() or None
-    phone = (data.get('phone') or '').strip()
-    line_id = (data.get('line_id') or '').strip() or None
-    category = data.get('category', 'car')
-    size_code = data.get('size', 'M')
+    vehicle_id = data.get('vehicle_id')
     selected_services = data.get('services', [])
-    payment_method = data.get('payment_method', 'cash')
 
-    if not license_plate or not phone:
-        return jsonify({"status": "error", "message": "กรุณากรอกทะเบียนรถและเบอร์โทรศัพท์"}), 400
+    if not vehicle_id:
+        return jsonify({"status": "error", "message": "กรุณาค้นหาและเลือกรถที่ลงทะเบียนแล้ว"}), 400
     if not selected_services:
         return jsonify({"status": "error", "message": "กรุณาเลือกบริการอย่างน้อย 1 รายการ"}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        # 1. ลูกค้า (อ้างอิงจากเบอร์โทร ซึ่งเป็น unique)
-        cur.execute("SELECT id FROM customers WHERE phone = %s;", (phone,))
-        customer = cur.fetchone()
-        if not customer:
-            cur.execute(
-                "INSERT INTO customers (phone, line_id) VALUES (%s, %s) RETURNING id;",
-                (phone, line_id)
-            )
-            customer_id = cur.fetchone()['id']
-        else:
-            customer_id = customer['id']
-            if line_id:
-                cur.execute("UPDATE customers SET line_id = %s, updated_at = NOW() WHERE id = %s;", (line_id, customer_id))
-
-        # 2. รถ (อ้างอิงจากทะเบียน+จังหวัด ซึ่งเป็น unique ร่วมกัน)
-        cur.execute(
-            "SELECT id FROM vehicles WHERE license_plate = %s AND province IS NOT DISTINCT FROM %s;",
-            (license_plate, province)
-        )
+        cur.execute("SELECT customer_id, license_plate, category, size_code FROM vehicles WHERE id = %s;", (vehicle_id,))
         vehicle = cur.fetchone()
         if not vehicle:
-            cur.execute(
-                "INSERT INTO vehicles (customer_id, license_plate, province, category, size_code) VALUES (%s, %s, %s, %s, %s) RETURNING id;",
-                (customer_id, license_plate, province, category, size_code)
-            )
-            vehicle_id = cur.fetchone()['id']
-        else:
-            vehicle_id = vehicle['id']
-            cur.execute("UPDATE vehicles SET category = %s, size_code = %s WHERE id = %s;", (category, size_code, vehicle_id))
+            conn.rollback()
+            return jsonify({"status": "error", "message": "ไม่พบรถที่ลงทะเบียนไว้"}), 404
+        license_plate = vehicle['license_plate']
+        customer_id = vehicle['customer_id']
+        category = vehicle['category']
+        size_code = vehicle['size_code']
 
         # 3. สร้างรหัสคิวประจำวัน
         queue_prefix = datetime.now().strftime("Q%Y%m%d-")
@@ -707,9 +956,9 @@ def create_order():
                 created_by_ref = app_user_row['id'] if app_user_row else None
 
         cur.execute(
-            """INSERT INTO service_orders (queue_no, customer_id, vehicle_id, status, payment_method, total_amount, created_by)
-               VALUES (%s, %s, %s, 'pending', %s, %s, %s) RETURNING id;""",
-            (queue_no, customer_id, vehicle_id, payment_method, total_amount, created_by_ref)
+            """INSERT INTO service_orders (queue_no, customer_id, vehicle_id, status, total_amount, created_by)
+               VALUES (%s, %s, %s, 'pending', %s, %s) RETURNING id;""",
+            (queue_no, customer_id, vehicle_id, total_amount, created_by_ref)
         )
         order_id = cur.fetchone()['id']
 
@@ -720,17 +969,6 @@ def create_order():
                    VALUES (%s, %s, %s, %s, %s);""",
                 (order_id, item['service_id'], item['code'], item['name'], item['price'])
             )
-
-        # 7. การชำระเงิน + บัญชีรายรับ
-        cur.execute(
-            "INSERT INTO payments (order_id, method, amount, status) VALUES (%s, %s, %s, 'paid');",
-            (order_id, payment_method, total_amount)
-        )
-        cur.execute(
-            """INSERT INTO finance_transactions (order_id, transaction_type, category, description, amount)
-               VALUES (%s, 'income', 'service', %s, %s);""",
-            (order_id, f"รายรับจากคิว {queue_no} (ทะเบียน {license_plate})", total_amount)
-        )
 
         conn.commit()
         return jsonify({

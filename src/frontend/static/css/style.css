@@ -137,6 +137,10 @@ input::-ms-input-placeholder, textarea::-ms-input-placeholder { color: #A0A0A0 !
         flex-shrink: 0;
         display: flex;
         flex-direction: column;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow-y: auto;
     }
 
     .sidebar .nav {
@@ -167,9 +171,15 @@ input::-ms-input-placeholder, textarea::-ms-input-placeholder { color: #A0A0A0 !
     }
 
     .sidebar .nav-link.logout-link {
-        order: 1;
+        order: 99;
         margin-top: auto;
     }
+
+    /* Keep the primary navigation in the same order on every page. */
+    .sidebar .nav-link { order: 3; }
+    .sidebar .nav-link[href="/"] { order: 1; }
+    .sidebar .nav-link[href="/history"] { order: 2; }
+    .sidebar .nav-link[href="/service-management"] { order: 98; }
     
     .main-content { 
         flex-grow: 1; 

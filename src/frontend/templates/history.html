@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V CarCare - ประวัติรถที่รับแล้ว</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>.history-card{background:#1e1e1e;border:1px solid #343434;border-radius:12px}.history-card:hover{border-color:#ff6b00}.history-time{color:#aaa;font-size:.9rem}</style>
+</head>
+<body>
+    <div class="wrapper">
+        <aside class="sidebar d-none d-md-flex">
+            <h3 class="text-orange fw-bold text-center mb-2">V CARCARE</h3>
+            <p class="text-center text-secondary small mb-4">{{ session_name }} ({{ session_role }})</p>
+            <nav class="nav flex-column">
+                <a class="nav-link" href="/"><i class="bi bi-speedometer2"></i>ภาพรวมระบบ</a>
+                <a class="nav-link" href="/pos"><i class="bi bi-cart-check"></i>รับรถ POS</a>
+                <a class="nav-link" href="/register"><i class="bi bi-person-vcard"></i>ลงทะเบียนลูกค้าและรถ</a>
+                <a class="nav-link active" href="/history"><i class="bi bi-clock-history"></i>ประวัติรถที่รับแล้ว</a>
+                {% if session_role == 'manager' %}<a class="nav-link" href="/staff"><i class="bi bi-people-fill"></i>จัดการพนักงาน</a><a class="nav-link" href="/staff-advances"><i class="bi bi-cash-stack"></i>จัดการการเบิกพนักงาน</a><a class="nav-link" href="/finance"><i class="bi bi-wallet2"></i>สรุปบัญชีรายรับ</a>{% endif %}
+                <a class="nav-link logout-link text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right"></i>ออกจากระบบ</a>
+            </nav>
+        </aside>
+        <nav class="fb-nav-tabs d-flex d-md-none"><a href="/" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a><a href="/pos" class="fb-tab-item"><i class="bi bi-cart-check"></i><span>รับรถ</span></a><a href="/history" class="fb-tab-item active"><i class="bi bi-clock-history"></i><span>ประวัติ</span></a><a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i><span>ออก</span></a></nav>
+        <main class="main-content w-100"><div class="container-fluid" style="max-width:1100px">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4"><div><h2 class="fw-bold text-white mb-1"><i class="bi bi-clock-history text-orange me-2"></i>ประวัติรถที่รับแล้ว</h2><p class="text-secondary mb-0">เลือกวันที่เพื่อดูรายการรถที่ลูกค้ารับกลับแล้ว</p></div><div class="input-group" style="max-width:330px"><input type="date" id="historyDate" class="form-control form-control-custom"><button class="btn bg-orange fw-bold" id="loadButton"><i class="bi bi-search me-1"></i>ดูประวัติ</button></div></div>
+            <div id="historySummary" class="text-secondary small mb-3"></div><div id="historyResults" class="row g-3"></div>
+        </div></main>
+    </div>
+    <script>
+        const historyDate=document.getElementById('historyDate'),results=document.getElementById('historyResults'),summary=document.getElementById('historySummary');
+        function esc(v){const n=document.createElement('span');n.textContent=v||'-';return n.innerHTML} function dt(v){return v?new Date(v).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}):'-'}
+        async function loadHistory(){const selectedDate=historyDate.value;if(!selectedDate)return;results.innerHTML='<div class="col-12 text-secondary">กำลังโหลดประวัติ...</div>';summary.textContent='';try{const response=await fetch(`/api/orders?status=picked_up&date=${encodeURIComponent(selectedDate)}`);if(!response.ok)throw new Error('ไม่สามารถโหลดประวัติได้');const orders=await response.json();summary.textContent=`พบ ${orders.length} รายการ วันที่ ${new Date(`${selectedDate}T00:00:00`).toLocaleDateString('th-TH',{dateStyle:'long'})}`;if(!orders.length){results.innerHTML='<div class="col-12"><div class="history-card p-4 text-center text-secondary">ไม่พบประวัติการรับรถในวันที่เลือก</div></div>';return}results.innerHTML=orders.map(o=>`<div class="col-12 col-md-6"><article class="history-card p-3 h-100"><div class="d-flex justify-content-between align-items-start gap-2"><div><h5 class="text-white mb-1">คิว #${esc(o.queue_no)} · ${esc(o.license_plate)}</h5><div class="text-secondary">${esc(o.province)} · ${esc(o.vehicle_category)} ${esc(o.size_code)}</div></div><span class="badge bg-success">รับรถแล้ว</span></div><hr class="border-secondary"><div class="small text-secondary mb-2"><i class="bi bi-stars me-1"></i>${esc(o.services_summary)}</div><div class="d-flex justify-content-between align-items-center"><span class="history-time"><i class="bi bi-clock me-1"></i>${dt(o.picked_up_at)}</span><strong class="text-warning">${Number(o.total_amount||0).toLocaleString('th-TH',{minimumFractionDigits:2})} บาท</strong></div></article></div>`).join('')}catch(e){results.innerHTML=`<div class="col-12"><div class="alert alert-danger mb-0">${esc(e.message)}</div></div>`}}
+        historyDate.value=new Date().toISOString().slice(0,10);document.getElementById('loadButton').addEventListener('click',loadHistory);historyDate.addEventListener('change',loadHistory);loadHistory();
+    </script>
+</body>
+</html>

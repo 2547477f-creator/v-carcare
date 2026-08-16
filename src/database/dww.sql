@@ -717,13 +717,13 @@ COPY public.service_prices (id, service_id, vehicle_category, size_code, price) 
 --
 
 COPY public.services (id, code, name, category, estimated_minutes, is_active) FROM stdin;
-1	wash	Basic wash	all	25	t
-2	washVacuum	Wash and vacuum	car	35	t
-3	fullFlush	Wash, vacuum and underbody flush	car	50	t
-4	engineWash	Wash, vacuum and engine bay wash	car	55	t
-5	fullEngine	Full wash with underbody and engine bay	car	70	t
-6	ozone	Ozone deodorizing	car	45	t
-7	wax	Wax coating	car	60	t
+1	wash	ล้างภายนอก	all	25	t
+2	washVacuum	ล้างภายนอกและดูดฝุ่น	car	35	t
+3	fullFlush	ล้าง ดูดฝุ่น และฉีดล้างช่วงล่าง	car	50	t
+4	engineWash	ล้าง ดูดฝุ่น และล้างห้องเครื่อง	car	55	t
+5	fullEngine	ล้างครบชุด พร้อมล้างช่วงล่างและห้องเครื่อง	car	70	t
+6	ozone	อบโอโซนกำจัดกลิ่น	car	45	t
+7	wax	เคลือบแว็กซ์	car	60	t
 \.
 
 
