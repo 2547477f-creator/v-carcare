@@ -6,7 +6,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>.sidebar{width:260px;min-height:100vh;background:#1a1a1a;padding:20px}.sidebar .nav-link{color:#aaa;padding:12px 14px;border-radius:10px;margin-bottom:6px}.sidebar .nav-link:hover{background:#292929;color:#fff}.sidebar .nav-link.active{background:#ff6b00;color:#111;font-weight:bold}@media(max-width:767px){.sidebar{display:none}}</style>
+    <style>.sidebar{width:260px;min-height:100vh;background:#1a1a1a;padding:20px}.sidebar .nav-link{color:#aaa;padding:12px 14px;border-radius:10px;margin-bottom:6px}.sidebar .nav-link:hover{background:#292929;color:#fff}.sidebar .nav-link.active{background:#ff6b00;color:#111;font-weight:bold}.province-options{position:absolute;z-index:1050;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;color:#212529;border:1px solid #ced4da;border-radius:.375rem;margin-top:.25rem;box-shadow:0 .5rem 1rem rgba(0,0,0,.35)}.province-option{padding:.55rem .75rem;cursor:pointer;color:#212529;background:#fff;border-bottom:1px solid #e9ecef}.province-option:last-child{border-bottom:0}.province-option:hover,.province-option:focus{background:#ff6b00;color:#111;outline:0}@media(max-width:767px){.sidebar{display:none}}</style>
 </head>
 {% if session_role != 'manager' %}
 <style>
@@ -44,7 +44,7 @@
             <h5 class="text-orange mb-3">ข้อมูลรถ</h5>
             <div class="row g-3">
                 <div class="col-md-6"><label class="form-label">ทะเบียนรถ *</label><input id="licensePlate" class="form-control" required></div>
-                <div class="col-md-6"><label class="form-label">จังหวัด</label><input id="province" class="form-control"></div>
+                <div class="col-md-6 position-relative"><label class="form-label" for="province">จังหวัด</label><input id="province" class="form-control" type="text" autocomplete="off" placeholder="พิมพ์เพื่อค้นหาจังหวัด"><div id="provinceOptions" class="province-options d-none" role="listbox" aria-label="รายการจังหวัด"></div></div>
                 <div class="col-md-6"><label class="form-label">ประเภทรถ *</label><select id="category" class="form-select" required onchange="setSizes()"><option value="">-- เลือกประเภทรถ --</option><option value="car">รถยนต์</option><option value="bike">มอเตอร์ไซค์</option></select></div>
                 <div class="col-md-6"><label class="form-label">ขนาดรถ *</label><select id="size" class="form-select" required disabled><option value="">-- เลือกประเภทรถก่อน --</option></select></div>
             </div>
@@ -53,6 +53,44 @@
     </main>
     </div>
     <script>
+        const thaiProvinces = [
+            'กรุงเทพมหานคร', 'กระบี่', 'กาญจนบุรี', 'กาฬสินธุ์', 'กำแพงเพชร', 'ขอนแก่น', 'จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี', 'ชัยนาท', 'ชัยภูมิ', 'ชุมพร', 'เชียงราย', 'เชียงใหม่', 'ตรัง', 'ตราด', 'ตาก', 'นครนายก', 'นครปฐม', 'นครพนม', 'นครราชสีมา', 'นครศรีธรรมราช', 'นครสวรรค์', 'นนทบุรี', 'นราธิวาส', 'น่าน', 'บึงกาฬ', 'บุรีรัมย์', 'ปทุมธานี', 'ประจวบคีรีขันธ์', 'ปราจีนบุรี', 'ปัตตานี', 'พระนครศรีอยุธยา', 'พะเยา', 'พังงา', 'พัทลุง', 'พิจิตร', 'พิษณุโลก', 'เพชรบุรี', 'เพชรบูรณ์', 'แพร่', 'ภูเก็ต', 'มหาสารคาม', 'มุกดาหาร', 'แม่ฮ่องสอน', 'ยโสธร', 'ยะลา', 'ร้อยเอ็ด', 'ระนอง', 'ระยอง', 'ราชบุรี', 'ลพบุรี', 'ลำปาง', 'ลำพูน', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สงขลา', 'สตูล', 'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระแก้ว', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย', 'สุพรรณบุรี', 'สุราษฎร์ธานี', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อ่างทอง', 'อำนาจเจริญ', 'อุดรธานี', 'อุตรดิตถ์', 'อุทัยธานี', 'อุบลราชธานี'
+        ];
+        const provinceInput = document.getElementById('province');
+        const provinceOptions = document.getElementById('provinceOptions');
+
+        function renderProvinceOptions() {
+            const keyword = provinceInput.value.trim();
+            const matches = thaiProvinces.filter((province, index) =>
+                thaiProvinces.indexOf(province) === index && province.includes(keyword)
+            );
+            provinceOptions.innerHTML = matches.map(province =>
+                `<div class="province-option" role="option" tabindex="0" data-province="${province}">${province}</div>`
+            ).join('') || '<div class="px-3 py-2 text-dark">ไม่พบจังหวัด</div>';
+            provinceOptions.classList.remove('d-none');
+        }
+
+        function selectProvince(value) {
+            provinceInput.value = value;
+            provinceOptions.classList.add('d-none');
+        }
+
+        provinceInput.addEventListener('focus', renderProvinceOptions);
+        provinceInput.addEventListener('input', renderProvinceOptions);
+        provinceOptions.addEventListener('click', event => {
+            const option = event.target.closest('[data-province]');
+            if (option) selectProvince(option.dataset.province);
+        });
+        provinceOptions.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                const option = event.target.closest('[data-province]');
+                if (option) selectProvince(option.dataset.province);
+            }
+        });
+        document.addEventListener('click', event => {
+            if (!event.target.closest('.position-relative')) provinceOptions.classList.add('d-none');
+        });
+
         function setSizes() {
             const size = document.getElementById('size'), category = document.getElementById('category').value;
             const options = category === 'car' ? [['S','S - รถเก๋งเล็ก'],['M','M - รถเก๋งกลาง/ใหญ่'],['L','L - SUV'],['XL','XL - รถตู้']] : [['S','S - เล็ก'],['M','M - กลาง'],['L','L - บิ๊กไบค์']];

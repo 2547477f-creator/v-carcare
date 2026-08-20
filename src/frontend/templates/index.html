@@ -277,6 +277,15 @@
                         <option value="card">บัตร</option>
                         <option value="other">อื่น ๆ</option>
                     </select>
+                    <div id="cashPaymentFields" class="mt-3">
+                        <label for="cashReceived" class="form-label">รับเงินมา (บาท)</label>
+                        <input id="cashReceived" class="form-control" type="number" min="0" step="0.01" inputmode="decimal" placeholder="ระบุจำนวนเงินที่รับมา">
+                        <div class="d-flex justify-content-between align-items-center mt-2 p-2 rounded bg-secondary bg-opacity-25">
+                            <span class="text-secondary">เงินทอน</span>
+                            <strong id="cashChange" class="text-warning">0.00 บาท</strong>
+                        </div>
+                        <small id="cashPaymentHint" class="text-secondary d-block mt-1">กรอกจำนวนเงินที่รับจากลูกค้า</small>
+                    </div>
                 </div>
                 <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-secondary" onclick="backToInspection()">ย้อนกลับ</button>
@@ -451,8 +460,41 @@
         function openPayment(amount) {
             document.getElementById('paymentAmount').innerText = `${amount.toFixed(2)} บาท`;
             document.getElementById('paymentMethod').value = 'cash';
+            document.getElementById('cashReceived').value = '';
+            updateCashPayment();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('paymentModal')).show();
         }
+
+        function updateCashPayment() {
+            const isCash = document.getElementById('paymentMethod').value === 'cash';
+            const cashFields = document.getElementById('cashPaymentFields');
+            const receivedInput = document.getElementById('cashReceived');
+            const changeEl = document.getElementById('cashChange');
+            const hintEl = document.getElementById('cashPaymentHint');
+
+            cashFields.classList.toggle('d-none', !isCash);
+            receivedInput.required = isCash;
+            if (!isCash) return;
+
+            const received = Number(receivedInput.value);
+            const hasAmount = receivedInput.value !== '' && Number.isFinite(received);
+            const difference = hasAmount ? received - paymentTotalAmount : 0;
+            changeEl.textContent = `${Math.max(difference, 0).toFixed(2)} บาท`;
+
+            if (!hasAmount) {
+                hintEl.textContent = 'กรอกจำนวนเงินที่รับจากลูกค้า';
+                hintEl.className = 'text-secondary d-block mt-1';
+            } else if (difference < 0) {
+                hintEl.textContent = `รับเงินไม่พอ อีก ${Math.abs(difference).toFixed(2)} บาท`;
+                hintEl.className = 'text-danger d-block mt-1';
+            } else {
+                hintEl.textContent = difference === 0 ? 'รับเงินครบพอดี' : 'คำนวณเงินทอนเรียบร้อย';
+                hintEl.className = 'text-success d-block mt-1';
+            }
+        }
+
+        document.getElementById('paymentMethod').addEventListener('change', updateCashPayment);
+        document.getElementById('cashReceived').addEventListener('input', updateCashPayment);
 
         function openHistory() {
             window.location.href = '/history';
@@ -481,6 +523,16 @@
 
         async function confirmPayment() {
             if (!paymentOrderId) return;
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            if (paymentMethod === 'cash') {
+                const receivedValue = document.getElementById('cashReceived').value;
+                const cashReceived = Number(receivedValue);
+                if (receivedValue === '' || !Number.isFinite(cashReceived) || cashReceived < paymentTotalAmount) {
+                    alert('กรุณาระบุจำนวนเงินสดที่รับมาให้ไม่น้อยกว่ายอดชำระ');
+                    document.getElementById('cashReceived').focus();
+                    return;
+                }
+            }
             const button = document.getElementById('confirmPaymentBtn');
             button.disabled = true;
             try {
@@ -488,7 +540,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        payment_method: document.getElementById('paymentMethod').value,
+                        payment_method: paymentMethod,
                         damage_note: currentDamageNote // ส่งหมายเหตุความเสียหายไปยัง Backend
                     })
                 });
