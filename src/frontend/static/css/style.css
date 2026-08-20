@@ -130,6 +130,8 @@ input::-ms-input-placeholder, textarea::-ms-input-placeholder { color: #A0A0A0 !
     }
     
     .sidebar { 
+        display: flex !important;
+        flex-direction: column;
         width: 260px; 
         background-color: #1A1A1A; 
         border-right: 1px solid #2A2A2A; 
@@ -170,16 +172,21 @@ input::-ms-input-placeholder, textarea::-ms-input-placeholder { color: #A0A0A0 !
         font-weight: bold;
     }
 
+    /* Keep the navigation order identical across all desktop pages. */
+    .sidebar .nav-link { order: 50; }
+    .sidebar .nav-link[href="/"] { order: 1; }
+    .sidebar .nav-link[href="/pos"] { order: 2; }
+    .sidebar .nav-link[href="/register"] { order: 3; }
+    .sidebar .nav-link[href="/history"] { order: 4; }
+    .sidebar .nav-link[href="/staff"] { order: 5; }
+    .sidebar .nav-link[href="/staff-advances"] { order: 6; }
+    .sidebar .nav-link[href="/finance"] { order: 7; }
+    .sidebar .nav-link[href="/service-management"] { order: 8; }
+
     .sidebar .nav-link.logout-link {
         order: 99;
         margin-top: auto;
     }
-
-    /* Keep the primary navigation in the same order on every page. */
-    .sidebar .nav-link { order: 3; }
-    .sidebar .nav-link[href="/"] { order: 1; }
-    .sidebar .nav-link[href="/history"] { order: 2; }
-    .sidebar .nav-link[href="/service-management"] { order: 98; }
     
     .main-content { 
         flex-grow: 1; 

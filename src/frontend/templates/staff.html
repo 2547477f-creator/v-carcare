@@ -1,430 +1,2435 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>V CarCare - จัดการพนักงาน</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        body { background-color: #121212; color: #E0E0E0; font-family: sans-serif; }
-        .text-orange { color: #FF6B00; }
-        .bg-orange { background-color: #FF6B00; color: #121212; }
-        .bg-orange:hover { background-color: #E05E00; color: #121212; }
-        .card-custom { background-color: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 12px; }
-        .form-control-custom { background-color: #2A2A2A; border: 1px solid #3A3A3A; color: #FFFFFF; padding: 12px; }
-        .form-control-custom:focus { background-color: #3A3A3A; color: #FFF; border-color: #FF6B00; box-shadow: none; }
 
-        /* สำหรับกลับด้านกล้องให้เหมือนกระจกตอนสแกนหน้า */
-        #webcam-video { transform: scaleX(-1); }
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>V CarCare - จัดการพนักงาน</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+        rel="stylesheet">
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+        rel="stylesheet">
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+
+        body {
+            background-color: #121212;
+            color: #E0E0E0;
+            font-family: sans-serif;
+        }
+
+        .text-orange {
+            color: #FF6B00;
+        }
+
+        .bg-orange {
+            background-color: #FF6B00;
+            color: #121212;
+        }
+
+        .bg-orange:hover {
+            background-color: #E05E00;
+            color: #121212;
+        }
+
+        .card-custom {
+            background-color: #1A1A1A;
+            border: 1px solid #2A2A2A;
+            border-radius: 12px;
+        }
+
+        .form-control-custom {
+            background-color: #2A2A2A;
+            border: 1px solid #3A3A3A;
+            color: #FFFFFF;
+            padding: 12px;
+        }
+
+        .form-control-custom:focus {
+            background-color: #3A3A3A;
+            color: #FFF;
+            border-color: #FF6B00;
+            box-shadow: none;
+        }
+
+        .form-control-custom::placeholder {
+            color: #777;
+        }
+
+        .form-control-custom::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+
+        #webcam-video {
+            transform: scaleX(-1);
+        }
+
+        .staff-item {
+            transition: 0.2s ease;
+        }
+
+        .staff-item:hover {
+            border-color: #555 !important;
+        }
+
+        .status-box {
+            margin-top: 6px;
+        }
+
+        .date-badge {
+            font-size: 12px;
+            padding: 5px 8px;
+            border-radius: 6px;
+        }
 
         @media (max-width: 767.98px) {
-            body { padding-top: 75px; padding-bottom: 40px; }
-            .fb-nav-tabs { position: fixed; top: 0; left: 0; right: 0; height: 65px; background-color: #1A1A1A; border-bottom: 1px solid #2A2A2A; display: flex; justify-content: space-around; align-items: stretch; z-index: 1050; }
-            .fb-tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #8E8E93; text-decoration: none; font-size: 11px; font-weight: bold; border-bottom: 3px solid transparent; }
-            .fb-tab-item i { font-size: 22px; margin-bottom: 2px; }
-            .fb-tab-item.active { color: #FF6B00; border-bottom-color: #FF6B00; }
+
+            body {
+                padding-top: 75px;
+                padding-bottom: 40px;
+            }
+
+            .fb-nav-tabs {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 65px;
+                background-color: #1A1A1A;
+                border-bottom: 1px solid #2A2A2A;
+                display: flex;
+                justify-content: space-around;
+                align-items: stretch;
+                z-index: 1050;
+            }
+
+            .fb-tab-item {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                color: #8E8E93;
+                text-decoration: none;
+                font-size: 11px;
+                font-weight: bold;
+                border-bottom: 3px solid transparent;
+            }
+
+            .fb-tab-item i {
+                font-size: 22px;
+                margin-bottom: 2px;
+            }
+
+            .fb-tab-item.active {
+                color: #FF6B00;
+                border-bottom-color: #FF6B00;
+            }
         }
 
         @media (min-width: 768px) {
-            .wrapper { display: flex; min-height: 100vh; }
-            .sidebar { width: 260px; background-color: #1A1A1A; border-right: 1px solid #2A2A2A; padding: 20px; }
-            .sidebar .nav-link { color: #8E8E93; padding: 12px 15px; border-radius: 8px; margin-bottom: 5px; font-weight: bold; }
-            .sidebar .nav-link:hover { color: #FFFFFF; background-color: #2A2A2A; }
-            .sidebar .nav-link.active { color: #121212; background-color: #FF6B00; }
-            .main-content { flex-grow: 1; padding: 30px; background-color: #121212; }
+
+            .wrapper {
+                display: flex;
+                min-height: 100vh;
+            }
+
+            .sidebar {
+                width: 260px;
+                background-color: #1A1A1A;
+                border-right: 1px solid #2A2A2A;
+                padding: 20px;
+            }
+
+            .sidebar .nav-link {
+                color: #8E8E93;
+                padding: 12px 15px;
+                border-radius: 8px;
+                margin-bottom: 5px;
+                font-weight: bold;
+            }
+
+            .sidebar .nav-link:hover {
+                color: #FFFFFF;
+                background-color: #2A2A2A;
+            }
+
+            .sidebar .nav-link.active {
+                color: #121212;
+                background-color: #FF6B00;
+            }
+
+            .main-content {
+                flex-grow: 1;
+                padding: 30px;
+                background-color: #121212;
+            }
         }
+
     </style>
 </head>
+
 <body>
 
-    <div class="wrapper">
-        <!-- Sidebar สำหรับ PC -->
-        <div class="sidebar d-none d-md-block">
-            <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
-            <nav class="nav flex-column">
-                <a class="nav-link" href="/service-management"><i class="bi bi-tags me-2"></i>จัดการบริการและโปรโมชัน</a>
-                <a class="nav-link" href="/history"><i class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว</a>
-                <a class="nav-link logout-link text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
-                <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
-                <a class="nav-link" href="/pos"><i class="bi bi-cart-check me-2"></i> รับรถ POS</a>
-                <a class="nav-link" href="/register"><i class="bi bi-person-vcard me-2"></i> ลงทะเบียนลูกค้าและรถ</a>
-                <a class="nav-link active" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
-                <a class="nav-link" href="/staff-advances"><i class="bi bi-cash-stack me-2"></i> จัดการการเบิกพนักงาน</a>
-                <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
-            </nav>
+<div class="wrapper">
+
+    <!-- =========================================================
+         SIDEBAR PC
+    ========================================================== -->
+
+    <div class="sidebar d-none d-md-block">
+
+        <h3 class="text-orange fw-bold text-center mb-4">
+            V CARCARE
+        </h3>
+
+        <nav class="nav flex-column">
+
+            <a class="nav-link"
+               href="/history">
+                <i class="bi bi-clock-history me-2"></i>
+                ประวัติรถที่รับแล้ว
+            </a>
+
+            <a class="nav-link"
+               href="/">
+                <i class="bi bi-speedometer2 me-2"></i>
+                ภาพรวมระบบ
+            </a>
+
+            <a class="nav-link"
+               href="/pos">
+                <i class="bi bi-cart-check me-2"></i>
+                รับรถ POS
+            </a>
+
+            <a class="nav-link"
+               href="/register">
+                <i class="bi bi-person-vcard me-2"></i>
+                ลงทะเบียนลูกค้าและรถ
+            </a>
+
+            <a class="nav-link active"
+               href="/staff">
+                <i class="bi bi-people-fill me-2"></i>
+                จัดการพนักงาน
+            </a>
+
+            <a class="nav-link"
+               href="/staff-advances">
+                <i class="bi bi-cash-stack me-2"></i>
+                จัดการการเบิกพนักงาน
+            </a>
+
+            <a class="nav-link"
+               href="/finance">
+                <i class="bi bi-wallet2 me-2"></i>
+                สรุปบัญชีรายรับ
+            </a>
+
+            <a class="nav-link"
+               href="/service-management">
+                <i class="bi bi-tags me-2"></i>
+                จัดการบริการและโปรโมชัน
+            </a>
+
+            <a class="nav-link logout-link text-danger mt-2"
+               href="{{ url_for('logout') }}">
+
+                <i class="bi bi-box-arrow-right me-2"></i>
+                ออกจากระบบ
+
+            </a>
+
+        </nav>
+
+    </div>
+
+
+    <!-- =========================================================
+         MOBILE NAV
+    ========================================================== -->
+
+    <div class="fb-nav-tabs d-flex d-md-none">
+
+        <a href="/staff-advances"
+           class="fb-tab-item">
+
+            <i class="bi bi-cash-stack"></i>
+            <span>เบิกเงิน</span>
+
+        </a>
+
+        <a href="/"
+           class="fb-tab-item">
+
+            <i class="bi bi-speedometer2"></i>
+            <span>ภาพรวม</span>
+
+        </a>
+
+        <a href="/pos"
+           class="fb-tab-item">
+
+            <i class="bi bi-plus-circle-fill"></i>
+            <span>รับรถ</span>
+
+        </a>
+
+        <a href="/staff"
+           class="fb-tab-item active">
+
+            <i class="bi bi-people-fill"></i>
+            <span>พนักงาน</span>
+
+        </a>
+
+        <a href="/finance"
+           class="fb-tab-item">
+
+            <i class="bi bi-wallet2"></i>
+            <span>บัญชี</span>
+
+        </a>
+
+        <a href="{{ url_for('logout') }}"
+           class="fb-tab-item logout-link text-danger">
+
+            <i class="bi bi-box-arrow-right"></i>
+            <span>ออกระบบ</span>
+
+        </a>
+
+    </div>
+
+
+    <!-- =========================================================
+         MAIN CONTENT
+    ========================================================== -->
+
+    <div class="main-content w-100 p-3 p-md-4">
+
+        <!-- HEADER -->
+
+        <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+
+            <h2 class="fw-bold text-white m-0 d-none d-md-block">
+                ระบบพนักงานและเวลาเข้างาน
+            </h2>
+
+            <button
+                class="btn bg-orange text-dark fw-bold px-4 py-2 w-100 w-md-auto"
+                data-bs-toggle="modal"
+                data-bs-target="#addStaffModal">
+
+                <i class="bi bi-person-plus-fill me-2"></i>
+
+                ลงทะเบียนพนักงานใหม่
+
+            </button>
+
         </div>
 
-        <!-- แท็บสำหรับมือถือ -->
-        <div class="fb-nav-tabs d-flex d-md-none">
-            <a href="/staff-advances" class="fb-tab-item"><i class="bi bi-cash-stack"></i><span>Advances</span></a>
-            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i><span>ออกจากระบบ</span></a>
-            <a href="/" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
-            <a href="/pos" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i><span>รับรถ (POS)</span></a>
-            <a href="/staff" class="fb-tab-item active"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
-            <a href="/finance" class="fb-tab-item"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
+
+        <!-- ALERT -->
+
+        <div id="alert-box"></div>
+
+
+        <!-- =====================================================
+             DATE FILTER
+        ====================================================== -->
+
+        <div class="card-custom p-3 mb-4">
+
+            <div class="row g-2 align-items-end">
+
+                <div class="col-md-4">
+
+                    <label
+                        for="attendance-date"
+                        class="form-label text-secondary small">
+
+                        วันที่ดูข้อมูลการเข้างาน
+
+                    </label>
+
+                    <input
+                        type="date"
+                        id="attendance-date"
+                        class="form-control form-control-custom">
+
+                </div>
+
+
+                <div class="col-md-3">
+
+                    <button
+                        type="button"
+                        class="btn bg-orange text-dark fw-bold w-100"
+                        onclick="loadStaff()">
+
+                        <i class="bi bi-search me-1"></i>
+
+                        ดูข้อมูล
+
+                    </button>
+
+                </div>
+
+
+                <div class="col-md-5">
+
+                    <div
+                        id="selected-date-label"
+                        class="text-secondary small text-md-end">
+
+                    </div>
+
+                </div>
+
+            </div>
+
         </div>
 
-        <!-- เนื้อหาหลัก -->
-        <div class="main-content w-100 p-3 p-md-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="fw-bold text-white m-0 d-none d-md-block">ระบบพนักงานและเวลาเข้างาน</h2>
-                <button class="btn bg-orange text-dark fw-bold px-4 py-2 w-100 w-md-auto" data-bs-toggle="modal" data-bs-target="#addStaffModal">
-                    <i class="bi bi-person-plus-fill me-2"></i> ลงทะเบียนพนักงานใหม่
+
+        <!-- =====================================================
+             COUNTERS
+        ====================================================== -->
+
+        <div class="row g-2 mb-4">
+
+            <div class="col-6">
+
+                <div class="card-custom p-3 text-center">
+
+                    <small class="text-secondary">
+                        พนักงานในระบบ
+                    </small>
+
+                    <h4
+                        class="fw-bold text-white m-0"
+                        id="total-staff">
+                        0 คน
+                    </h4>
+
+                </div>
+
+            </div>
+
+
+            <div class="col-6">
+
+                <div class="card-custom p-3 text-center border-bottom border-success border-3">
+
+                    <small
+                        class="text-secondary"
+                        id="attendance-counter-label">
+
+                        มาทำงานตามวันที่เลือก
+
+                    </small>
+
+                    <h4
+                        class="text-success fw-bold m-0"
+                        id="checked-in-staff">
+
+                        0 คน
+
+                    </h4>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- =====================================================
+             STAFF LIST
+        ====================================================== -->
+
+        <div class="card-custom p-3 p-md-4">
+
+            <div id="staff-list">
+
+                <p class="text-secondary small m-0">
+
+                    <i class="bi bi-hourglass-split me-1"></i>
+
+                    กำลังโหลดข้อมูลพนักงาน...
+
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =============================================================
+     MODAL : ADD STAFF
+============================================================== -->
+
+<div class="modal fade"
+     id="addStaffModal"
+     tabindex="-1"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered m-3 mx-auto"
+         style="max-width:450px;">
+
+        <div class="modal-content bg-dark text-white border-secondary">
+
+
+            <div class="modal-header border-secondary">
+
+                <h5 class="modal-title text-orange fw-bold">
+                    ลงทะเบียนพนักงานใหม่
+                </h5>
+
+                <button
+                    type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="modal">
                 </button>
+
             </div>
 
-            <div id="alert-box"></div>
 
-            <div class="row g-2 mb-4">
-                <div class="col-6">
-                    <div class="card-custom p-3 text-center">
-                        <small class="text-secondary">พนักงานในร้าน</small>
-                        <h4 class="fw-bold text-white m-0" id="total-staff">0 คน</h4>
+            <div class="modal-body">
+
+
+                <!-- STEP 1 -->
+
+                <div id="step-1-info">
+
+                    <div class="mb-3">
+
+                        <label class="form-label text-secondary small">
+                            ชื่อ-นามสกุล
+                        </label>
+
+                        <input
+                            type="text"
+                            id="staff-name"
+                            class="form-control form-control-custom"
+                            placeholder="เช่น สมศักดิ์ รักสะอาด">
+
                     </div>
-                </div>
-                <div class="col-6">
-                    <div class="card-custom p-3 text-center border-bottom border-success border-3">
-                        <small class="text-secondary">มาทำงานวันนี้</small>
-                        <h4 class="text-success fw-bold m-0" id="checked-in-staff">0 คน</h4>
+
+
+                    <div class="mb-3">
+
+                        <label class="form-label text-secondary small">
+                            ตำแหน่ง
+                        </label>
+
+                        <input
+                            type="text"
+                            id="staff-position"
+                            class="form-control form-control-custom"
+                            placeholder="เช่น ช่างล้างรถ"
+                            value="Staff">
+
                     </div>
+
+
+                    <div class="mb-3">
+
+                        <label class="form-label text-secondary small">
+                            อัตราค่าแรงต่อวัน (บาท)
+                        </label>
+
+                        <input
+                            type="number"
+                            id="staff-wage"
+                            class="form-control form-control-custom"
+                            placeholder="เช่น 350">
+
+                    </div>
+
+
+                    <div class="mb-2">
+
+                        <label class="form-label text-secondary small">
+                            รหัส PIN เริ่มต้น (4 หลัก)
+                        </label>
+
+                        <input
+                            type="text"
+                            maxlength="4"
+                            id="staff-pin"
+                            class="form-control form-control-custom"
+                            placeholder="ค่าเริ่มต้น 1234"
+                            value="1234">
+
+                    </div>
+
                 </div>
+
+
+                <!-- STEP 2 CAMERA -->
+
+                <div
+                    id="step-2-camera"
+                    class="d-none text-center">
+
+                    <p class="text-white mb-1 fw-bold">
+                        สแกนใบหน้าต้นแบบ
+                    </p>
+
+                    <p class="text-secondary small mb-3">
+                        กรุณามองกล้องและจัดใบหน้าให้อยู่ตรงกลาง
+                    </p>
+
+
+                    <div
+                        class="position-relative d-inline-block rounded overflow-hidden border border-secondary"
+                        style="
+                            width:100%;
+                            max-width:300px;
+                            aspect-ratio:4/3;
+                            background:#000;
+                        ">
+
+                        <video
+                            id="webcam-video"
+                            autoplay
+                            playsinline
+                            muted
+                            style="
+                                width:100%;
+                                height:100%;
+                                object-fit:cover;
+                            ">
+                        </video>
+
+                    </div>
+
+
+                    <canvas
+                        id="snapshot-canvas"
+                        class="d-none">
+                    </canvas>
+
+
+                    <p
+                        id="face-count"
+                        class="text-warning mt-3">
+
+                        รูปใบหน้า: 0 / 5
+
+                    </p>
+
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-warning w-100 mb-2"
+                        id="capture-face-btn"
+                        onclick="captureFace()">
+
+                        <i class="bi bi-camera me-1"></i>
+                        ถ่ายรูปเก็บใบหน้า
+
+                    </button>
+
+                </div>
+
             </div>
 
-            <div class="card-custom p-3 p-md-4">
-                <div id="staff-list">
-                    <p class="text-secondary small m-0"><i class="bi bi-hourglass-split me-1"></i>กำลังโหลดข้อมูลพนักงาน...</p>
-                </div>
+
+            <!-- FOOTER STEP 1 -->
+
+            <div
+                class="modal-footer border-secondary"
+                id="modal-footer-step1">
+
+                <button
+                    type="button"
+                    class="btn bg-orange text-dark fw-bold w-100"
+                    onclick="goToStep2()">
+
+                    ถัดไป: สแกนใบหน้าต้นแบบ
+
+                    <i class="bi bi-camera ms-1"></i>
+
+                </button>
+
             </div>
+
+
+            <!-- FOOTER STEP 2 -->
+
+            <div
+                class="modal-footer border-secondary d-none"
+                id="modal-footer-step2">
+
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary w-100 mb-2"
+                    onclick="goToStep1()">
+
+                    ย้อนกลับไปแก้ไขข้อมูล
+
+                </button>
+
+
+                <button
+                    type="button"
+                    class="btn btn-success fw-bold w-100"
+                    id="btn-save-staff"
+                    onclick="captureAndSave()">
+
+                    <i class="bi bi-person-check-fill me-1"></i>
+                    บันทึกพนักงาน
+
+                </button>
+
+            </div>
+
         </div>
+
     </div>
 
-    <!-- Modal เพิ่มพนักงาน (Wizard Form) -->
-    <div class="modal fade" id="addStaffModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered m-3 mx-auto" style="max-width: 450px;">
-            <div class="modal-content bg-dark text-white border-secondary">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title text-orange fw-bold">ลงทะเบียนพนักงานใหม่</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                
-                <div class="modal-body">
-                    <!-- Step 1: ข้อมูลพื้นฐาน -->
-                    <div id="step-1-info">
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small">ชื่อ-นามสกุล</label>
-                            <input type="text" id="staff-name" class="form-control form-control-custom" placeholder="เช่น สมศักดิ์ รักสะอาด">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small">ตำแหน่ง</label>
-                            <input type="text" id="staff-position" class="form-control form-control-custom" placeholder="เช่น ช่างล้างรถ" value="Staff">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label text-secondary small">อัตราค่าแรงต่อวัน (บาท)</label>
-                            <input type="number" id="staff-wage" class="form-control form-control-custom" placeholder="เช่น 350">
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label text-secondary small">รหัส PIN เริ่มต้น (4 หลัก)</label>
-                            <input type="text" maxlength="4" id="staff-pin" class="form-control form-control-custom" placeholder="ค่าเริ่มต้น 1234" value="1234">
-                        </div>
-                    </div>
+</div>
 
-                    <!-- Step 2: สแกนใบหน้าต้นแบบ -->
-                    <div id="step-2-camera" class="d-none text-center">
-                        <p class="text-white mb-1 fw-bold">สแกนใบหน้าต้นแบบ</p>
-                        <p class="text-secondary small mb-3">กรุณามองกล้องและจัดใบหน้าให้อยู่ตรงกลาง</p>
-                        
-                        <div class="position-relative d-inline-block rounded overflow-hidden border border-secondary" style="width: 100%; max-width: 300px; aspect-ratio: 4/3; background: #000;">
-                            <video id="webcam-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
-                        </div>
-                        <!-- Canvas ซ่อนไว้สำหรับ Capture รูปภาพ -->
-                        <canvas id="snapshot-canvas" class="d-none"></canvas>
-                        <p id="face-count" class="text-warning mt-3">
-                            รูปใบหน้า: 0 / 5
-                        </p>
 
-                        <button 
-                            type="button"
-                            class="btn btn-outline-warning w-100 mb-2"
-                            onclick="captureFace()">
-                            <i class="bi bi-camera"></i>
-                            ถ่ายรูปเก็บใบหน้า
-                        </button>
-                    </div>
-                </div>
+<!-- =============================================================
+     MODAL : BACKDATE CHECK-IN
+============================================================== -->
 
-                <!-- Footer Step 1 -->
-                <div class="modal-footer border-secondary" id="modal-footer-step1">
-                    <button type="button" class="btn bg-orange text-dark fw-bold w-100" onclick="goToStep2()">
-                        ถัดไป: สแกนใบหน้าต้นแบบ <i class="bi bi-camera ms-1"></i>
-                    </button>
-                </div>
+<div class="modal fade"
+     id="backdateModal"
+     tabindex="-1"
+     aria-hidden="true">
 
-                <!-- Footer Step 2 -->
-                <div class="modal-footer border-secondary d-none" id="modal-footer-step2">
-                    <button type="button" class="btn btn-outline-secondary w-100 mb-2" onclick="goToStep1()">ย้อนกลับไปแก้ไขข้อมูล</button>
-                    <button type="button" class="btn btn-success fw-bold w-100" id="btn-save-staff" onclick="captureAndSave()">
-                        <i class="bi bi-person-check-fill me-1"></i> ถ่ายภาพและบันทึกพนักงาน
-                    </button>
-                </div>
+    <div class="modal-dialog modal-dialog-centered m-3 mx-auto"
+         style="max-width:450px;">
+
+        <div class="modal-content bg-dark text-white border-secondary">
+
+            <div class="modal-header border-secondary">
+
+                <h5 class="modal-title text-orange fw-bold">
+                    บันทึกเข้างานย้อนหลัง
+                </h5>
+
+                <button
+                    type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="modal">
+                </button>
+
             </div>
+
+
+            <div class="modal-body">
+
+                <div class="mb-3">
+
+                    <label class="form-label text-secondary small">
+                        พนักงาน
+                    </label>
+
+                    <input
+                        type="text"
+                        id="backdate-staff-name"
+                        class="form-control form-control-custom"
+                        readonly>
+
+                </div>
+
+
+                <div class="mb-3">
+
+                    <label class="form-label text-secondary small">
+                        วันที่
+                    </label>
+
+                    <input
+                        type="date"
+                        id="backdate-date"
+                        class="form-control form-control-custom">
+
+                </div>
+
+
+                <div class="mb-2">
+
+                    <label class="form-label text-secondary small">
+                        เวลาเข้างาน
+                    </label>
+
+                    <input
+                        type="time"
+                        id="backdate-time"
+                        class="form-control form-control-custom"
+                        value="08:00">
+
+                </div>
+
+
+                <input
+                    type="hidden"
+                    id="backdate-staff-id">
+
+            </div>
+
+
+            <div class="modal-footer border-secondary">
+
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    data-bs-dismiss="modal">
+
+                    ยกเลิก
+
+                </button>
+
+
+                <button
+                    type="button"
+                    class="btn bg-orange text-dark fw-bold"
+                    onclick="submitBackdateAttendance()">
+
+                    <i class="bi bi-calendar-check me-1"></i>
+
+                    บันทึกย้อนหลัง
+
+                </button>
+
+            </div>
+
         </div>
+
     </div>
+
+</div>
+
 
 <script>
-    let staffData = [];
-    let stream = null; // เก็บสถานะกล้อง
-// เก็บรูปใบหน้าต้นแบบ 5 ภาพ
-    let faceImages = [];
 
-    // ===================================================================
-    // กันปัญหา Bootstrap ทิ้ง .modal-backdrop ค้างไว้เต็มจอ (บังคลิกทุกปุ่มแบบ
-    // "เงียบสนิท ไม่มีอะไรเกิดขึ้น") เช่น modal ปิดกลางทางตอนกล้อง error/
-    // ตอนเปิด browser popup ขอสิทธิ์กล้อง แล้ว .hide() ทำงานไม่สมบูรณ์
-    // ===================================================================
-    function cleanupStuckModalBackdrops() {
-        const anyModalOpen = document.querySelector('.modal.show');
-        if (anyModalOpen) return; // มี modal เปิดอยู่จริง ไม่ต้องแตะ
+let staffData = [];
+let stream = null;
+let faceImages = [];
 
-        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-        document.body.classList.remove('modal-open');
-        document.body.style.removeProperty('overflow');
-        document.body.style.removeProperty('padding-right');
+
+// ================================================================
+// DATE HELPERS
+// ================================================================
+
+function getTodayString() {
+
+    const today = new Date();
+
+    const year = today.getFullYear();
+
+    const month =
+        String(today.getMonth() + 1).padStart(2, '0');
+
+    const day =
+        String(today.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
+
+function isToday(dateString) {
+    return dateString === getTodayString();
+}
+
+
+function formatThaiDate(dateString) {
+
+    if (!dateString) {
+        return '-';
     }
 
-    // เรียกตอนโหลดหน้า (เผื่อค้างมาจากรอบก่อน/รีเฟรชกลางที่ modal เปิดอยู่)
-    // และเรียกซ้ำเป็นระยะ เผื่อเกิดค้างระหว่างใช้งาน
-    window.addEventListener('DOMContentLoaded', cleanupStuckModalBackdrops);
-    setInterval(cleanupStuckModalBackdrops, 3000);
+    const date = new Date(`${dateString}T00:00:00`);
 
-    function showAlert(message, type) {
-        document.getElementById('alert-box').innerHTML = `
-            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>`;
+    if (isNaN(date.getTime())) {
+        return dateString;
     }
 
-    // ฟังก์ชันจัดการรายการพนักงานเหมือนเดิม
-    function renderStaffList() {
-        const container = document.getElementById('staff-list');
-        if (staffData.length === 0) {
-            container.innerHTML = '<p class="text-secondary small m-0">ยังไม่มีพนักงานในระบบ</p>';
-            updateCounters();
-            return;
+    return date.toLocaleDateString(
+        'th-TH',
+        {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        }
+    );
+}
+
+
+// ================================================================
+// FORMAT TIME
+// ================================================================
+
+function formatAttendanceTime(value) {
+
+    if (!value) {
+        return '-';
+    }
+
+    const parsed = new Date(value);
+
+    if (isNaN(parsed.getTime())) {
+        return '-';
+    }
+
+    return parsed.toLocaleTimeString(
+        'th-TH',
+        {
+            hour: '2-digit',
+            minute: '2-digit'
+        }
+    );
+
+}
+
+
+// ================================================================
+// ALERT
+// ================================================================
+
+function showAlert(message, type) {
+
+    document.getElementById('alert-box').innerHTML = `
+
+        <div
+            class="alert alert-${type} alert-dismissible fade show"
+            role="alert">
+
+            ${message}
+
+            <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="alert">
+            </button>
+
+        </div>
+
+    `;
+
+}
+
+
+// ================================================================
+// LOAD STAFF
+// ================================================================
+
+async function loadStaff() {
+
+    try {
+
+        const dateInput =
+            document.getElementById('attendance-date');
+
+        let selectedDate =
+            dateInput.value;
+
+        if (!selectedDate) {
+
+            selectedDate =
+                getTodayString();
+
+            dateInput.value =
+                selectedDate;
+
         }
 
-        container.innerHTML = staffData.map(s => {
-            const isCheckedIn = !!s.check_in_at && !s.check_out_at;
-            const actionBtn = isCheckedIn
-                ? `<button class="btn btn-sm btn-outline-success px-3" onclick="toggleCheckIn(${s.id}, 'check_out')"><i class="bi bi-check-circle-fill me-1"></i> เข้างานแล้ว</button>`
-                : `<button class="btn btn-sm btn-success px-3" onclick="toggleCheckIn(${s.id}, 'check_in')">เช็คอินเข้างาน</button>`;
 
-            return `
-            <div class="p-3 mb-2 rounded-3 border border-secondary staff-item" id="staff-${s.id}" data-checked-in="${isCheckedIn}" style="background-color: #2A2A2A;">
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-                    <div>
-                        <h5 class="text-white fw-bold m-0">${s.full_name}</h5>
-                        <small class="text-secondary">รหัส: ${s.employee_code} • ตำแหน่ง: ${s.position} • ค่าแรง <span class="wage-val">${Number(s.daily_wage).toFixed(0)}</span> บ./วัน</small>
-                    </div>
-                    <div class="d-flex gap-2 align-items-center" id="action-box-${s.id}">
-                        ${actionBtn}
-                        <button class="btn btn-sm btn-outline-warning" onclick="editWage(${s.id})"><i class="bi bi-pencil"></i></button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteStaff(${s.id})"><i class="bi bi-trash"></i></button>
-                    </div>
-                </div>
-            </div>`;
-        }).join('');
+        document.getElementById(
+            'selected-date-label'
+        ).innerHTML = `
+
+            <i class="bi bi-calendar3 me-1"></i>
+
+            กำลังดูข้อมูลวันที่
+            <strong class="text-white">
+                ${formatThaiDate(selectedDate)}
+            </strong>
+
+        `;
+
+
+        const response = await fetch(
+            `/api/staff?date=${encodeURIComponent(selectedDate)}`,
+            {
+                credentials: 'include'
+            }
+        );
+
+
+        const text =
+            await response.text();
+
+
+        let data;
+
+
+        try {
+
+            data =
+                JSON.parse(text);
+
+        } catch (e) {
+
+            console.error(
+                'Invalid API response:',
+                text
+            );
+
+            throw new Error(
+                'เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง'
+            );
+
+        }
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.message ||
+                'โหลดข้อมูลพนักงานไม่สำเร็จ'
+            );
+
+        }
+
+
+        /*
+         * รองรับทั้ง
+         *
+         * [ ... ]
+         *
+         * และ
+         *
+         * {
+         *   status: "success",
+         *   date: "...",
+         *   staff: [...]
+         * }
+         */
+
+        if (Array.isArray(data)) {
+
+            staffData = data;
+
+        } else {
+
+            staffData =
+                Array.isArray(data.staff)
+                    ? data.staff
+                    : [];
+
+        }
+
+
+        renderStaffList();
+
+    }
+
+    catch (error) {
+
+        console.error(
+            '[loadStaff] error:',
+            error
+        );
+
+
+        document.getElementById(
+            'staff-list'
+        ).innerHTML = `
+
+            <p class="text-danger small m-0">
+
+                <i class="bi bi-exclamation-triangle me-1"></i>
+
+                ${error.message}
+
+            </p>
+
+        `;
+
+    }
+
+}
+
+
+// ================================================================
+// RENDER STAFF
+// ================================================================
+
+function renderStaffList() {
+
+    const container =
+        document.getElementById('staff-list');
+
+
+    const selectedDate =
+        document.getElementById(
+            'attendance-date'
+        ).value;
+
+
+    if (staffData.length === 0) {
+
+        container.innerHTML = `
+
+            <div class="text-center py-4">
+
+                <i
+                    class="bi bi-people text-secondary"
+                    style="font-size:40px;">
+                </i>
+
+                <p class="text-secondary mt-2 mb-0">
+
+                    ไม่พบข้อมูลพนักงาน
+
+                </p>
+
+            </div>
+
+        `;
 
         updateCounters();
+
+        return;
+
     }
 
-    async function loadStaff() {
-        try {
-            const res = await fetch('/api/staff');
-            if (!res.ok) throw new Error('โหลดข้อมูลพนักงานไม่สำเร็จ');
-            staffData = await res.json();
-            renderStaffList();
-        } catch (err) {
-            document.getElementById('staff-list').innerHTML = `<p class="text-danger small m-0">${err.message}</p>`;
+
+    container.innerHTML =
+        staffData.map(
+            s => renderStaffCard(
+                s,
+                selectedDate
+            )
+        ).join('');
+
+
+    updateCounters();
+
+}
+
+
+// ================================================================
+// RENDER STAFF CARD
+// ================================================================
+
+function renderStaffCard(
+    s,
+    selectedDate
+) {
+
+    const hasCheckIn =
+        !!s.check_in_at;
+
+    const hasCheckOut =
+        !!s.check_out_at;
+
+    const todaySelected =
+        isToday(selectedDate);
+
+
+    let actionBtn = '';
+
+
+    // ============================================================
+    // วันนี้
+    // ============================================================
+
+    if (todaySelected) {
+
+        if (!hasCheckIn) {
+
+            actionBtn = `
+
+                <button
+                    class="btn btn-sm btn-success px-3"
+                    onclick="toggleAttendance(${s.id}, 'check_in')">
+
+                    <i class="bi bi-box-arrow-in-right me-1"></i>
+
+                    เช็กอินเข้างาน
+
+                </button>
+
+            `;
+
         }
-    }
 
-    async function toggleCheckIn(id, action) {
-        try {
-            const res = await fetch('/api/staff/attendance', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ staff_id: id, action })
-            });
-            if (!res.ok) throw new Error('บันทึกเวลาเข้า-ออกงานไม่สำเร็จ');
-            await loadStaff();
-        } catch (err) {
-            showAlert(err.message, 'danger');
+        else if (!hasCheckOut) {
+
+            actionBtn = `
+
+                <button
+                    class="btn btn-sm btn-warning text-dark px-3 fw-bold"
+                    onclick="toggleAttendance(${s.id}, 'check_out')">
+
+                    <i class="bi bi-box-arrow-right me-1"></i>
+
+                    เช็กเอ้าเลิกงาน
+
+                </button>
+
+            `;
+
         }
+
+        else {
+
+            actionBtn = `
+
+                <button
+                    class="btn btn-sm btn-secondary px-3"
+                    disabled>
+
+                    <i class="bi bi-check-circle-fill me-1"></i>
+
+                    เช็กเอ้าแล้ว
+
+                </button>
+
+            `;
+
+        }
+
     }
 
-    async function editWage(id) {
-        const staff = staffData.find(s => s.id === id);
-        const newWage = prompt("กรอกอัตราค่าแรงใหม่ต่อวัน (บาท):", staff ? staff.daily_wage : '');
-        if (newWage === null || newWage.trim() === '' || isNaN(newWage)) return;
+    // ============================================================
+    // ย้อนหลัง
+    // ============================================================
+
+    else {
+
+        if (!hasCheckIn) {
+
+            actionBtn = `
+
+                <button
+                    class="btn btn-sm btn-outline-warning px-3"
+                    onclick="openBackdateModal(
+                        ${s.id},
+                        '${escapeHtmlAttribute(s.full_name)}',
+                        '${selectedDate}'
+                    )">
+
+                    <i class="bi bi-calendar-plus me-1"></i>
+
+                    บันทึกย้อนหลัง
+
+                </button>
+
+            `;
+
+        }
+
+        else {
+
+            actionBtn = `
+
+                <button
+                    class="btn btn-sm btn-secondary px-3"
+                    disabled>
+
+                    <i class="bi bi-check-circle-fill me-1"></i>
+
+                    มีข้อมูลแล้ว
+
+                </button>
+
+            `;
+
+        }
+
+    }
+
+
+    // ============================================================
+    // STATUS
+    // ============================================================
+
+    let attendanceStatus = '';
+
+
+    if (!hasCheckIn) {
+
+        if (todaySelected) {
+
+            attendanceStatus = `
+
+                <div class="status-box small">
+
+                    <span class="text-danger">
+
+                        <i class="bi bi-x-circle me-1"></i>
+
+                        ยังไม่เช็กอิน
+
+                    </span>
+
+                </div>
+
+            `;
+
+        } else {
+
+            attendanceStatus = `
+
+                <div class="status-box small">
+
+                    <span class="text-secondary">
+
+                        <i class="bi bi-dash-circle me-1"></i>
+
+                        ไม่มีข้อมูลการเข้างาน
+
+                    </span>
+
+                </div>
+
+            `;
+
+        }
+
+    }
+
+    else if (s.status === 'late') {
+
+        attendanceStatus = `
+
+            <div class="status-box small">
+
+                <span class="text-warning fw-bold">
+
+                    <i class="bi bi-exclamation-circle me-1"></i>
+
+                    มาสาย
+                    ${Number(s.late_minutes || 0)}
+                    นาที
+
+                </span>
+
+            </div>
+
+        `;
+
+    }
+
+    else {
+
+        attendanceStatus = `
+
+            <div class="status-box small">
+
+                <span class="text-success fw-bold">
+
+                    <i class="bi bi-check-circle me-1"></i>
+
+                    มาตรงเวลา
+
+                </span>
+
+            </div>
+
+        `;
+
+    }
+
+
+    return `
+
+        <div
+            class="p-3 mb-2 rounded-3 border border-secondary staff-item"
+            id="staff-${s.id}"
+            style="background-color:#2A2A2A;">
+
+            <div
+                class="d-flex
+                       flex-column
+                       flex-md-row
+                       justify-content-between
+                       align-items-md-center
+                       gap-3">
+
+
+                <!-- STAFF INFO -->
+
+                <div>
+
+                    <div
+                        class="d-flex
+                               align-items-center
+                               flex-wrap
+                               gap-2">
+
+                        <h5
+                            class="text-white fw-bold m-0">
+
+                            ${escapeHtml(s.full_name)}
+
+                        </h5>
+
+                        <span
+                            class="date-badge bg-dark text-secondary">
+
+                            ${todaySelected
+                                ? 'วันนี้'
+                                : 'ย้อนหลัง'}
+
+                        </span>
+
+                    </div>
+
+
+                    <small class="text-secondary">
+
+                        รหัส:
+                        ${escapeHtml(s.employee_code)}
+
+                        •
+
+                        ตำแหน่ง:
+                        ${escapeHtml(s.position || '-')}
+
+                        •
+
+                        ค่าแรง
+                        ${Number(s.daily_wage || 0).toFixed(0)}
+                        บ./วัน
+
+                    </small>
+
+
+                    ${attendanceStatus}
+
+
+                    ${
+                        hasCheckIn
+                            ? `
+
+                                <div class="small mt-1">
+
+                                    <span class="text-success">
+
+                                        <i class="bi bi-clock me-1"></i>
+
+                                        เข้างาน:
+
+                                        ${formatAttendanceTime(
+                                            s.check_in_at
+                                        )}
+
+                                    </span>
+
+                                </div>
+
+                              `
+                            : ''
+                    }
+
+
+                    ${
+                        hasCheckOut
+                            ? `
+
+                                <div class="small mt-1">
+
+                                    <span class="text-info">
+
+                                        <i class="bi bi-clock-fill me-1"></i>
+
+                                        ออกงาน:
+
+                                        ${formatAttendanceTime(
+                                            s.check_out_at
+                                        )}
+
+                                    </span>
+
+                                </div>
+
+                              `
+                            : ''
+                    }
+
+
+                    ${
+                        s.method
+                            ? `
+
+                                <div class="small mt-1">
+
+                                    <span class="text-secondary">
+
+                                        วิธีบันทึก:
+                                        ${formatAttendanceMethod(
+                                            s.method
+                                        )}
+
+                                    </span>
+
+                                </div>
+
+                              `
+                            : ''
+                    }
+
+                </div>
+
+
+                <!-- BUTTONS -->
+
+                <div
+                    class="d-flex
+                           gap-2
+                           align-items-center
+                           flex-wrap">
+
+                    ${actionBtn}
+
+
+                    <button
+                        class="btn btn-sm btn-outline-warning"
+                        onclick="editWage(${s.id})">
+
+                        <i class="bi bi-pencil"></i>
+
+                    </button>
+
+
+                    <button
+                        class="btn btn-sm btn-outline-danger"
+                        onclick="deleteStaff(${s.id})">
+
+                        <i class="bi bi-trash"></i>
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    `;
+
+}
+
+
+// ================================================================
+// ESCAPE HTML
+// ================================================================
+
+function escapeHtml(value) {
+
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+}
+
+
+function escapeHtmlAttribute(value) {
+    return escapeHtml(value);
+}
+
+
+// ================================================================
+// ATTENDANCE METHOD
+// ================================================================
+
+function formatAttendanceMethod(method) {
+
+    const map = {
+        'login': 'PIN',
+        'face': 'สแกนใบหน้า',
+        'manual': 'ผู้จัดการ',
+        'manual_backdate': 'ผู้จัดการย้อนหลัง'
+    };
+
+    return map[method] || method || '-';
+
+}
+
+
+// ================================================================
+// COUNTERS
+// ================================================================
+
+function updateCounters() {
+
+    const totalStaff =
+        staffData.length;
+
+
+    const checkedInStaff =
+        staffData.filter(
+            s => !!s.check_in_at
+        ).length;
+
+
+    document.getElementById(
+        'total-staff'
+    ).innerText =
+        totalStaff + ' คน';
+
+
+    document.getElementById(
+        'checked-in-staff'
+    ).innerText =
+        checkedInStaff + ' คน';
+
+}
+
+
+// ================================================================
+// TODAY MANUAL CHECK IN / CHECK OUT
+// ================================================================
+
+async function toggleAttendance(
+    id,
+    action
+) {
+
+    const selectedDate =
+        document.getElementById(
+            'attendance-date'
+        ).value;
+
+
+    if (!isToday(selectedDate)) {
+
+        showAlert(
+            'การเช็กอิน/เช็กเอาต์แบบปกติใช้ได้เฉพาะวันนี้ กรุณาใช้ "บันทึกย้อนหลัง"',
+            'warning'
+        );
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                '/api/staff/attendance',
+                {
+                    method: 'POST',
+
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
+
+                    credentials: 'include',
+
+                    body: JSON.stringify({
+
+                        staff_id: id,
+
+                        action: action
+
+                    })
+
+                }
+            );
+
+
+        const text =
+            await response.text();
+
+
+        let data;
 
         try {
-            const res = await fetch(`/api/staff/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ daily_wage: parseFloat(newWage) })
-            });
-            if (!res.ok) throw new Error('แก้ไขค่าแรงไม่สำเร็จ');
-            await loadStaff();
-        } catch (err) {
-            showAlert(err.message, 'danger');
+            data = JSON.parse(text);
+        } catch {
+            throw new Error(
+                'เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง'
+            );
         }
-    }
 
-    async function deleteStaff(id) {
-        if (!confirm("คุณต้องการลบรายชื่อพนักงานคนนี้ใช่หรือไม่? (ข้อมูลใบหน้าจะถูกลบด้วย)")) return;
-        try {
-            const res = await fetch(`/api/staff/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('ลบพนักงานไม่สำเร็จ');
-            await loadStaff();
-        } catch (err) {
-            showAlert(err.message, 'danger');
-        }
-    }
 
-    function updateCounters() {
-        const totalStaff = staffData.length;
-        const checkedInStaff = staffData.filter(s => s.check_in_at && !s.check_out_at).length;
-        document.getElementById('total-staff').innerText = totalStaff + " คน";
-        document.getElementById('checked-in-staff').innerText = checkedInStaff + " คน";
-    }
+        if (!response.ok) {
 
-    // --- โค้ดส่วนที่เพิ่มใหม่: จัดการหน้าจอ Wizard และ กล้อง ---
+            showAlert(
+                data.message ||
+                'บันทึกเวลาไม่สำเร็จ',
+                'danger'
+            );
 
-    function goToStep2() {
-        // ตรวจสอบข้อมูลก่อนไปเปิดกล้อง
-        const name = document.getElementById('staff-name').value.trim();
-        const wage = document.getElementById('staff-wage').value.trim();
-
-        if (!name || !wage) {
-            alert('กรุณากรอกชื่อและอัตราค่าแรงให้ครบถ้วน');
             return;
+
         }
 
-        // สลับ UI ไปยังหน้าจอเปิดกล้อง
-        document.getElementById('step-1-info').classList.add('d-none');
-        document.getElementById('modal-footer-step1').classList.add('d-none');
-        
-        document.getElementById('step-2-camera').classList.remove('d-none');
-        document.getElementById('modal-footer-step2').classList.remove('d-none');
 
-        startCamera();
+        await loadStaff();
+
+
+        showAlert(
+            data.message ||
+            'บันทึกเวลาเรียบร้อย',
+            'success'
+        );
+
     }
 
-    function goToStep1() {
-        // สลับ UI กลับไปหน้ากรอกข้อมูล
-        stopCamera();
-        document.getElementById('step-2-camera').classList.add('d-none');
-        document.getElementById('modal-footer-step2').classList.add('d-none');
-        
-        document.getElementById('step-1-info').classList.remove('d-none');
-        document.getElementById('modal-footer-step1').classList.remove('d-none');
+    catch (error) {
+
+        console.error(
+            '[toggleAttendance]',
+            error
+        );
+
+        showAlert(
+            error.message ||
+            'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์',
+            'danger'
+        );
+
     }
+
+}
+
+
+// ================================================================
+// BACKDATE MODAL
+// ================================================================
+
+function openBackdateModal(
+    staffId,
+    staffName,
+    selectedDate
+) {
+
+    document.getElementById(
+        'backdate-staff-id'
+    ).value =
+        staffId;
+
+
+    document.getElementById(
+        'backdate-staff-name'
+    ).value =
+        decodeHtml(staffName);
+
+
+    document.getElementById(
+        'backdate-date'
+    ).value =
+        selectedDate;
+
+
+    document.getElementById(
+        'backdate-time'
+    ).value =
+        '08:00';
+
+
+    const modalElement =
+        document.getElementById(
+            'backdateModal'
+        );
+
+
+    const modal =
+        bootstrap.Modal.getOrCreateInstance(
+            modalElement
+        );
+
+
+    modal.show();
+
+}
+
+
+function decodeHtml(value) {
+
+    const textarea =
+        document.createElement('textarea');
+
+    textarea.innerHTML =
+        value;
+
+    return textarea.value;
+
+}
+
+
+// ================================================================
+// SUBMIT BACKDATE
+// ================================================================
+
+async function submitBackdateAttendance() {
+
+    const staffId =
+        document.getElementById(
+            'backdate-staff-id'
+        ).value;
+
+
+    const workDate =
+        document.getElementById(
+            'backdate-date'
+        ).value;
+
+
+    const checkInTime =
+        document.getElementById(
+            'backdate-time'
+        ).value;
+
+
+    if (!staffId ||
+        !workDate ||
+        !checkInTime) {
+
+        showAlert(
+            'กรุณากรอกข้อมูลให้ครบถ้วน',
+            'warning'
+        );
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                '/api/staff/attendance/backdate',
+                {
+                    method: 'POST',
+
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
+
+                    credentials: 'include',
+
+                    body: JSON.stringify({
+
+                        staff_id:
+                            Number(staffId),
+
+                        work_date:
+                            workDate,
+
+                        check_in_time:
+                            checkInTime
+
+                    })
+
+                }
+            );
+
+
+        const text =
+            await response.text();
+
+
+        let data;
+
+        try {
+            data = JSON.parse(text);
+        } catch {
+            throw new Error(
+                'เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง'
+            );
+        }
+
+
+        if (!response.ok) {
+
+            showAlert(
+                data.message ||
+                'บันทึกย้อนหลังไม่สำเร็จ',
+                'danger'
+            );
+
+            return;
+
+        }
+
+
+        const modalElement =
+            document.getElementById(
+                'backdateModal'
+            );
+
+
+        const modal =
+            bootstrap.Modal.getOrCreateInstance(
+                modalElement
+            );
+
+
+        modal.hide();
+
+
+        document.getElementById(
+            'attendance-date'
+        ).value =
+            workDate;
+
+
+        await loadStaff();
+
+
+        showAlert(
+            data.message ||
+            'บันทึกเข้างานย้อนหลังสำเร็จ',
+            'success'
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(
+            '[submitBackdateAttendance]',
+            error
+        );
+
+        showAlert(
+            error.message ||
+            'เกิดข้อผิดพลาดในการบันทึกย้อนหลัง',
+            'danger'
+        );
+
+    }
+
+}
+
+
+// ================================================================
+// EDIT WAGE
+// ================================================================
+
+async function editWage(id) {
+
+    const staff =
+        staffData.find(
+            s => s.id === id
+        );
+
+
+    const newWage =
+        prompt(
+            'กรอกอัตราค่าแรงใหม่ต่อวัน (บาท):',
+            staff
+                ? staff.daily_wage
+                : ''
+        );
+
+
+    if (
+        newWage === null ||
+        newWage.trim() === '' ||
+        isNaN(newWage)
+    ) {
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                `/api/staff/${id}`,
+                {
+                    method: 'PUT',
+
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
+
+                    credentials: 'include',
+
+                    body: JSON.stringify({
+                        daily_wage:
+                            parseFloat(newWage)
+                    })
+
+                }
+            );
+
+
+        const text =
+            await response.text();
+
+
+        let data;
+
+        try {
+            data = JSON.parse(text);
+        } catch {
+            throw new Error(
+                'เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง'
+            );
+        }
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.message ||
+                data.error ||
+                'แก้ไขค่าแรงไม่สำเร็จ'
+            );
+
+        }
+
+
+        await loadStaff();
+
+
+        showAlert(
+            'แก้ไขค่าแรงเรียบร้อยแล้ว',
+            'success'
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(
+            '[editWage]',
+            error
+        );
+
+        showAlert(
+            error.message,
+            'danger'
+        );
+
+    }
+
+}
+
+
+// ================================================================
+// DELETE / DEACTIVATE STAFF
+// ================================================================
+
+async function deleteStaff(id) {
+
+    if (
+        !confirm(
+            'คุณต้องการปิดใช้งานพนักงานคนนี้ใช่หรือไม่?'
+        )
+    ) {
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                `/api/staff/${id}`,
+                {
+                    method: 'DELETE',
+
+                    credentials: 'include'
+                }
+            );
+
+
+        const text =
+            await response.text();
+
+
+        let data;
+
+        try {
+            data = JSON.parse(text);
+        } catch {
+            throw new Error(
+                'เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง'
+            );
+        }
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.message ||
+                data.error ||
+                'ไม่สามารถปิดใช้งานพนักงานได้'
+            );
+
+        }
+
+
+        await loadStaff();
+
+
+        showAlert(
+            'ปิดใช้งานพนักงานเรียบร้อยแล้ว',
+            'success'
+        );
+
+    }
+
+    catch (error) {
+
+        console.error(
+            '[deleteStaff]',
+            error
+        );
+
+        showAlert(
+            error.message,
+            'danger'
+        );
+
+    }
+
+}
+
+
+// ================================================================
+// GO STEP 2
+// ================================================================
+
+function goToStep2() {
+
+    const name =
+        document
+            .getElementById('staff-name')
+            .value
+            .trim();
+
+
+    const wage =
+        document
+            .getElementById('staff-wage')
+            .value
+            .trim();
+
+
+    if (!name || !wage) {
+
+        alert(
+            'กรุณากรอกชื่อและอัตราค่าแรงให้ครบถ้วน'
+        );
+
+        return;
+
+    }
+
+
+    document
+        .getElementById('step-1-info')
+        .classList
+        .add('d-none');
+
+
+    document
+        .getElementById('modal-footer-step1')
+        .classList
+        .add('d-none');
+
+
+    document
+        .getElementById('step-2-camera')
+        .classList
+        .remove('d-none');
+
+
+    document
+        .getElementById('modal-footer-step2')
+        .classList
+        .remove('d-none');
+
+
+    startCamera();
+
+}
+
+
+// ================================================================
+// GO STEP 1
+// ================================================================
+
+function goToStep1() {
+
+    stopCamera();
+
+
+    document
+        .getElementById('step-2-camera')
+        .classList
+        .add('d-none');
+
+
+    document
+        .getElementById('modal-footer-step2')
+        .classList
+        .add('d-none');
+
+
+    document
+        .getElementById('step-1-info')
+        .classList
+        .remove('d-none');
+
+
+    document
+        .getElementById('modal-footer-step1')
+        .classList
+        .remove('d-none');
+
+}
+
+
+// ================================================================
+// CAMERA
+// ================================================================
 
 async function startCamera() {
+
     try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        const video = document.getElementById('webcam-video');
-        video.srcObject = stream;
 
-        // ปิดปุ่มถ่ายรูปไว้ก่อน รอกล้องปรับแสง/โฟกัสให้นิ่ง
-        const captureBtn = document.querySelector('button[onclick="captureFace()"]');
-        captureBtn.disabled = true;
+        if (
+            !navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia
+        ) {
 
-        video.onloadedmetadata = () => {
-            video.play();
-            // รอ 1.5 วินาทีให้กล้อง warm-up ก่อนอนุญาตให้ถ่าย
-            setTimeout(() => {
-                captureBtn.disabled = false;
-            }, 1500);
-        };
-    } catch (err) {
-        alert("ไม่สามารถเข้าถึงกล้องได้ กรุณาตรวจสอบสิทธิ์ (อนุญาตให้เว็บไซต์ใช้กล้อง): \n" + err.message);
-        goToStep1();
-    }
-}
+            throw new Error(
+                'Browser ไม่รองรับการใช้งานกล้อง'
+            );
 
-    function stopCamera() {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            stream = null;
         }
-    }
 
-    // เคลียร์ข้อมูลและปิดกล้องเมื่อ Modal ถูกปิดลง (กดกากบาท หรือคลิกข้างนอก)
-    document.getElementById('addStaffModal').addEventListener('hidden.bs.modal', function () {
+
         stopCamera();
-        
-        // รีเซ็ตหน้าจอกลับเป็น Step 1   
-        document.getElementById('step-2-camera').classList.add('d-none');
-        document.getElementById('modal-footer-step2').classList.add('d-none');
-        document.getElementById('step-1-info').classList.remove('d-none');
-        document.getElementById('modal-footer-step1').classList.remove('d-none');
-
-        // ล้างข้อมูลเก่า
-
-faceImages = [];
-
-document.getElementById('face-count').innerText =
-"รูปใบหน้า: 0 / 5";
-
-document.getElementById('face-count').className =
-"text-warning mt-3";
 
 
-document.getElementById('staff-name').value = '';
-document.getElementById('staff-wage').value = '';
-document.getElementById('staff-position').value = 'Staff';
-document.getElementById('staff-pin').value = '1234';
-    });
+        stream =
+            await navigator
+                .mediaDevices
+                .getUserMedia({
 
-    function captureFace(){
+                    video: {
+                        facingMode: 'user'
+                    },
 
-    const video = document.getElementById('webcam-video');
-    const canvas = document.getElementById('snapshot-canvas');
+                    audio: false
+
+                });
 
 
-    if(!stream){
-        alert("กรุณาเปิดกล้องก่อน");
-        return;
+        const video =
+            document.getElementById(
+                'webcam-video'
+            );
+
+
+        video.srcObject =
+            stream;
+
+
+        const captureBtn =
+            document.getElementById(
+                'capture-face-btn'
+            );
+
+
+        captureBtn.disabled =
+            true;
+
+
+        video.onloadedmetadata =
+            () => {
+
+                video.play();
+
+
+                setTimeout(
+                    () => {
+
+                        captureBtn.disabled =
+                            false;
+
+                    },
+                    1500
+                );
+
+            };
+
     }
 
+    catch (error) {
 
-    if(faceImages.length >= 5){
-        alert("เก็บรูปครบ 5 รูปแล้ว");
-        return;
+        console.error(
+            '[Camera]',
+            error
+        );
+
+
+        alert(
+            'ไม่สามารถเข้าถึงกล้องได้\n\n' +
+            error.message
+        );
+
+
+        goToStep1();
+
     }
 
-
- if (!video.videoWidth || !video.videoHeight) {
-    alert("กล้องยังไม่พร้อม กรุณารอสักครู่");
-    return;
 }
 
-canvas.width = video.videoWidth;
-canvas.height = video.videoHeight;
+
+function stopCamera() {
+
+    if (stream) {
+
+        stream
+            .getTracks()
+            .forEach(
+                track => track.stop()
+            );
+
+        stream = null;
+
+    }
 
 
-    const ctx = canvas.getContext('2d');
+    const video =
+        document.getElementById(
+            'webcam-video'
+        );
 
 
-    ctx.translate(canvas.width,0);
-    ctx.scale(-1,1);
+    if (video) {
+
+        video.srcObject = null;
+
+    }
+
+}
 
 
-    ctx.drawImage(
+// ================================================================
+// CAPTURE FACE
+// ================================================================
+
+function captureFace() {
+
+    const video =
+        document.getElementById(
+            'webcam-video'
+        );
+
+
+    const canvas =
+        document.getElementById(
+            'snapshot-canvas'
+        );
+
+
+    if (!stream) {
+
+        alert(
+            'กรุณาเปิดกล้องก่อน'
+        );
+
+        return;
+
+    }
+
+
+    if (faceImages.length >= 5) {
+
+        alert(
+            'เก็บรูปครบ 5 รูปแล้ว'
+        );
+
+        return;
+
+    }
+
+
+    if (
+        !video.videoWidth ||
+        !video.videoHeight
+    ) {
+
+        alert(
+            'กล้องยังไม่พร้อม กรุณารอสักครู่'
+        );
+
+        return;
+
+    }
+
+
+    canvas.width =
+        video.videoWidth;
+
+
+    canvas.height =
+        video.videoHeight;
+
+
+    const context =
+        canvas.getContext('2d');
+
+
+    context.save();
+
+
+    context.translate(
+        canvas.width,
+        0
+    );
+
+
+    context.scale(
+        -1,
+        1
+    );
+
+
+    context.drawImage(
         video,
         0,
         0,
@@ -433,155 +2438,348 @@ canvas.height = video.videoHeight;
     );
 
 
-    const image = canvas.toDataURL(
-        "image/jpeg",
-        0.85
+    context.restore();
+
+
+    const image =
+        canvas.toDataURL(
+            'image/jpeg',
+            0.85
+        );
+
+
+    faceImages.push(
+        image
     );
 
 
-    faceImages.push(image);
+    const faceCount =
+        document.getElementById(
+            'face-count'
+        );
 
 
-    document.getElementById('face-count').innerText =
-    `รูปใบหน้า: ${faceImages.length} / 5`;
+    faceCount.innerText =
+        `รูปใบหน้า: ${faceImages.length} / 5`;
 
 
-    if(faceImages.length === 5){
+    if (
+        faceImages.length === 5
+    ) {
 
-        document.getElementById('face-count').className =
-        "text-success mt-3";
+        faceCount.className =
+            'text-success mt-3';
 
-        document.getElementById('face-count').innerText =
-        "เก็บใบหน้าครบ 5 รูปแล้ว";
+        faceCount.innerText =
+            'เก็บใบหน้าครบ 5 รูปแล้ว';
 
     }
 
 }
-   async function captureAndSave() {
 
-    if(faceImages.length < 5){
-        alert("กรุณาถ่ายรูปใบหน้าให้ครบ 5 รูปก่อน");
+
+// ================================================================
+// SAVE STAFF
+// ================================================================
+
+async function captureAndSave() {
+
+    if (faceImages.length < 5) {
+
+        alert(
+            'กรุณาถ่ายรูปใบหน้าให้ครบ 5 รูปก่อน'
+        );
+
         return;
+
     }
 
 
-    const name = document.getElementById('staff-name').value.trim();
-    const position = document.getElementById('staff-position').value.trim() || 'Staff';
-    const wage = document.getElementById('staff-wage').value.trim();
-    const pin = document.getElementById('staff-pin').value.trim() || '1234';
+    const name =
+        document
+            .getElementById('staff-name')
+            .value
+            .trim();
 
 
-    const btnSave = document.getElementById('btn-save-staff');
-    const originalBtnText = btnSave.innerHTML;
+    const position =
+        document
+            .getElementById('staff-position')
+            .value
+            .trim() ||
+        'Staff';
+
+
+    const wage =
+        document
+            .getElementById('staff-wage')
+            .value
+            .trim();
+
+
+    const pin =
+        document
+            .getElementById('staff-pin')
+            .value
+            .trim() ||
+        '1234';
+
+
+    const btnSave =
+        document.getElementById(
+            'btn-save-staff'
+        );
+
+
+    const originalText =
+        btnSave.innerHTML;
 
 
     try {
 
-        btnSave.innerHTML =
-        '<span class="spinner-border spinner-border-sm me-2"></span>กำลังประมวลผล...';
-
         btnSave.disabled = true;
 
 
+        btnSave.innerHTML = `
 
-        console.log("ส่งรูปทั้งหมด:", faceImages.length);
+            <span
+                class="spinner-border spinner-border-sm me-2">
+            </span>
 
+            กำลังบันทึก...
 
-
-        const res = await fetch('/api/staff', {
-
-            method:'POST',
-
-            headers:{
-                'Content-Type':'application/json'
-            },
+        `;
 
 
-            body:JSON.stringify({
+        const response =
+            await fetch(
+                '/api/staff',
+                {
+                    method: 'POST',
 
-                full_name:name,
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
 
-                position:position,
+                    credentials: 'include',
 
-                daily_wage:parseFloat(wage),
+                    body: JSON.stringify({
 
-                pin_code:pin,
+                        full_name:
+                            name,
 
-                face_images:faceImages
+                        position:
+                            position,
 
-            })
+                        daily_wage:
+                            parseFloat(wage),
 
-        });
+                        pin_code:
+                            pin,
+
+                        face_images:
+                            faceImages
+
+                    })
+
+                }
+            );
 
 
+        const text =
+            await response.text();
 
-        const data = await res.json();
+
+        let data;
+
+        try {
+            data = JSON.parse(text);
+        } catch {
+            throw new Error(
+                'เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง'
+            );
+        }
 
 
-
-        if(!res.ok){
+        if (!response.ok) {
 
             throw new Error(
                 data.message ||
                 data.error ||
-                "บันทึกไม่สำเร็จ"
+                'บันทึกพนักงานไม่สำเร็จ'
             );
 
         }
 
 
+        stopCamera();
+
 
         await loadStaff();
 
 
-
-        const modalEl =
-        document.getElementById('addStaffModal');
-
-
-        const modalInstance =
-        bootstrap.Modal.getOrCreateInstance(modalEl);
+        const modalElement =
+            document.getElementById(
+                'addStaffModal'
+            );
 
 
-        modalInstance.hide();
+        const modal =
+            bootstrap.Modal
+                .getOrCreateInstance(
+                    modalElement
+                );
 
+
+        modal.hide();
 
 
         showAlert(
-            `เพิ่มพนักงาน ${data.staff.full_name} สำเร็จ (${data.message})`,
+            `เพิ่มพนักงาน ${data.staff.full_name} สำเร็จ`,
             'success'
         );
 
+    }
 
+    catch (error) {
 
-    } catch(err){
-
-        console.error(err);
-
-        showAlert(
-            err.message,
-            'danger'
+        console.error(
+            '[saveStaff]',
+            error
         );
 
 
-    } finally {
+        showAlert(
+            error.message,
+            'danger'
+        );
 
+    }
+
+    finally {
 
         btnSave.innerHTML =
-        originalBtnText;
+            originalText;
 
-
-        btnSave.disabled=false;
+        btnSave.disabled =
+            false;
 
     }
 
 }
 
-    window.addEventListener('DOMContentLoaded', () => {
+
+// ================================================================
+// RESET ADD STAFF MODAL
+// ================================================================
+
+document
+    .getElementById('addStaffModal')
+    .addEventListener(
+        'hidden.bs.modal',
+        function () {
+
+            stopCamera();
+
+
+            faceImages = [];
+
+
+            document
+                .getElementById('face-count')
+                .innerText =
+                'รูปใบหน้า: 0 / 5';
+
+
+            document
+                .getElementById('face-count')
+                .className =
+                'text-warning mt-3';
+
+
+            document
+                .getElementById('step-2-camera')
+                .classList
+                .add('d-none');
+
+
+            document
+                .getElementById('modal-footer-step2')
+                .classList
+                .add('d-none');
+
+
+            document
+                .getElementById('step-1-info')
+                .classList
+                .remove('d-none');
+
+
+            document
+                .getElementById('modal-footer-step1')
+                .classList
+                .remove('d-none');
+
+
+            document
+                .getElementById('staff-name')
+                .value = '';
+
+
+            document
+                .getElementById('staff-wage')
+                .value = '';
+
+
+            document
+                .getElementById('staff-position')
+                .value = 'Staff';
+
+
+            document
+                .getElementById('staff-pin')
+                .value = '1234';
+
+        }
+    );
+
+
+// ================================================================
+// INITIAL LOAD
+// ================================================================
+
+window.addEventListener(
+    'DOMContentLoaded',
+    () => {
+
+        const dateInput =
+            document.getElementById(
+                'attendance-date'
+            );
+
+
+        dateInput.value =
+            getTodayString();
+
+
         loadStaff();
-        setInterval(loadStaff, 15000);
-    });
+
+
+        setInterval(
+            loadStaff,
+            15000
+        );
+
+    }
+);
+
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+
+<script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+</script>
+
 </body>
 </html>

@@ -94,7 +94,11 @@
             <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i>พนักงาน</a>
             <a href="/finance" class="fb-tab-item"><i class="bi bi-wallet2"></i>บัญชี</a>
             {% endif %}
-            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i>ออก</a>
+            <a href="{{ url_for('logout') }}"
+            class="fb-tab-item logout-link text-danger">
+            <i class="bi bi-box-arrow-right"></i>
+            ออก
+            </a>
         </div>
 
         <div class="row g-2 mb-3">
@@ -137,7 +141,6 @@
                 <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
                 <p class="text-center text-secondary small mb-4">{{ session_name }} ({{ session_role }})</p>
                 <nav class="nav flex-column">
-                    <a class="nav-link" href="/service-management"><i class="bi bi-tags me-2"></i>จัดการบริการและโปรโมชัน</a>
                     <a class="nav-link" href="/history"><i class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว</a>
                     <a class="nav-link active" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
                     <a class="nav-link" href="/pos"><i class="bi bi-cart-check me-2"></i> รับรถ POS</a>
@@ -145,8 +148,12 @@
                     <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
                     <a class="nav-link" href="/staff-advances"><i class="bi bi-cash-stack me-2"></i> จัดการการเบิกพนักงาน</a>
                     <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
-                    <a class="nav-link logout-link text-danger mt-2" href="{{ url_for('logout') }}"><i
-                            class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
+                    <a class="nav-link" href="/service-management"><i class="bi bi-tags me-2"></i> จัดการบริการและโปรโมชัน</a>
+                    <a class="nav-link logout-link text-danger mt-2"
+                    href="{{ url_for('logout') }}">
+                    <i class="bi bi-box-arrow-right me-2"></i>
+                    ออกจากระบบ
+                    </a>
                 </nav>
             </div>
 
@@ -213,6 +220,7 @@
         </div>
     </div>
 
+    <!-- Modal ประวัติ -->
     <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content bg-dark border-secondary text-white">
@@ -225,6 +233,30 @@
         </div>
     </div>
 
+    <!-- Step 1: Modal ตรวจสอบความเสียหาย/ของสูญหาย -->
+    <div class="modal fade" id="inspectionModal" tabindex="-1" aria-labelledby="inspectionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark border-secondary text-white">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title" id="inspectionModalLabel"><i class="bi bi-exclamation-triangle text-warning me-2"></i>ตรวจสอบความเสียหาย / สิ่งของ</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-secondary small mb-3">ระบุความเสียหายหรือของสูญหายกรณีพนักงานทำของพัง/หาย (หากไม่มีให้ปล่อยว่างไว้ ระบบจะบันทึกเป็น "ไม่มีอะไรเสียหาย")</p>
+                    <div class="mb-3">
+                        <label for="damageNote" class="form-label">หมายเหตุความเสียหาย / สินค้าสูญหาย</label>
+                        <textarea id="damageNote" class="form-control bg-secondary text-white border-0" rows="3" placeholder="ตัวอย่าง: กระจกมองข้างซ้ายเป็นรอย, หมวกกันน็อคในรถหาย"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="button" class="btn btn-warning fw-bold text-dark" onclick="goToPaymentModal()">ถัดไป (ไปหน้าชำระเงิน) <i class="bi bi-arrow-right ms-1"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Modal ชำระเงิน -->
     <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content bg-dark border-secondary text-white">
@@ -234,6 +266,10 @@
                 </div>
                 <div class="modal-body">
                     <p class="mb-2">ยอดชำระ <strong class="text-orange" id="paymentAmount"></strong></p>
+                    <div class="p-2 mb-3 rounded bg-secondary bg-opacity-25 border border-secondary">
+                        <small class="text-secondary d-block">บันทึกความเสียหาย:</small>
+                        <span id="displayDamageNote" class="text-warning fw-bold small">ไม่มีอะไรเสียหาย</span>
+                    </div>
                     <label for="paymentMethod" class="form-label">ช่องทางชำระเงิน</label>
                     <select id="paymentMethod" class="form-select">
                         <option value="cash">เงินสด</option>
@@ -243,15 +279,89 @@
                     </select>
                 </div>
                 <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="button" class="btn btn-secondary" onclick="backToInspection()">ย้อนกลับ</button>
                     <button type="button" class="btn btn-success" id="confirmPaymentBtn" onclick="confirmPayment()">ยืนยันชำระเงิน</button>
                 </div>
             </div>
         </div>
     </div>
+    <!-- Modal สแกนหน้าเช็กเอ้า -->
+    <div class="modal fade"
+         id="faceCheckoutModal"
+         tabindex="-1"
+         aria-labelledby="faceCheckoutModalLabel"
+         aria-hidden="true">
 
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content face-checkout-modal">
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="faceCheckoutModalLabel">
+                        <i class="bi bi-person-bounding-box text-orange me-2"></i>
+                        สแกนหน้าเช็กเอ้า
+                    </h5>
+
+                    <button type="button"
+                            class="btn-close btn-close-white"
+                            data-bs-dismiss="modal"
+                            aria-label="Close">
+                    </button>
+                </div>
+
+                <div class="modal-body text-center">
+
+                    <!-- กล้อง -->
+                    <div class="camera-container">
+
+                        <video id="checkoutVideo"
+                               autoplay
+                               playsinline
+                               muted>
+                        </video>
+
+                        <canvas id="checkoutCanvas"></canvas>
+
+                        <!-- กรอบใบหน้า -->
+                        <div class="face-guide">
+                            <div class="face-frame"></div>
+                        </div>
+
+                    </div>
+
+                    <!-- สถานะการสแกน -->
+                    <div id="checkoutStatus"
+                         class="checkout-status mt-3">
+                        กำลังเตรียมกล้อง...
+                    </div>
+
+                    <!-- ปุ่ม -->
+                    <div class="d-flex justify-content-center gap-2 mt-3">
+
+                        <button type="button"
+                                id="startCheckoutScanBtn"
+                                class="btn btn-primary">
+                            <i class="bi bi-camera me-1"></i>
+                            สแกนใบหน้า
+                        </button>
+
+                        <button type="button"
+                                id="cancelCheckoutBtn"
+                                class="btn btn-secondary"
+                                data-bs-dismiss="modal">
+                            ยกเลิก
+                        </button>
+
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
     <script>
         let paymentOrderId = null;
+        let paymentTotalAmount = 0;
+        let currentDamageNote = '';
+
         const STATUS_LABELS = {
             pending: 'รอล้าง',
             in_progress: 'กำลังล้าง',
@@ -279,7 +389,8 @@
             } else if (order.status === 'in_progress' || order.status === 'drying' || order.status === 'ready') {
                 actionHtml = `<button class="btn btn-sm btn-success px-3" onclick="advanceOrder(${order.order_id}, 'completed')">ล้างเสร็จ</button>`;
             } else if (order.status === 'completed') {
-                actionHtml = `<button class="btn btn-sm btn-success fw-bold px-3" onclick="openPayment(${order.order_id}, ${Number(order.total_amount)})"><i class="bi bi-cash-coin me-1"></i>ชำระเงิน</button>`;
+                // กดล้างเสร็จแล้วจะเรียก openInspection แทนเพื่อเช็กความเสียหายก่อน
+                actionHtml = `<button class="btn btn-sm btn-success fw-bold px-3" onclick="openInspection(${order.order_id}, ${Number(order.total_amount)})"><i class="bi bi-cash-coin me-1"></i>ชำระเงิน</button>`;
             } else {
                 actionHtml = `<span class="text-info small fw-bold"><i class="bi bi-check-all me-1"></i>ปิดงาน</span>`;
             }
@@ -312,8 +423,32 @@
             }
         }
 
-        function openPayment(orderId, amount) {
+        // เปิด Modal ตรวจสอบความเสียหายเป็นขั้นแรก
+        function openInspection(orderId, amount) {
             paymentOrderId = orderId;
+            paymentTotalAmount = amount;
+            document.getElementById('damageNote').value = '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('inspectionModal')).show();
+        }
+
+        // ย้อนกลับจากชำระเงินไปหน้าหมายเหตุ
+        function backToInspection() {
+            bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('inspectionModal')).show();
+        }
+
+        // นำค่าหมายเหตุไปแสดงและเปลี่ยนไปยัง Modal ชำระเงิน
+        function goToPaymentModal() {
+            const rawNote = document.getElementById('damageNote').value.trim();
+            currentDamageNote = rawNote !== '' ? rawNote : 'ไม่มีอะไรเสียหาย';
+            
+            document.getElementById('displayDamageNote').innerText = currentDamageNote;
+            
+            bootstrap.Modal.getInstance(document.getElementById('inspectionModal')).hide();
+            openPayment(paymentTotalAmount);
+        }
+
+        function openPayment(amount) {
             document.getElementById('paymentAmount').innerText = `${amount.toFixed(2)} บาท`;
             document.getElementById('paymentMethod').value = 'cash';
             bootstrap.Modal.getOrCreateInstance(document.getElementById('paymentModal')).show();
@@ -322,9 +457,6 @@
         function openHistory() {
             window.location.href = '/history';
             return;
-            document.getElementById('historyDate').value = new Date().toISOString().slice(0, 10);
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('historyModal')).show();
-            loadHistory();
         }
 
         async function loadHistory() {
@@ -355,7 +487,10 @@
                 const res = await fetch(`/api/orders/${paymentOrderId}/payment`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ payment_method: document.getElementById('paymentMethod').value })
+                    body: JSON.stringify({ 
+                        payment_method: document.getElementById('paymentMethod').value,
+                        damage_note: currentDamageNote // ส่งหมายเหตุความเสียหายไปยัง Backend
+                    })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || data.error || 'ชำระเงินไม่สำเร็จ');
@@ -451,6 +586,448 @@
             refreshAll();
             setInterval(refreshAll, 8000); // อัปเดตอัตโนมัติทุก 8 วินาที
         });
+                /* ==========================================
+           Face Checkout
+           ========================================== */
+
+        let checkoutStream = null;
+
+        const faceCheckoutModal =
+            document.getElementById('faceCheckoutModal');
+
+        const checkoutVideo =
+            document.getElementById('checkoutVideo');
+
+        const checkoutCanvas =
+            document.getElementById('checkoutCanvas');
+
+        const checkoutStatus =
+            document.getElementById('checkoutStatus');
+
+        const startCheckoutScanBtn =
+            document.getElementById('startCheckoutScanBtn');
+
+
+        /* =========================
+           เปิดกล้อง
+        ========================= */
+
+        async function startCheckoutCamera() {
+
+            try {
+
+                // ถ้ามีกล้องเก่าอยู่ ให้ปิดก่อน
+                stopCheckoutCamera();
+
+                checkoutStatus.textContent =
+                    'กำลังเปิดกล้อง...';
+
+                checkoutStatus.className =
+                    'checkout-status mt-3 loading';
+
+
+                // ตรวจสอบว่า Browser รองรับกล้องหรือไม่
+                if (!navigator.mediaDevices ||
+                    !navigator.mediaDevices.getUserMedia) {
+
+                    throw new Error(
+                        'Browser ไม่รองรับการใช้งานกล้อง'
+                    );
+                }
+
+
+                checkoutStream =
+                    await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: {
+                                ideal: 640
+                            },
+                            height: {
+                                ideal: 480
+                            }
+                        },
+                        audio: false
+                    });
+
+
+                checkoutVideo.srcObject =
+                    checkoutStream;
+
+
+                checkoutStatus.textContent =
+                    'กรุณาหันหน้าเข้ากรอบ แล้วกด "สแกนใบหน้า"';
+
+                checkoutStatus.className =
+                    'checkout-status mt-3';
+
+            } catch (error) {
+
+                console.error(
+                    'Camera error:',
+                    error
+                );
+
+                checkoutStatus.textContent =
+                    'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้งานกล้อง';
+
+                checkoutStatus.className =
+                    'checkout-status mt-3 error';
+            }
+        }
+
+
+        /* =========================
+           ปิดกล้อง
+        ========================= */
+
+        function stopCheckoutCamera() {
+
+            if (checkoutStream) {
+
+                checkoutStream
+                    .getTracks()
+                    .forEach(track => {
+                        track.stop();
+                    });
+
+                checkoutStream = null;
+            }
+
+            if (checkoutVideo) {
+                checkoutVideo.srcObject = null;
+            }
+        }
+
+
+        /* =========================
+           เมื่อเปิด Modal
+        ========================= */
+
+        if (faceCheckoutModal) {
+
+            faceCheckoutModal.addEventListener(
+                'shown.bs.modal',
+                function () {
+
+                    startCheckoutCamera();
+
+                }
+            );
+
+
+            /* =========================
+               เมื่อปิด Modal
+            ========================= */
+
+            faceCheckoutModal.addEventListener(
+                'hidden.bs.modal',
+                function () {
+
+                    stopCheckoutCamera();
+
+
+                    checkoutStatus.textContent =
+                        'กำลังเตรียมกล้อง...';
+
+                    checkoutStatus.className =
+                        'checkout-status mt-3';
+
+
+                    startCheckoutScanBtn.disabled =
+                        false;
+                }
+            );
+        }
+
+
+        /* =========================
+           ปุ่มสแกนหน้า
+        ========================= */
+
+        if (startCheckoutScanBtn) {
+
+            startCheckoutScanBtn.addEventListener(
+                'click',
+                async function () {
+
+                    try {
+
+                        /* -------------------------
+                           ตรวจสอบกล้อง
+                        ------------------------- */
+
+                        if (!checkoutStream) {
+
+                            checkoutStatus.textContent =
+                                'ยังไม่สามารถเปิดกล้องได้';
+
+                            checkoutStatus.className =
+                                'checkout-status mt-3 error';
+
+                            return;
+                        }
+
+
+                        /* -------------------------
+                           ป้องกันกดซ้ำ
+                        ------------------------- */
+
+                        startCheckoutScanBtn.disabled =
+                            true;
+
+
+                        checkoutStatus.textContent =
+                            'กำลังตรวจสอบใบหน้า...';
+
+                        checkoutStatus.className =
+                            'checkout-status mt-3 loading';
+
+
+                        /* -------------------------
+                           ตรวจสอบ video
+                        ------------------------- */
+
+                        if (checkoutVideo.readyState < 2) {
+
+                            checkoutStatus.textContent =
+                                'กล้องยังไม่พร้อม กรุณาลองอีกครั้ง';
+
+                            checkoutStatus.className =
+                                'checkout-status mt-3 error';
+
+                            startCheckoutScanBtn.disabled =
+                                false;
+
+                            return;
+                        }
+
+
+                        /* -------------------------
+                           Canvas
+                        ------------------------- */
+
+                        const width =
+                            checkoutVideo.videoWidth;
+
+                        const height =
+                            checkoutVideo.videoHeight;
+
+
+                        if (!width || !height) {
+
+                            checkoutStatus.textContent =
+                                'ไม่สามารถอ่านภาพจากกล้องได้';
+
+                            checkoutStatus.className =
+                                'checkout-status mt-3 error';
+
+                            startCheckoutScanBtn.disabled =
+                                false;
+
+                            return;
+                        }
+
+
+                        checkoutCanvas.width =
+                            width;
+
+                        checkoutCanvas.height =
+                            height;
+
+
+                        const context =
+                            checkoutCanvas.getContext('2d');
+
+
+                        /* -------------------------
+                           กลับภาพจากกล้อง
+                           เพราะหน้าจอเป็น Mirror
+                        ------------------------- */
+
+                        context.save();
+
+                        context.translate(
+                            width,
+                            0
+                        );
+
+                        context.scale(
+                            -1,
+                            1
+                        );
+
+
+                        context.drawImage(
+                            checkoutVideo,
+                            0,
+                            0,
+                            width,
+                            height
+                        );
+
+
+                        context.restore();
+
+
+                        /* -------------------------
+                           แปลงเป็น Base64
+                        ------------------------- */
+
+                        const imageBase64 =
+                            checkoutCanvas.toDataURL(
+                                'image/jpeg',
+                                0.9
+                            );
+
+
+                        /* -------------------------
+                           ส่งไป Backend
+                        ------------------------- */
+
+                        const response =
+                            await fetch(
+                                '/api/staff/face-checkout',
+                                {
+                                    method: 'POST',
+
+                                    headers: {
+                                        'Content-Type':
+                                            'application/json'
+                                    },
+
+                                    body: JSON.stringify({
+                                        face_image: imageBase64
+                                    })
+                                }
+                            );
+
+
+                        /* -------------------------
+                           อ่านผลลัพธ์
+                        ------------------------- */
+
+                        let result = {};
+
+                        try {
+
+                            result =
+                                await response.json();
+
+                        } catch (jsonError) {
+
+                            console.error(
+                                'JSON parse error:',
+                                jsonError
+                            );
+                        }
+
+
+                        /* -------------------------
+                           สำเร็จ
+                        ------------------------- */
+
+                        if (
+                            response.ok &&
+                            result.success
+                        ) {
+
+                            checkoutStatus.textContent =
+                                result.message ||
+                                'เช็กเอ้าสำเร็จ';
+
+                            checkoutStatus.className =
+                                'checkout-status mt-3 success';
+
+
+                            /* -------------------------
+                               หยุดกล้อง
+                            ------------------------- */
+
+                            stopCheckoutCamera();
+
+
+                            /* -------------------------
+                               ออกจากระบบ
+                            ------------------------- */
+
+                            setTimeout(
+                                function () {
+
+                                    window.location.href =
+                                        "{{ url_for('logout') }}";
+
+                                },
+                                1500
+                            );
+
+                            return;
+                        }
+
+
+                        /* -------------------------
+                           ใบหน้าไม่ผ่าน
+                        ------------------------- */
+
+                        checkoutStatus.textContent =
+                            result.message ||
+                            result.error ||
+                            'ใบหน้าไม่ตรงกับบัญชีที่กำลังใช้งาน';
+
+                        checkoutStatus.className =
+                            'checkout-status mt-3 error';
+
+
+                        startCheckoutScanBtn.disabled =
+                            false;
+
+
+                    } catch (error) {
+
+                        console.error(
+                            'Face checkout error:',
+                            error
+                        );
+
+
+                        checkoutStatus.textContent =
+                            'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์';
+
+                        checkoutStatus.className =
+                            'checkout-status mt-3 error';
+
+
+                        startCheckoutScanBtn.disabled =
+                            false;
+                    }
+
+                }
+            );
+        }
+        /* ==========================================
+   เปิด Modal สแกนหน้าเช็กเอ้า
+   ========================================== */
+
+function openFaceCheckout(event) {
+
+    // ป้องกันไม่ให้ href="#" เปลี่ยนตำแหน่งหน้า
+    if (event) {
+        event.preventDefault();
+    }
+
+    const modalElement =
+        document.getElementById('faceCheckoutModal');
+
+    if (!modalElement) {
+        console.error('ไม่พบ faceCheckoutModal');
+        return;
+    }
+
+    const modal =
+        bootstrap.Modal.getOrCreateInstance(modalElement);
+
+    modal.show();
+}
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
