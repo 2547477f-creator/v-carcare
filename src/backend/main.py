@@ -210,6 +210,10 @@ def _period_to_range(period, start_str, end_str):
         start = today.replace(day=1)
         return start, today
 
+    if period == 'year':
+        start = today.replace(month=1, day=1)
+        return start, today
+
     if period == 'custom':
         try:
             start = datetime.strptime(start_str, '%Y-%m-%d').date() if start_str else today
@@ -429,6 +433,30 @@ def staff_page():
 @manager_required
 def finance():
     return render_template('finance.html', session_role=session.get("role"), session_name=session.get("display_name"))
+
+
+@app.route('/expense-management')
+@manager_required
+def expense_management():
+    return render_template(
+        'transaction_management.html',
+        transaction_type='expense',
+        page_title='จัดการรายจ่าย',
+        session_role=session.get("role"),
+        session_name=session.get("display_name"),
+    )
+
+
+@app.route('/income-management')
+@manager_required
+def income_management():
+    return render_template(
+        'transaction_management.html',
+        transaction_type='income',
+        page_title='จัดการรายรับ',
+        session_role=session.get("role"),
+        session_name=session.get("display_name"),
+    )
 
 
 @app.route('/service-management')
@@ -2259,6 +2287,14 @@ def get_finance_summary():
     period = request.args.get('period', 'day')
     start_str = request.args.get('start')
     end_str = request.args.get('end')
+    transaction_type = request.args.get('transaction_type', 'all')
+    if transaction_type not in ('all', 'income', 'expense'):
+        transaction_type = 'all'
+    try:
+        page = max(int(request.args.get('page', 1)), 1)
+        page_size = min(max(int(request.args.get('page_size', 25)), 1), 100)
+    except (TypeError, ValueError):
+        page, page_size = 1, 25
     start_date, end_date = _period_to_range(period, start_str, end_str)
 
     conn = get_db_connection()
@@ -2277,21 +2313,42 @@ def get_finance_summary():
         )
         summary = cur.fetchone()
 
+        type_filter_sql = '' if transaction_type == 'all' else ' AND transaction_type = %s'
+        type_filter_params = () if transaction_type == 'all' else (transaction_type,)
+
+        cur.execute(
+            """SELECT COUNT(*) AS total
+               FROM finance_transactions
+               WHERE occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + ';',
+            (start_date, end_date) + type_filter_params
+        )
+        total_transactions = cur.fetchone()['total']
+        total_pages = max((total_transactions + page_size - 1) // page_size, 1)
+        page = min(page, total_pages)
+
         cur.execute(
             """SELECT id, transaction_type, category, description, amount, occurred_at
                FROM finance_transactions
-               WHERE occurred_at::date BETWEEN %s AND %s
-               ORDER BY occurred_at DESC LIMIT 200;""",
-            (start_date, end_date)
+               WHERE occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + """
+               ORDER BY occurred_at DESC
+               LIMIT %s OFFSET %s;""",
+            (start_date, end_date) + type_filter_params + (page_size, (page - 1) * page_size)
         )
         transactions = cur.fetchall()
 
         return jsonify({
             "period": period,
+            "transaction_type": transaction_type,
             "start_date": str(start_date),
             "end_date": str(end_date),
             "summary": summary,
-            "transactions": transactions
+            "transactions": transactions,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total_transactions,
+                "total_pages": total_pages,
+            }
         }), 200
     finally:
         cur.close()

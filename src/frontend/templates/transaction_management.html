@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V CarCare - {{ page_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="wrapper">
+        <aside class="sidebar d-none d-md-block">
+            <h3 class="text-orange fw-bold text-center mb-2">V CARCARE</h3>
+            <p class="text-center text-secondary small mb-4">{{ session_name }} ({{ session_role }})</p>
+            <nav class="nav flex-column">
+                <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i>ภาพรวมระบบ</a>
+                <a class="nav-link" href="/pos"><i class="bi bi-cart-check me-2"></i>รับรถ POS</a>
+                <a class="nav-link" href="/register"><i class="bi bi-person-vcard me-2"></i>ลงทะเบียนลูกค้าและรถ</a>
+                <a class="nav-link" href="/history"><i class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว</a>
+                <details class="management-menu" open>
+                    <summary><i class="bi bi-gear-fill me-2"></i>การจัดการ <i class="bi bi-chevron-down menu-chevron"></i></summary>
+                    <div class="management-submenu">
+                        <a href="/staff"><i class="bi bi-people-fill me-2"></i>จัดการพนักงาน</a>
+                        <a href="/staff-advances"><i class="bi bi-cash-stack me-2"></i>จัดการเบิก</a>
+                        <a class="{{ 'active' if transaction_type == 'income' else '' }}" href="/income-management"><i class="bi bi-graph-up-arrow me-2"></i>จัดการรายรับ</a>
+                        <a class="{{ 'active' if transaction_type == 'expense' else '' }}" href="/expense-management"><i class="bi bi-receipt-cutoff me-2"></i>จัดการรายจ่าย</a>
+                        <a href="/service-management"><i class="bi bi-tags me-2"></i>จัดการบริการและโปรโมชัน</a>
+                    </div>
+                </details>
+                <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i>สรุปบัญชีรายรับ</a>
+                <a class="nav-link logout-link text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i>ออกจากระบบ</a>
+            </nav>
+        </aside>
+        <main class="main-content w-100 p-3 p-md-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="fw-bold text-white m-0"><i class="bi {{ 'bi-graph-up-arrow text-success' if transaction_type == 'income' else 'bi-receipt-cutoff text-danger' }} me-2"></i>{{ page_title }}</h2>
+                <a class="btn btn-outline-light" href="/finance"><i class="bi bi-wallet2 me-1"></i>ดูสรุปบัญชี</a>
+            </div>
+            <div class="card-custom p-3 p-md-4 mb-4">
+                <h5 class="text-white mb-3">เพิ่มรายการ{{ 'รายรับ' if transaction_type == 'income' else 'รายจ่าย' }}</h5>
+                <div class="row g-3">
+                    <div class="col-md-3"><label class="form-label text-secondary">หมวดหมู่</label><input id="category" class="form-control form-control-custom" placeholder="เช่น ค่าบริการ"></div>
+                    <div class="col-md-5"><label class="form-label text-secondary">รายละเอียด</label><input id="description" class="form-control form-control-custom" placeholder="ระบุรายละเอียดรายการ"></div>
+                    <div class="col-md-2"><label class="form-label text-secondary">จำนวนเงิน</label><input id="amount" type="number" min="0.01" step="0.01" class="form-control form-control-custom" placeholder="0.00"></div>
+                    <div class="col-md-2 d-flex align-items-end"><button class="btn {{ 'btn-success' if transaction_type == 'income' else 'bg-orange text-dark' }} fw-bold w-100" onclick="saveTransaction()">บันทึกรายการ</button></div>
+                </div>
+            </div>
+            <div class="card-custom p-3 p-md-4">
+                <h5 class="text-white mb-3">รายการล่าสุด</h5>
+                <div class="table-responsive"><table class="table table-dark table-hover mb-0"><thead><tr><th>วัน-เวลา</th><th>หมวดหมู่</th><th>รายละเอียด</th><th class="text-end">จำนวนเงิน</th></tr></thead><tbody id="transaction-list"><tr><td colspan="4" class="text-secondary">กำลังโหลดข้อมูล...</td></tr></tbody></table></div>
+            </div>
+        </main>
+    </div>
+    <script>
+        const transactionType = '{{ transaction_type }}';
+        const typeLabel = transactionType === 'income' ? 'รายรับ' : 'รายจ่าย';
+        function escapeHtml(value) { const d = document.createElement('div'); d.textContent = value || ''; return d.innerHTML; }
+        async function loadTransactions() {
+            const tbody = document.getElementById('transaction-list');
+            try {
+                const res = await fetch('/api/finance/summary?period=year');
+                if (!res.ok) throw new Error('โหลดข้อมูลไม่สำเร็จ');
+                const data = await res.json();
+                const rows = data.transactions.filter(item => item.transaction_type === transactionType);
+                tbody.innerHTML = rows.length ? rows.map(item => `<tr><td class="text-secondary">${new Date(item.occurred_at).toLocaleString('th-TH')}</td><td>${escapeHtml(item.category)}</td><td>${escapeHtml(item.description)}</td><td class="text-end ${transactionType === 'income' ? 'text-success' : 'text-danger'} fw-bold">${Number(item.amount).toLocaleString(undefined, {minimumFractionDigits: 2})} บาท</td></tr>`).join('') : `<tr><td colspan="4" class="text-secondary">ยังไม่มีรายการ${typeLabel}</td></tr>`;
+            } catch (error) { tbody.innerHTML = `<tr><td colspan="4" class="text-danger">${error.message}</td></tr>`; }
+        }
+        async function saveTransaction() {
+            const category = document.getElementById('category').value.trim() || 'general';
+            const description = document.getElementById('description').value.trim();
+            const amount = Number(document.getElementById('amount').value);
+            if (!description || !Number.isFinite(amount) || amount <= 0) return alert('กรุณากรอกรายละเอียดและจำนวนเงินให้ถูกต้อง');
+            const res = await fetch('/api/finance/transactions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({transaction_type:transactionType, category, description, amount})});
+            if (!res.ok) return alert('บันทึกรายการไม่สำเร็จ');
+            window.location.href = '/finance';
+        }
+        loadTransactions();
+    </script>
+</body>
+</html>

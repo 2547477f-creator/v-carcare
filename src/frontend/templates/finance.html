@@ -84,25 +84,6 @@
                 </div>
             </div>
 
-            <!-- เพิ่มรายจ่าย -->
-            <div class="card-custom p-3 mb-4">
-                <h6 class="text-secondary small fw-bold mb-2"><i class="bi bi-plus-circle text-orange me-1"></i> เพิ่มรายการรายจ่าย</h6>
-                <div class="row g-2">
-                    <div class="col-6 col-md-3">
-                        <input type="text" id="expense-category" class="form-control form-control-custom" placeholder="หมวดหมู่ เช่น ค่าแรง">
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <input type="text" id="expense-desc" class="form-control form-control-custom" placeholder="รายละเอียด">
-                    </div>
-                    <div class="col-6 col-md-2">
-                        <input type="number" id="expense-amount" class="form-control form-control-custom" placeholder="จำนวนเงิน">
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <button class="btn bg-orange text-dark fw-bold w-100" onclick="addExpense()">บันทึกรายจ่าย</button>
-                    </div>
-                </div>
-            </div>
-
             <!-- ส่วนแสดงผลยอดรวมและกราฟ -->
             <div class="row g-3 mb-4">
                 <div class="col-md-8">
@@ -124,6 +105,13 @@
             <!-- ตารางรายการประวัติ รายรับ - รายจ่าย -->
             <div class="card-custom p-3 p-md-4">
                 <h5 class="text-white fw-bold mb-3"><i class="bi bi-journal-text text-orange me-2"></i> ประวัติรายการรับ-จ่ายเงินในระบบ</h5>
+                <div class="d-flex justify-content-end mb-3">
+                    <select id="transaction-type-filter" class="form-select form-select-sm form-control-custom" style="max-width: 190px;" onchange="changeTransactionType()">
+                        <option value="all">แสดงรายรับและรายจ่าย</option>
+                        <option value="income">เฉพาะรายรับ</option>
+                        <option value="expense">เฉพาะรายจ่าย</option>
+                    </select>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-dark table-hover align-middle m-0" id="transaction-table">
                         <thead>
@@ -139,6 +127,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div id="transaction-pagination" class="d-flex justify-content-between align-items-center gap-2 mt-3"></div>
             </div>
 
         </div>
@@ -147,6 +136,8 @@
 <script>
     let currentMode = 'day';
     let currentTransactions = [];
+    let currentPage = 1;
+    let currentTransactionType = 'all';
     let chartMbInstance = null;
     let chartPcInstance = null;
 
@@ -208,8 +199,9 @@
         }
     }
 
-    async function loadFinance(period, start, end) {
-        let url = `/api/finance/summary?period=${period}`;
+    async function loadFinance(period, start, end, page = 1) {
+        currentPage = page;
+        let url = `/api/finance/summary?period=${period}&page=${page}&page_size=10&transaction_type=${currentTransactionType}`;
         if (period === 'custom' && start && end) {
             url += `&start=${start}&end=${end}`;
         }
@@ -230,6 +222,7 @@
             renderFinanceChart(income, expense, profit);
 
             currentTransactions = data.transactions;
+            renderPagination(data.pagination);
             tbody.innerHTML = '';
 
             if (currentTransactions.length === 0) {
@@ -259,6 +252,26 @@
         }
     }
 
+    function renderPagination(pagination) {
+        const container = document.getElementById('transaction-pagination');
+        if (!pagination || pagination.total_pages <= 1) {
+            container.innerHTML = pagination ? `<small class="text-secondary">ทั้งหมด ${pagination.total} รายการ</small>` : '';
+            return;
+        }
+        const start = (pagination.page - 1) * pagination.page_size + 1;
+        const end = Math.min(pagination.page * pagination.page_size, pagination.total);
+        container.innerHTML = `<small class="text-secondary">แสดง ${start}-${end} จาก ${pagination.total} รายการ</small><div class="btn-group"><button class="btn btn-sm btn-outline-secondary" ${pagination.page === 1 ? 'disabled' : ''} onclick="goToPage(${pagination.page - 1})">ก่อนหน้า</button><button class="btn btn-sm btn-outline-secondary" ${pagination.page === pagination.total_pages ? 'disabled' : ''} onclick="goToPage(${pagination.page + 1})">ถัดไป</button></div>`;
+    }
+
+    function goToPage(page) {
+        loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, page);
+    }
+
+    function changeTransactionType() {
+        currentTransactionType = document.getElementById('transaction-type-filter').value;
+        loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
+    }
+
     function changePeriod(mode, btnElement) {
         currentMode = mode;
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
@@ -269,7 +282,7 @@
         } else {
             document.getElementById('custom-date-box').style.display = 'none';
             document.getElementById('chart-title-label').innerText = PERIOD_TITLES[mode];
-            loadFinance(mode);
+            loadFinance(mode, null, null, 1);
         }
     }
 
@@ -278,7 +291,7 @@
         let end = document.getElementById('end-date').value;
         if (start && end) {
             document.getElementById('chart-title-label').innerText = `ช่วงวันที่ ${start} ถึง ${end}`;
-            loadFinance('custom', start, end);
+            loadFinance('custom', start, end, 1);
         }
     }
 
@@ -339,5 +352,6 @@
     });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>
 </body>
 </html>

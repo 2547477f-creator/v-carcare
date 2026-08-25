@@ -172,6 +172,17 @@ input::-ms-input-placeholder, textarea::-ms-input-placeholder { color: #A0A0A0 !
         font-weight: bold;
     }
 
+    .sidebar .management-menu { order: 5; margin-bottom: 6px; }
+    .sidebar .management-menu summary { color: #8E8E93; padding: 12px 15px; border-radius: 8px; font-weight: 500; cursor: pointer; list-style: none; display: flex; align-items: center; }
+    .sidebar .management-menu summary::-webkit-details-marker { display: none; }
+    .sidebar .management-menu summary:hover { color: #fff; background-color: #2A2A2A; }
+    .sidebar .menu-chevron { margin-left: auto; transition: transform .2s ease; }
+    .sidebar .management-menu[open] .menu-chevron { transform: rotate(180deg); }
+    .sidebar .management-submenu { padding: 4px 0 4px 16px; }
+    .sidebar .management-submenu a { color: #8E8E93; display: block; padding: 9px 12px; margin-bottom: 3px; border-radius: 7px; font-size: .92rem; text-decoration: none; }
+    .sidebar .management-submenu a:hover { color: #fff; background-color: #2A2A2A; }
+    .sidebar .management-submenu a.active { background-color: #FF6B00; color: #121212; font-weight: bold; }
+
     /* Keep the navigation order identical across all desktop pages. */
     .sidebar .nav-link { order: 50; }
     .sidebar .nav-link[href="/"] { order: 1; }
@@ -186,6 +197,7 @@ input::-ms-input-placeholder, textarea::-ms-input-placeholder { color: #A0A0A0 !
     .sidebar .nav-link.logout-link {
         order: 99;
         margin-top: auto;
+        flex-shrink: 0;
     }
     
     .main-content { 
