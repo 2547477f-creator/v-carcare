@@ -62,6 +62,18 @@
                 </button>
             </div>
 
+            <div class="card-custom p-3 p-md-4 mb-4 border-start border-warning border-5">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+                    <div><h5 class="text-white fw-bold mb-1"><i class="bi bi-safe2 text-warning me-2"></i>เงินกองกลาง</h5><small class="text-secondary">รายจ่าย การเบิกพนักงาน เงินเดือน และค่าความเสียหาย จะตัดจากยอดนี้อัตโนมัติ</small></div>
+                    <div class="d-flex gap-2 flex-wrap"><button class="btn btn-success fw-bold" onclick="receiveCentralFund()"><i class="bi bi-plus-circle me-1"></i>ได้รับเงินกองกลางเพิ่ม</button><button class="btn btn-outline-warning" onclick="adjustCentralFund()"><i class="bi bi-pencil-square me-1"></i>แก้ไขยอด</button><button class="btn btn-warning fw-bold" onclick="closeCashFloat()"><i class="bi bi-box-arrow-in-down me-1"></i>ปิดร้าน / ฝากเงินทอน</button></div>
+                </div>
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-3"><small class="text-secondary d-block">ยอดกองกลางปัจจุบัน</small><h2 id="central-fund-balance" class="text-warning fw-bold mb-0">0.00 บาท</h2></div>
+                    <div class="col-md-3"><small class="text-secondary d-block">เงินสดสำหรับทอน</small><h4 id="cash-float-balance" class="text-info fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">ระบบนำออก 3,000 บาทในตอนเช้า</small></div>
+                    <div class="col-md-6" style="position: relative; height: 160px;"><canvas id="central-fund-chart"></canvas></div>
+                </div>
+            </div>
+
             <!-- ระบบตัวกรองเวลา -->
             <div class="card-custom p-3 mb-4">
                 <h6 class="text-secondary small fw-bold mb-2"><i class="bi bi-funnel-fill text-orange me-1"></i> เลือกช่วงเวลาเรียกดูรายงาน</h6>
@@ -140,6 +152,10 @@
     let currentTransactionType = 'all';
     let chartMbInstance = null;
     let chartPcInstance = null;
+    let latestChartValues = { income: 0, expense: 0, profit: 0 };
+    let centralFundChartInstance = null;
+    let centralFundBalance = 0;
+    let resizeTimer = null;
 
     const PERIOD_TITLES = {
         day: 'รายวัน (วันนี้)',
@@ -154,6 +170,7 @@
     }
 
     function renderFinanceChart(income, expense, profit) {
+        latestChartValues = { income, expense, profit };
         const isMobile = window.innerWidth < 768;
         const targetCanvasId = isMobile ? 'chart-mb' : 'chart-pc';
         const canvasEl = document.getElementById(targetCanvasId);
@@ -161,6 +178,11 @@
 
         if (chartMbInstance) { chartMbInstance.destroy(); chartMbInstance = null; }
         if (chartPcInstance) { chartPcInstance.destroy(); chartPcInstance = null; }
+
+        if (typeof Chart === 'undefined') {
+            canvasEl.parentElement.innerHTML = '<p class="text-secondary small text-center mb-0 pt-4">ไม่สามารถโหลดกราฟได้ในขณะนี้</p>';
+            return;
+        }
 
         const chartConfig = {
             type: 'bar',
@@ -180,7 +202,7 @@
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: (ctx) => ` จำนวน: ${ctx.raw.toLocaleString()} บาท`
+                            label: (ctx) => ` จำนวน: ${Number(ctx.raw || 0).toLocaleString()} บาท`
                         }
                     }
                 },
@@ -211,7 +233,10 @@
 
         try {
             const res = await fetch(url);
-            if (!res.ok) throw new Error('โหลดข้อมูลบัญชีไม่สำเร็จ');
+            if (!res.ok) {
+                const error = await res.json().catch(() => ({}));
+                throw new Error(error.message || 'โหลดข้อมูลบัญชีไม่สำเร็จ');
+            }
             const data = await res.json();
 
             const income = Number(data.summary.total_income || 0);
@@ -220,6 +245,7 @@
 
             document.getElementById('summary-profit-val').innerText = profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             renderFinanceChart(income, expense, profit);
+            loadCentralFund();
 
             currentTransactions = data.transactions;
             renderPagination(data.pagination);
@@ -250,6 +276,68 @@
         } catch (err) {
             tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`;
         }
+    }
+
+    function renderCentralFundChart(history) {
+        const canvas = document.getElementById('central-fund-chart');
+        if (!canvas || typeof Chart === 'undefined') return;
+        if (centralFundChartInstance) centralFundChartInstance.destroy();
+        const points = (history || []).slice().reverse();
+        centralFundChartInstance = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: { labels: points.map(item => new Date(item.day).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })), datasets: [{ data: points.map(item => Number(item.balance_after || 0)), borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,.15)', fill: true, tension: .3, pointRadius: 3 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ยอดกองกลาง: ${Number(ctx.raw || 0).toLocaleString()} บาท` } } }, scales: { x: { ticks: { color: '#A0A0A0' }, grid: { display: false } }, y: { ticks: { color: '#A0A0A0' }, grid: { color: '#2A2A2A' } } } }
+        });
+    }
+
+    async function loadCentralFund() {
+        try {
+            const res = await fetch('/api/central-fund');
+            if (!res.ok) throw new Error('โหลดเงินกองกลางไม่สำเร็จ');
+            const data = await res.json();
+            centralFundBalance = Number(data.fund.balance || 0);
+            document.getElementById('central-fund-balance').innerText = `${centralFundBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+            document.getElementById('cash-float-balance').innerText = `${Number(data.fund.cash_float_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+            renderCentralFundChart(data.history);
+        } catch (err) { console.error(err); }
+    }
+
+    async function adjustCentralFund() {
+        const value = prompt('ระบุยอดเงินกองกลางใหม่ (บาท)', centralFundBalance.toFixed(2));
+        if (value === null) return;
+        const balance = Number(value);
+        if (!Number.isFinite(balance) || balance < 0) return alert('กรุณาระบุยอดเงินที่ถูกต้อง');
+        const note = prompt('หมายเหตุการปรับยอด (ไม่บังคับ)', 'ปรับยอดเงินกองกลางโดยผู้จัดการ');
+        try {
+            const res = await fetch('/api/central-fund', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ balance, note }) });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'ปรับยอดไม่สำเร็จ');
+            await loadCentralFund();
+        } catch (err) { alert(err.message); }
+    }
+
+    async function receiveCentralFund() {
+        const value = prompt('จำนวนเงินที่ได้รับเข้ากองกลาง (บาท)');
+        if (value === null) return;
+        const amount = Number(value);
+        if (!Number.isFinite(amount) || amount <= 0) return alert('กรุณาระบุจำนวนเงินที่มากกว่า 0');
+        const description = prompt('ที่มาของเงิน/หมายเหตุ (ไม่บังคับ)', 'ได้รับเงินเพิ่มเข้ากองกลาง');
+        try {
+            const res = await fetch('/api/central-fund/deposits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, description }) });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'บันทึกรับเงินไม่สำเร็จ');
+            await loadCentralFund();
+        } catch (err) { alert(err.message); }
+    }
+
+    async function closeCashFloat() {
+        if (!confirm('ยืนยันนำเงินทอนทั้งหมดกลับเข้ากองกลางเมื่อปิดร้าน?')) return;
+        try {
+            const res = await fetch('/api/central-fund/close-cash-float', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'ปิดร้านไม่สำเร็จ');
+            await loadCentralFund();
+        } catch (err) { alert(err.message); }
     }
 
     function renderPagination(pagination) {
@@ -290,42 +378,31 @@
         let start = document.getElementById('start-date').value;
         let end = document.getElementById('end-date').value;
         if (start && end) {
+            if (start > end) {
+                alert('วันเริ่มต้นต้องไม่เกินวันสิ้นสุด');
+                return;
+            }
             document.getElementById('chart-title-label').innerText = `ช่วงวันที่ ${start} ถึง ${end}`;
             loadFinance('custom', start, end, 1);
         }
     }
 
-    async function addExpense() {
-        const category = document.getElementById('expense-category').value.trim() || 'general';
-        const description = document.getElementById('expense-desc').value.trim();
-        const amount = document.getElementById('expense-amount').value;
+    async function exportExcel() {
+        const start = document.getElementById('start-date').value;
+        const end = document.getElementById('end-date').value;
+        let url = `/api/finance/summary?period=${currentMode}&page=1&page_size=100&transaction_type=${currentTransactionType}`;
+        if (currentMode === 'custom' && start && end) url += `&start=${start}&end=${end}`;
 
-        if (!description || !amount || isNaN(amount)) {
-            alert('กรุณากรอกรายละเอียดและจำนวนเงินให้ถูกต้อง');
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('ไม่สามารถเตรียมรายงานได้');
+            const data = await response.json();
+            currentTransactions = data.transactions || [];
+        } catch (error) {
+            alert(error.message);
             return;
         }
 
-        try {
-            const res = await fetch('/api/finance/transactions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ transaction_type: 'expense', category, description, amount: parseFloat(amount) })
-            });
-            if (!res.ok) throw new Error('บันทึกรายจ่ายไม่สำเร็จ');
-
-            document.getElementById('expense-category').value = '';
-            document.getElementById('expense-desc').value = '';
-            document.getElementById('expense-amount').value = '';
-
-            loadFinance(currentMode,
-                document.getElementById('start-date').value,
-                document.getElementById('end-date').value);
-        } catch (err) {
-            alert(err.message);
-        }
-    }
-
-    function exportExcel() {
         let rows = [["วัน-เวลา", "รายละเอียดรายการ", "ประเภท", "จำนวนเงิน (บาท)"]];
         
         currentTransactions.forEach(item => {
@@ -344,11 +421,15 @@
     }
 
     window.addEventListener('load', () => {
+        loadCentralFund();
         loadFinance('day');
     });
 
     window.addEventListener('resize', () => {
-        // re-render only; loadFinance recalculates from live data on demand
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            renderFinanceChart(latestChartValues.income, latestChartValues.expense, latestChartValues.profit);
+        }, 150);
     });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

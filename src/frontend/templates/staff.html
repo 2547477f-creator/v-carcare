@@ -823,6 +823,136 @@
 </div>
 
 
+<!-- =============================================================
+     MODAL : EDIT ATTENDANCE
+============================================================== -->
+
+<div class="modal fade"
+     id="editAttendanceModal"
+     tabindex="-1"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered m-3 mx-auto"
+         style="max-width:450px;">
+
+        <div class="modal-content bg-dark text-white border-secondary">
+
+            <div class="modal-header border-secondary">
+
+                <h5 class="modal-title text-orange fw-bold">
+                    แก้ไขเวลาเข้า-ออกงาน
+                </h5>
+
+                <button
+                    type="button"
+                    class="btn-close btn-close-white"
+                    data-bs-dismiss="modal">
+                </button>
+
+            </div>
+
+
+            <div class="modal-body">
+
+                <div class="mb-3">
+
+                    <label class="form-label text-secondary small">
+                        พนักงาน
+                    </label>
+
+                    <input
+                        type="text"
+                        id="edit-attendance-staff-name"
+                        class="form-control form-control-custom"
+                        readonly>
+
+                </div>
+
+
+                <div class="mb-3">
+
+                    <label class="form-label text-secondary small">
+                        วันที่
+                    </label>
+
+                    <input
+                        type="date"
+                        id="edit-attendance-date"
+                        class="form-control form-control-custom"
+                        readonly>
+
+                </div>
+
+
+                <div class="mb-3">
+
+                    <label class="form-label text-secondary small">
+                        เวลาเข้างาน
+                    </label>
+
+                    <input
+                        type="time"
+                        id="edit-attendance-checkin"
+                        class="form-control form-control-custom">
+                    <small class="text-secondary d-block mt-1">เว้นว่างได้หากต้องการลบเวลา</small>
+
+                </div>
+
+
+                <div class="mb-2">
+
+                    <label class="form-label text-secondary small">
+                        เวลาออกงาน
+                    </label>
+
+                    <input
+                        type="time"
+                        id="edit-attendance-checkout"
+                        class="form-control form-control-custom">
+                    <small class="text-secondary d-block mt-1">เว้นว่างได้หากต้องการลบเวลา</small>
+
+                </div>
+
+
+                <input
+                    type="hidden"
+                    id="edit-attendance-staff-id">
+
+            </div>
+
+
+            <div class="modal-footer border-secondary">
+
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    data-bs-dismiss="modal">
+
+                    ยกเลิก
+
+                </button>
+
+
+                <button
+                    type="button"
+                    class="btn bg-orange text-dark fw-bold"
+                    onclick="saveAttendanceEdit()">
+
+                    <i class="bi bi-save me-1"></i>
+
+                    บันทึกข้อมูล
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
 <script>
 
 let staffData = [];
@@ -1510,6 +1640,16 @@ function renderStaffCard(
 
 
                     <button
+                        class="btn btn-sm btn-outline-info"
+                        onclick="openAttendanceEdit(${s.id})"
+                        title="แก้ไขเวลาเข้า-ออกงาน">
+
+                        <i class="bi bi-clock-history"></i>
+
+                    </button>
+
+
+                    <button
                         class="btn btn-sm btn-outline-warning"
                         onclick="editWage(${s.id})">
 
@@ -1781,6 +1921,95 @@ function decodeHtml(value) {
         value;
 
     return textarea.value;
+
+}
+
+
+// ================================================================
+// EDIT ATTENDANCE
+// ================================================================
+
+function attendanceTimeForInput(value) {
+
+    if (!value) {
+        return '';
+    }
+
+    const parsed = new Date(value);
+
+    if (isNaN(parsed.getTime())) {
+        return '';
+    }
+
+    return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+
+}
+
+
+function openAttendanceEdit(staffId) {
+
+    const staff = staffData.find(s => s.id === staffId);
+    const workDate = document.getElementById('attendance-date').value;
+
+    if (!staff || !workDate) {
+        showAlert('ไม่พบข้อมูลพนักงานหรือวันที่ที่เลือก', 'warning');
+        return;
+    }
+
+    document.getElementById('edit-attendance-staff-id').value = staff.id;
+    document.getElementById('edit-attendance-staff-name').value = staff.full_name;
+    document.getElementById('edit-attendance-date').value = workDate;
+    document.getElementById('edit-attendance-checkin').value = attendanceTimeForInput(staff.check_in_at);
+    document.getElementById('edit-attendance-checkout').value = attendanceTimeForInput(staff.check_out_at);
+
+    bootstrap.Modal.getOrCreateInstance(
+        document.getElementById('editAttendanceModal')
+    ).show();
+
+}
+
+
+async function saveAttendanceEdit() {
+
+    const staffId = document.getElementById('edit-attendance-staff-id').value;
+    const workDate = document.getElementById('edit-attendance-date').value;
+    const checkInTime = document.getElementById('edit-attendance-checkin').value;
+    const checkOutTime = document.getElementById('edit-attendance-checkout').value;
+
+    if (!staffId || !workDate) {
+        showAlert('กรุณาเลือกพนักงานและวันที่', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/staff/attendance/edit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                staff_id: Number(staffId),
+                work_date: workDate,
+                check_in_time: checkInTime,
+                check_out_time: checkOutTime
+            })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            showAlert(data.message || 'บันทึกเวลาไม่สำเร็จ', 'danger');
+            return;
+        }
+
+        bootstrap.Modal.getOrCreateInstance(
+            document.getElementById('editAttendanceModal')
+        ).hide();
+        await loadStaff();
+        showAlert(data.message || 'บันทึกเวลาเข้า-ออกงานสำเร็จ', 'success');
+
+    } catch (error) {
+        console.error('[saveAttendanceEdit]', error);
+        showAlert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อบันทึกเวลาได้', 'danger');
+    }
 
 }
 

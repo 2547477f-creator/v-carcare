@@ -60,6 +60,7 @@ FACE_MATCH_DISTANCE_THRESHOLD = 0.30  # ยิ่งน้อยยิ่งเ�
 WORK_START_TIME = time(8, 0)
 STAFF_WITHDRAWAL_MAX_PER_REQUEST = 3000
 STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK = 2
+CENTRAL_FUND_OPENING_FLOAT = 3000
 
 THAI_SERVICE_NAMES = {
     'wash': 'ล้างภายนอก',
@@ -242,6 +243,93 @@ def _ensure_promotions_table(cur):
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
     """)
+
+
+def _ensure_central_fund_tables(cur):
+    """Create the cash-pool tables for both fresh and already deployed databases."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS central_fund (
+            id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+            balance NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (balance >= 0),
+            cash_float_balance NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (cash_float_balance >= 0),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        INSERT INTO central_fund (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+        CREATE TABLE IF NOT EXISTS central_fund_transactions (
+            id BIGSERIAL PRIMARY KEY,
+            movement_type VARCHAR(30) NOT NULL CHECK (movement_type IN
+                ('income', 'expense', 'opening_float', 'closing_float', 'adjustment', 'fund_received')),
+            amount NUMERIC(12,2) NOT NULL CHECK (amount <> 0),
+            balance_after NUMERIC(12,2) NOT NULL CHECK (balance_after >= 0),
+            description TEXT NOT NULL,
+            finance_transaction_id BIGINT REFERENCES finance_transactions(id) ON DELETE SET NULL,
+            created_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+            opening_date DATE,
+            occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_central_fund_transaction_finance
+            ON central_fund_transactions(finance_transaction_id)
+            WHERE finance_transaction_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_central_fund_opening_per_day
+            ON central_fund_transactions(opening_date)
+            WHERE movement_type = 'opening_float';
+        CREATE INDEX IF NOT EXISTS idx_central_fund_transactions_occurred_at
+            ON central_fund_transactions(occurred_at DESC);
+    """)
+
+
+def _record_central_fund_movement(cur, amount, movement_type, description,
+                                  finance_transaction_id=None, created_by=None):
+    """Apply one signed movement and keep the balance and ledger in sync."""
+    _ensure_central_fund_tables(cur)
+    cur.execute("SELECT balance FROM central_fund WHERE id = 1 FOR UPDATE;")
+    fund = cur.fetchone()
+    new_balance = float(fund['balance']) + float(amount)
+    if new_balance < -0.00001:
+        raise ValueError('ยอดเงินกองกลางไม่เพียงพอ')
+    new_balance = max(new_balance, 0)
+    cur.execute(
+        "UPDATE central_fund SET balance = %s, updated_at = NOW() WHERE id = 1;",
+        (new_balance,)
+    )
+    cur.execute(
+        """INSERT INTO central_fund_transactions
+               (movement_type, amount, balance_after, description, finance_transaction_id, created_by)
+           VALUES (%s, %s, %s, %s, %s, %s) RETURNING *;""",
+        (movement_type, amount, new_balance, description, finance_transaction_id, created_by)
+    )
+    return cur.fetchone()
+
+
+def _ensure_daily_cash_float(cur):
+    """Move the fixed change float once per calendar day, when funds are available."""
+    _ensure_central_fund_tables(cur)
+    cur.execute(
+        """SELECT 1 FROM central_fund_transactions
+           WHERE movement_type = 'opening_float' AND opening_date = CURRENT_DATE;"""
+    )
+    if cur.fetchone():
+        return False
+    cur.execute("SELECT balance, cash_float_balance FROM central_fund WHERE id = 1 FOR UPDATE;")
+    fund = cur.fetchone()
+    if float(fund['cash_float_balance']) > 0 or float(fund['balance']) < CENTRAL_FUND_OPENING_FLOAT:
+        return False
+    cur.execute(
+        """UPDATE central_fund
+           SET balance = balance - %s, cash_float_balance = cash_float_balance + %s, updated_at = NOW()
+           WHERE id = 1;""",
+        (CENTRAL_FUND_OPENING_FLOAT, CENTRAL_FUND_OPENING_FLOAT)
+    )
+    cur.execute(
+        """INSERT INTO central_fund_transactions
+               (movement_type, amount, balance_after, description, opening_date)
+           VALUES ('opening_float', %s, %s, %s, CURRENT_DATE);""",
+        (-CENTRAL_FUND_OPENING_FLOAT, float(fund['balance']) - CENTRAL_FUND_OPENING_FLOAT,
+         'นำเงินออกเป็นเงินทอนประจำวัน')
+    )
+    return True
 
 
 # ===================================================================
@@ -870,9 +958,25 @@ def pay_and_pick_up_order(order_id):
         )
         cur.execute(
             """INSERT INTO finance_transactions (order_id, transaction_type, category, description, amount)
-               VALUES (%s, 'income', 'service', %s, %s);""",
+               VALUES (%s, 'income', 'service', %s, %s) RETURNING *;""",
             (order_id, f"รายรับจากคิว {order['queue_no']} (ทะเบียน {order['license_plate']})", order['total_amount'])
         )
+        finance_transaction = cur.fetchone()
+        if payment_method == 'cash':
+            # Cash received belongs in the till used for change, not the central fund yet.
+            _ensure_daily_cash_float(cur)
+            cur.execute(
+                """UPDATE central_fund
+                   SET cash_float_balance = cash_float_balance + %s, updated_at = NOW()
+                   WHERE id = 1;""",
+                (order['total_amount'],)
+            )
+        else:
+            # QR/transfer and other non-cash payments are available in the fund immediately.
+            _record_central_fund_movement(
+                cur, float(order['total_amount']), 'income', finance_transaction['description'],
+                finance_transaction_id=finance_transaction['id'], created_by=session.get('user_id')
+            )
         damage_note = (request.json or {}).get('damage_note')
         damage_note = damage_note.strip() if isinstance(damage_note, str) else None
         cur.execute(
@@ -1957,6 +2061,118 @@ def backdate_staff_attendance():
     finally:
         cur.close()
         conn.close()
+
+
+@app.route('/api/staff/attendance/edit', methods=['POST'])
+@manager_required
+def edit_staff_attendance():
+    data = request.json or {}
+    staff_id = data.get('staff_id')
+    work_date_str = (data.get('work_date') or '').strip()
+    check_in_time_str = (data.get('check_in_time') or '').strip()
+    check_out_time_str = (data.get('check_out_time') or '').strip()
+
+    if not staff_id:
+        return jsonify({"status": "error", "message": "ไม่พบรหัสพนักงาน"}), 400
+    if not work_date_str:
+        return jsonify({"status": "error", "message": "กรุณาระบุวันที่"}), 400
+
+    try:
+        work_date = datetime.strptime(work_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({"status": "error", "message": "รูปแบบวันที่ไม่ถูกต้อง"}), 400
+
+    if work_date > date.today():
+        return jsonify({"status": "error", "message": "ไม่สามารถแก้ไขเวลาของวันในอนาคตได้"}), 400
+
+    check_in_datetime = None
+    if check_in_time_str:
+        try:
+            check_in_time_only = datetime.strptime(check_in_time_str, '%H:%M').time()
+            check_in_datetime = datetime.combine(work_date, check_in_time_only)
+        except ValueError:
+            return jsonify({"status": "error", "message": "รูปแบบเวลาเข้างานไม่ถูกต้อง"}), 400
+
+    check_out_datetime = None
+    if check_out_time_str:
+        try:
+            check_out_time_only = datetime.strptime(check_out_time_str, '%H:%M').time()
+            check_out_datetime = datetime.combine(work_date, check_out_time_only)
+        except ValueError:
+            return jsonify({"status": "error", "message": "รูปแบบเวลาออกงานไม่ถูกต้อง"}), 400
+
+    if not check_in_datetime and not check_out_datetime:
+        return jsonify({"status": "error", "message": "กรุณาระบุเวลาเข้างานหรือเวลาออกงานอย่างน้อยหนึ่งรายการ"}), 400
+
+    if check_out_datetime and not check_in_datetime:
+        return jsonify({"status": "error", "message": "กรุณาระบุเวลาเข้างานก่อนบันทึกเวลาออกงาน"}), 400
+
+    if check_in_datetime and check_out_datetime and check_out_datetime < check_in_datetime:
+        return jsonify({"status": "error", "message": "เวลาออกงานต้องไม่ก่อนเวลาเข้างาน"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("SELECT id FROM staff WHERE id = %s;", (staff_id,))
+        if not cur.fetchone():
+            return jsonify({"status": "error", "message": "ไม่พบพนักงาน"}), 404
+
+        attendance_status = 'on_time'
+        late_minutes = 0
+        if check_in_datetime:
+            attendance_status, late_minutes = calculate_attendance_status(check_in_datetime)
+
+        cur.execute(
+            """
+            SELECT id FROM staff_attendance
+            WHERE staff_id = %s AND work_date = %s;
+            """,
+            (staff_id, work_date)
+        )
+        attendance = cur.fetchone()
+
+        if attendance:
+            cur.execute(
+                """
+                UPDATE staff_attendance
+                SET check_in_at = %s,
+                    check_out_at = %s,
+                    method = 'manual_edit',
+                    status = %s,
+                    late_minutes = %s
+                WHERE id = %s
+                RETURNING *;
+                """,
+                (check_in_datetime, check_out_datetime, attendance_status, late_minutes, attendance['id'])
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO staff_attendance
+                    (staff_id, work_date, check_in_at, check_out_at, method, status, late_minutes)
+                VALUES (%s, %s, %s, %s, 'manual_edit', %s, %s)
+                RETURNING *;
+                """,
+                (staff_id, work_date, check_in_datetime, check_out_datetime, attendance_status, late_minutes)
+            )
+
+        attendance_record = cur.fetchone()
+        conn.commit()
+
+        return jsonify({
+            "status": "success",
+            "message": "บันทึกเวลาเข้า-ออกงานสำเร็จ",
+            "record": attendance_record
+        }), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
 # ===================================================================
 # 🔌 9. API: การเงิน & เบิกเงินพนักงาน (staff_advances.html / finance.html)
 # ===================================================================
@@ -2257,19 +2473,26 @@ def update_staff_withdrawal_status(withdrawal_id):
                    WHERE id = %s RETURNING *;""",
                 (note, withdrawal_id)
             )
+            updated = cur.fetchone()
 
             cur.execute(
                 """INSERT INTO finance_transactions
                        (staff_id, transaction_type, category, description, amount)
-                   VALUES (%s, 'expense', 'staff_advance', %s, %s);""",
+                   VALUES (%s, 'expense', 'staff_advance', %s, %s) RETURNING *;""",
                 (
                     withdrawal['staff_id'],
                     f"เบิกเงินพนักงาน (คำขอ #{withdrawal_id}) {withdrawal['reason'] or ''}".strip(),
                     pay_amount
                 )
             )
+            finance_transaction = cur.fetchone()
+            _record_central_fund_movement(
+                cur, -pay_amount, 'expense', finance_transaction['description'],
+                finance_transaction_id=finance_transaction['id'], created_by=manager_app_user_id
+            )
 
-        updated = cur.fetchone()
+        if new_status != 'paid':
+            updated = cur.fetchone()
         conn.commit()
         return jsonify({"status": "success", "withdrawal": updated}), 200
 
@@ -2366,6 +2589,12 @@ def add_transaction():
 
     if trans_type not in ('income', 'expense') or amount is None:
         return jsonify({"status": "error", "message": "ข้อมูลไม่ถูกต้อง"}), 400
+    try:
+        amount = float(amount)
+    except (TypeError, ValueError):
+        amount = 0
+    if amount <= 0:
+        return jsonify({"status": "error", "message": "จำนวนเงินต้องมากกว่า 0"}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -2376,11 +2605,152 @@ def add_transaction():
             (trans_type, category, description, amount)
         )
         new_trans = cur.fetchone()
+        _record_central_fund_movement(
+            cur, amount if trans_type == 'income' else -amount,
+            trans_type, description or category,
+            finance_transaction_id=new_trans['id'], created_by=session.get('user_id')
+        )
         conn.commit()
         return jsonify({"status": "success", "transaction": new_trans}), 201
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/central-fund', methods=['GET'])
+@manager_required
+def get_central_fund():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        _ensure_daily_cash_float(cur)
+        cur.execute("SELECT balance, cash_float_balance, updated_at FROM central_fund WHERE id = 1;")
+        fund = cur.fetchone()
+        cur.execute(
+            """SELECT DISTINCT ON (occurred_at::date) occurred_at::date AS day, balance_after
+               FROM central_fund_transactions
+               WHERE occurred_at >= CURRENT_DATE - INTERVAL '29 days'
+               ORDER BY occurred_at::date, occurred_at DESC;"""
+        )
+        history = cur.fetchall()
+        cur.execute(
+            """SELECT id, movement_type, amount, balance_after, description, occurred_at
+               FROM central_fund_transactions ORDER BY occurred_at DESC LIMIT 8;"""
+        )
+        movements = cur.fetchall()
+        conn.commit()
+        return jsonify({"fund": fund, "history": history, "movements": movements}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/central-fund', methods=['PUT'])
+@manager_required
+def adjust_central_fund():
+    data = request.json or {}
+    try:
+        new_balance = float(data.get('balance'))
+    except (TypeError, ValueError):
+        new_balance = -1
+    if new_balance < 0:
+        return jsonify({"status": "error", "message": "ยอดเงินกองกลางต้องเป็น 0 หรือมากกว่า"}), 400
+
+    note = (data.get('note') or 'ปรับยอดเงินกองกลางโดยผู้จัดการ').strip()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        _ensure_central_fund_tables(cur)
+        cur.execute("SELECT balance FROM central_fund WHERE id = 1 FOR UPDATE;")
+        current = float(cur.fetchone()['balance'])
+        difference = new_balance - current
+        if abs(difference) > 0.00001:
+            _record_central_fund_movement(
+                cur, difference, 'adjustment', note, created_by=session.get('user_id')
+            )
+        cur.execute("SELECT balance, cash_float_balance, updated_at FROM central_fund WHERE id = 1;")
+        fund = cur.fetchone()
+        conn.commit()
+        return jsonify({"status": "success", "fund": fund}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/central-fund/deposits', methods=['POST'])
+@manager_required
+def receive_central_fund():
+    data = request.json or {}
+    try:
+        amount = float(data.get('amount'))
+    except (TypeError, ValueError):
+        amount = 0
+    if amount <= 0:
+        return jsonify({"status": "error", "message": "จำนวนเงินต้องมากกว่า 0"}), 400
+
+    description = (data.get('description') or 'ได้รับเงินเพิ่มเข้ากองกลาง').strip()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """INSERT INTO finance_transactions (transaction_type, category, description, amount)
+               VALUES ('income', 'central_fund_deposit', %s, %s) RETURNING *;""",
+            (description, amount)
+        )
+        finance_transaction = cur.fetchone()
+        movement = _record_central_fund_movement(
+            cur, amount, 'fund_received', description,
+            finance_transaction_id=finance_transaction['id'], created_by=session.get('user_id')
+        )
+        cur.execute("SELECT balance, cash_float_balance, updated_at FROM central_fund WHERE id = 1;")
+        fund = cur.fetchone()
+        conn.commit()
+        return jsonify({"status": "success", "fund": fund, "movement": movement}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/central-fund/close-cash-float', methods=['POST'])
+@manager_required
+def close_cash_float():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        _ensure_central_fund_tables(cur)
+        cur.execute("SELECT balance, cash_float_balance FROM central_fund WHERE id = 1 FOR UPDATE;")
+        fund = cur.fetchone()
+        cash_float = float(fund['cash_float_balance'])
+        if cash_float <= 0:
+            return jsonify({"status": "error", "message": "ไม่มีเงินทอนคงค้างให้ปิดร้าน"}), 400
+        new_balance = float(fund['balance']) + cash_float
+        cur.execute(
+            """UPDATE central_fund
+               SET balance = %s, cash_float_balance = 0, updated_at = NOW() WHERE id = 1;""",
+            (new_balance,)
+        )
+        cur.execute(
+            """INSERT INTO central_fund_transactions (movement_type, amount, balance_after, description)
+               VALUES ('closing_float', %s, %s, 'นำเงินทอนกลับเข้ากองกลางเมื่อปิดร้าน');""",
+            (cash_float, new_balance)
+        )
+        conn.commit()
+        return jsonify({"status": "success", "fund": {"balance": new_balance, "cash_float_balance": 0}}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
     finally:
         cur.close()
         conn.close()

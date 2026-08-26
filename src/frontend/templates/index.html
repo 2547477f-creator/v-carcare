@@ -273,7 +273,7 @@
                     <label for="paymentMethod" class="form-label">ช่องทางชำระเงิน</label>
                     <select id="paymentMethod" class="form-select">
                         <option value="cash">เงินสด</option>
-                        <option value="transfer">โอนเงิน</option>
+                        <option value="transfer">สแกน / โอนเงิน</option>
                         <option value="card">บัตร</option>
                         <option value="other">อื่น ๆ</option>
                     </select>
@@ -370,6 +370,7 @@
         let paymentOrderId = null;
         let paymentTotalAmount = 0;
         let currentDamageNote = '';
+        let isRefreshingDashboard = false;
 
         const STATUS_LABELS = {
             pending: 'รอล้าง',
@@ -582,6 +583,11 @@
                 [colPendingPc, colProgressPc, colDonePc,
                     colPendingMb, colProgressMb, colDoneMb].forEach(el => el.innerHTML = '');
 
+                const showEmptyState = (desktopColumn, mobileColumn, message) => {
+                    desktopColumn.innerHTML = `<p class="empty-hint">${message}</p>`;
+                    mobileColumn.innerHTML = `<p class="empty-hint">${message}</p>`;
+                };
+
                 // นำการ์ดไปใส่ตามช่อง
                 pending.forEach(o => {
                     colPendingPc.appendChild(buildCard(o, 'pc'));
@@ -596,6 +602,10 @@
                     colDoneMb.appendChild(buildCard(o, 'mb'));
                 });
 
+                if (!pending.length) showEmptyState(colPendingPc, colPendingMb, 'ไม่มีรถรอล้าง');
+                if (!progress.length) showEmptyState(colProgressPc, colProgressMb, 'ไม่มีรถกำลังล้าง');
+                if (!completed.length) showEmptyState(colDonePc, colDoneMb, 'ไม่มีรถรอชำระเงิน');
+
                 // อัปเดตตัวเลขบนหัวช่อง
                 document.getElementById('count-pending').innerText = pending.length;
                 document.getElementById('count-progress').innerText = progress.length;
@@ -608,6 +618,11 @@
 
             } catch (err) {
                 console.error(err);
+                const message = '<p class="empty-hint text-danger">โหลดข้อมูลคิวไม่สำเร็จ กรุณาลองใหม่</p>';
+                ['col-pending-pc', 'col-progress-pc', 'col-done-pc', 'col-pending-mb', 'col-progress-mb', 'col-done-mb']
+                    .map(id => document.getElementById(id))
+                    .filter(Boolean)
+                    .forEach(el => el.innerHTML = message);
             }
         }
 
@@ -629,9 +644,14 @@
             {% endif %}
         }
 
-        function refreshAll() {
-            loadOrders();
-            loadTodaySummary();
+        async function refreshAll() {
+            if (isRefreshingDashboard) return;
+            isRefreshingDashboard = true;
+            try {
+                await Promise.all([loadOrders(), loadTodaySummary()]);
+            } finally {
+                isRefreshingDashboard = false;
+            }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
