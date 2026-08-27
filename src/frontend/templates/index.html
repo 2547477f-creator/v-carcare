@@ -443,8 +443,7 @@
 
         // ย้อนกลับจากชำระเงินไปหน้าหมายเหตุ
         function backToInspection() {
-            bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('inspectionModal')).show();
+            switchModal('paymentModal', 'inspectionModal');
         }
 
         // นำค่าหมายเหตุไปแสดงและเปลี่ยนไปยัง Modal ชำระเงิน
@@ -454,16 +453,36 @@
             
             document.getElementById('displayDamageNote').innerText = currentDamageNote;
             
-            bootstrap.Modal.getInstance(document.getElementById('inspectionModal')).hide();
-            openPayment(paymentTotalAmount);
+            switchModal('inspectionModal', 'paymentModal', () => preparePayment(paymentTotalAmount));
         }
 
-        function openPayment(amount) {
+        // Bootstrap does not support two modals being toggled in the same
+        // instant.  Wait for the current modal to finish closing first, so the
+        // payment page always opens after the inspection page.
+        function switchModal(fromId, toId, beforeShow) {
+            const fromElement = document.getElementById(fromId);
+            const toElement = document.getElementById(toId);
+            const fromModal = bootstrap.Modal.getInstance(fromElement);
+
+            const showNext = () => {
+                if (beforeShow) beforeShow();
+                bootstrap.Modal.getOrCreateInstance(toElement).show();
+            };
+
+            if (!fromModal) {
+                showNext();
+                return;
+            }
+
+            fromElement.addEventListener('hidden.bs.modal', showNext, { once: true });
+            fromModal.hide();
+        }
+
+        function preparePayment(amount) {
             document.getElementById('paymentAmount').innerText = `${amount.toFixed(2)} บาท`;
             document.getElementById('paymentMethod').value = 'cash';
             document.getElementById('cashReceived').value = '';
             updateCashPayment();
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('paymentModal')).show();
         }
 
         function updateCashPayment() {
