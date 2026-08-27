@@ -6,7 +6,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>.sidebar{width:260px;min-height:100vh;background:#1a1a1a;padding:20px}.sidebar .nav-link{color:#aaa;padding:12px 14px;border-radius:10px;margin-bottom:6px}.sidebar .nav-link:hover{background:#292929;color:#fff}.sidebar .nav-link.active{background:#ff6b00;color:#111;font-weight:bold}.province-options{position:absolute;z-index:1050;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;color:#212529;border:1px solid #ced4da;border-radius:.375rem;margin-top:.25rem;box-shadow:0 .5rem 1rem rgba(0,0,0,.35)}.province-option{padding:.55rem .75rem;cursor:pointer;color:#212529;background:#fff;border-bottom:1px solid #e9ecef}.province-option:last-child{border-bottom:0}.province-option:hover,.province-option:focus{background:#ff6b00;color:#111;outline:0}@media(max-width:767px){.sidebar{display:none}}</style>
+    <style>.sidebar{width:260px;min-height:100vh;background:#1a1a1a;padding:20px}.sidebar .nav-link{color:#aaa;padding:12px 14px;border-radius:10px;margin-bottom:6px}.sidebar .nav-link:hover{background:#292929;color:#fff}.sidebar .nav-link.active{background:#ff6b00;color:#111;font-weight:bold}.register-card{border-radius:10px}.form-section-title{display:flex;align-items:center;gap:.5rem;color:#ff6b00;font-weight:800;margin-bottom:1rem;padding-bottom:.55rem;border-bottom:1px solid #2f2f2f}.register-card .form-label{color:#f1f3f5;font-weight:800;margin-bottom:.45rem}.required-mark{display:inline-flex;align-items:center;margin-left:.25rem;color:#ffb703;font-weight:900}.register-card .form-control,.register-card .form-select{min-height:46px;background:#f8f9fa;color:#111;border:1px solid #ced4da}.field-hint{display:block;color:#9ca3af;font-size:.78rem;margin-top:.35rem}.province-options{position:absolute;z-index:1050;top:100%;left:0;right:0;max-height:220px;overflow-y:auto;background:#fff;color:#212529;border:1px solid #ced4da;border-radius:.375rem;margin-top:.25rem;box-shadow:0 .5rem 1rem rgba(0,0,0,.35)}.province-option{padding:.55rem .75rem;cursor:pointer;color:#212529;background:#fff;border-bottom:1px solid #e9ecef}.province-option:last-child{border-bottom:0}.province-option:hover,.province-option:focus{background:#ff6b00;color:#111;outline:0}@media(max-width:767px){.sidebar{display:none}}</style>
 </head>
 {% if session_role != 'manager' %}
 <style>
@@ -35,18 +35,18 @@
             <a class="btn btn-outline-light" href="/pos">ไปหน้ารับรถ</a>
         </div>
         <div id="alertBox"></div>
-        <form id="registerForm" class="card bg-black border-secondary p-4">
-            <h5 class="text-orange mb-3">ข้อมูลลูกค้า</h5>
+        <form id="registerForm" class="card bg-black border-secondary p-4 register-card">
+            <h5 class="form-section-title"><i class="bi bi-person-lines-fill"></i>ข้อมูลลูกค้า</h5>
             <div class="row g-3 mb-4">
-                <div class="col-md-6"><label class="form-label">เบอร์โทรศัพท์ *</label><input id="phone" class="form-control" required></div>
-                <div class="col-md-6"><label class="form-label">ไอดีไลน์</label><input id="lineId" class="form-control"></div>
+                <div class="col-md-6"><label class="form-label" for="phone">เบอร์โทรศัพท์<span class="required-mark">*</span></label><input id="phone" class="form-control" placeholder="เช่น 0812345678" required><small class="field-hint">ใช้สำหรับค้นหาลูกค้าและติดต่อกลับ</small></div>
+                <div class="col-md-6"><label class="form-label" for="lineId">ไอดีไลน์</label><input id="lineId" class="form-control" placeholder="ไม่บังคับ"></div>
             </div>
-            <h5 class="text-orange mb-3">ข้อมูลรถ</h5>
+            <h5 class="form-section-title"><i class="bi bi-car-front-fill"></i>ข้อมูลรถ</h5>
             <div class="row g-3">
-                <div class="col-md-6"><label class="form-label">ทะเบียนรถ *</label><input id="licensePlate" class="form-control" required></div>
+                <div class="col-md-6"><label class="form-label" for="licensePlate">ทะเบียนรถ<span class="required-mark">*</span></label><input id="licensePlate" class="form-control" placeholder="เช่น กข 1234" required></div>
                 <div class="col-md-6 position-relative"><label class="form-label" for="province">จังหวัด</label><input id="province" class="form-control" type="text" autocomplete="off" placeholder="พิมพ์เพื่อค้นหาจังหวัด"><div id="provinceOptions" class="province-options d-none" role="listbox" aria-label="รายการจังหวัด"></div></div>
-                <div class="col-md-6"><label class="form-label">ประเภทรถ *</label><select id="category" class="form-select" required onchange="setSizes()"><option value="">-- เลือกประเภทรถ --</option><option value="car">รถยนต์</option><option value="bike">มอเตอร์ไซค์</option></select></div>
-                <div class="col-md-6"><label class="form-label">ขนาดรถ *</label><select id="size" class="form-select" required disabled><option value="">-- เลือกประเภทรถก่อน --</option></select></div>
+                <div class="col-md-6"><label class="form-label" for="category">ประเภทรถ<span class="required-mark">*</span></label><select id="category" class="form-select" required onchange="setSizes()"><option value="">เลือกประเภทรถ</option><option value="car">รถยนต์</option><option value="bike">มอเตอร์ไซค์</option></select></div>
+                <div class="col-md-6"><label class="form-label" for="size">ขนาดรถ<span class="required-mark">*</span></label><select id="size" class="form-select" required disabled><option value="">เลือกประเภทรถก่อน</option></select></div>
             </div>
             <button class="btn btn-warning mt-4 fw-bold" type="submit"><i class="bi bi-save me-2"></i>บันทึกการลงทะเบียน</button>
         </form>
@@ -94,7 +94,7 @@
         function setSizes() {
             const size = document.getElementById('size'), category = document.getElementById('category').value;
             const options = category === 'car' ? [['S','S - รถเก๋งเล็ก'],['M','M - รถเก๋งกลาง/ใหญ่'],['L','L - SUV'],['XL','XL - รถตู้']] : [['S','S - เล็ก'],['M','M - กลาง'],['L','L - บิ๊กไบค์']];
-            size.disabled = !category; size.innerHTML = '<option value="">-- เลือกขนาดรถ --</option>' + (category ? options.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('') : '');
+            size.disabled = !category; size.innerHTML = `<option value="">${category ? 'เลือกขนาดรถ' : 'เลือกประเภทรถก่อน'}</option>` + (category ? options.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('') : '');
         }
         function alertBox(message, type) { document.getElementById('alertBox').innerHTML = `<div class="alert alert-${type}">${message}</div>`; }
         document.getElementById('registerForm').addEventListener('submit', async (event) => {

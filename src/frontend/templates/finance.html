@@ -117,12 +117,29 @@
             <!-- ตารางรายการประวัติ รายรับ - รายจ่าย -->
             <div class="card-custom p-3 p-md-4">
                 <h5 class="text-white fw-bold mb-3"><i class="bi bi-journal-text text-orange me-2"></i> ประวัติรายการรับ-จ่ายเงินในระบบ</h5>
-                <div class="d-flex justify-content-end mb-3">
+                <div class="row g-2 justify-content-end mb-3">
+                    <div class="col-6 col-md-auto">
+                        <select id="history-period-filter" class="form-select form-select-sm form-control-custom" onchange="changeHistoryPeriod()">
+                            <option value="current">ตามช่วงสรุปด้านบน</option>
+                            <option value="day">วันนี้</option>
+                            <option value="month">เดือนนี้</option>
+                            <option value="year">ปีนี้</option>
+                            <option value="custom">เลือกวันเอง</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-auto history-date-filter d-none">
+                        <input type="date" id="history-start-date" class="form-control form-control-sm form-control-custom" onchange="triggerHistoryCustomDate()">
+                    </div>
+                    <div class="col-6 col-md-auto history-date-filter d-none">
+                        <input type="date" id="history-end-date" class="form-control form-control-sm form-control-custom" onchange="triggerHistoryCustomDate()">
+                    </div>
+                    <div class="col-6 col-md-auto">
                     <select id="transaction-type-filter" class="form-select form-select-sm form-control-custom" style="max-width: 190px;" onchange="changeTransactionType()">
                         <option value="all">แสดงรายรับและรายจ่าย</option>
                         <option value="income">เฉพาะรายรับ</option>
                         <option value="expense">เฉพาะรายจ่าย</option>
                     </select>
+                    </div>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-dark table-hover align-middle m-0" id="transaction-table">
@@ -150,6 +167,7 @@
     let currentTransactions = [];
     let currentPage = 1;
     let currentTransactionType = 'all';
+    let historyPeriod = 'current';
     let chartMbInstance = null;
     let chartPcInstance = null;
     let latestChartValues = { income: 0, expense: 0, profit: 0 };
@@ -223,10 +241,23 @@
 
     async function loadFinance(period, start, end, page = 1) {
         currentPage = page;
-        let url = `/api/finance/summary?period=${period}&page=${page}&page_size=10&transaction_type=${currentTransactionType}`;
+        const summaryParams = new URLSearchParams({
+            period,
+            page,
+            page_size: 10,
+            transaction_type: currentTransactionType
+        });
         if (period === 'custom' && start && end) {
-            url += `&start=${start}&end=${end}`;
+            summaryParams.set('start', start);
+            summaryParams.set('end', end);
         }
+        const historyRange = getHistoryRange(period, start, end);
+        summaryParams.set('transaction_period', historyRange.period);
+        if (historyRange.period === 'custom' && historyRange.start && historyRange.end) {
+            summaryParams.set('transaction_start', historyRange.start);
+            summaryParams.set('transaction_end', historyRange.end);
+        }
+        let url = `/api/finance/summary?${summaryParams.toString()}`;
 
         const tbody = document.getElementById('transaction-list');
         tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">กำลังโหลดข้อมูล...</td></tr>';
@@ -327,6 +358,7 @@
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'บันทึกรับเงินไม่สำเร็จ');
             await loadCentralFund();
+            loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
         } catch (err) { alert(err.message); }
     }
 
@@ -360,6 +392,43 @@
         loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
     }
 
+    function getHistoryRange(defaultPeriod, defaultStart, defaultEnd) {
+        if (historyPeriod === 'current') {
+            return { period: defaultPeriod, start: defaultStart, end: defaultEnd };
+        }
+        if (historyPeriod === 'custom') {
+            return {
+                period: 'custom',
+                start: document.getElementById('history-start-date').value,
+                end: document.getElementById('history-end-date').value
+            };
+        }
+        return { period: historyPeriod, start: null, end: null };
+    }
+
+    function changeHistoryPeriod() {
+        historyPeriod = document.getElementById('history-period-filter').value;
+        document.querySelectorAll('.history-date-filter').forEach(el => {
+            el.classList.toggle('d-none', historyPeriod !== 'custom');
+        });
+        if (historyPeriod === 'custom') {
+            triggerHistoryCustomDate();
+            return;
+        }
+        loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
+    }
+
+    function triggerHistoryCustomDate() {
+        const start = document.getElementById('history-start-date').value;
+        const end = document.getElementById('history-end-date').value;
+        if (!start || !end) return;
+        if (start > end) {
+            alert('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด');
+            return;
+        }
+        loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
+    }
+
     function changePeriod(mode, btnElement) {
         currentMode = mode;
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
@@ -390,8 +459,23 @@
     async function exportExcel() {
         const start = document.getElementById('start-date').value;
         const end = document.getElementById('end-date').value;
-        let url = `/api/finance/summary?period=${currentMode}&page=1&page_size=100&transaction_type=${currentTransactionType}`;
-        if (currentMode === 'custom' && start && end) url += `&start=${start}&end=${end}`;
+        const exportParams = new URLSearchParams({
+            period: currentMode,
+            page: 1,
+            page_size: 100,
+            transaction_type: currentTransactionType
+        });
+        if (currentMode === 'custom' && start && end) {
+            exportParams.set('start', start);
+            exportParams.set('end', end);
+        }
+        const historyRange = getHistoryRange(currentMode, start, end);
+        exportParams.set('transaction_period', historyRange.period);
+        if (historyRange.period === 'custom' && historyRange.start && historyRange.end) {
+            exportParams.set('transaction_start', historyRange.start);
+            exportParams.set('transaction_end', historyRange.end);
+        }
+        let url = `/api/finance/summary?${exportParams.toString()}`;
 
         try {
             const response = await fetch(url);

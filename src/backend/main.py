@@ -3,6 +3,7 @@ from datetime import date, datetime, time, timedelta
 from functools import wraps
 import json
 import os
+import socket
 import uuid
 
 import cv2
@@ -76,6 +77,15 @@ THAI_SERVICE_NAMES = {
 def get_db_connection():
     """เปิดการเชื่อมต่อกับฐานข้อมูล"""
     return psycopg2.connect(**DB_CONFIG, cursor_factory=RealDictCursor)
+
+
+def get_local_network_ip():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(('8.8.8.8', 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return '127.0.0.1'
 
 
 # ===================================================================
@@ -269,6 +279,12 @@ def _ensure_central_fund_tables(cur):
             occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        ALTER TABLE central_fund_transactions
+            DROP CONSTRAINT IF EXISTS central_fund_transactions_movement_type_check;
+        ALTER TABLE central_fund_transactions
+            ADD CONSTRAINT central_fund_transactions_movement_type_check
+            CHECK (movement_type IN
+                ('income', 'expense', 'opening_float', 'closing_float', 'adjustment', 'fund_received'));
         CREATE UNIQUE INDEX IF NOT EXISTS uq_central_fund_transaction_finance
             ON central_fund_transactions(finance_transaction_id)
             WHERE finance_transaction_id IS NOT NULL;
@@ -1205,24 +1221,37 @@ def delete_promotion(promotion_id):
 @login_required
 def lookup_vehicle():
     license_plate = (request.args.get('license_plate') or '').strip()
+    province = (request.args.get('province') or '').strip()
     if not license_plate:
         return jsonify({"status": "error", "message": "กรุณากรอกทะเบียนรถ"}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        province_filter_sql = ''
+        params = [license_plate]
+        if province:
+            province_filter_sql = " AND UPPER(COALESCE(v.province, '')) = UPPER(%s)"
+            params.append(province)
+
         cur.execute(
             """SELECT v.id AS vehicle_id, v.license_plate, v.province, v.category, v.size_code,
                       c.phone, c.line_id
                FROM vehicles v JOIN customers c ON c.id = v.customer_id
                WHERE UPPER(REPLACE(v.license_plate, ' ', '')) = UPPER(REPLACE(%s, ' ', ''))
-               ORDER BY v.id DESC LIMIT 1;""",
-            (license_plate,)
+            """ + province_filter_sql + """
+               ORDER BY v.id DESC LIMIT 2;""",
+            tuple(params)
         )
-        vehicle = cur.fetchone()
-        if not vehicle:
+        vehicles = cur.fetchall()
+        if not vehicles:
             return jsonify({"status": "error", "message": "ไม่พบทะเบียนนี้ กรุณาลงทะเบียนรถก่อน"}), 404
-        return jsonify({"status": "success", "data": vehicle}), 200
+        if not province and len(vehicles) > 1:
+            return jsonify({
+                "status": "error",
+                "message": "พบทะเบียนนี้มากกว่า 1 จังหวัด กรุณาระบุจังหวัดก่อนค้นหา"
+            }), 409
+        return jsonify({"status": "success", "data": vehicles[0]}), 200
     finally:
         cur.close()
         conn.close()
@@ -2510,6 +2539,9 @@ def get_finance_summary():
     period = request.args.get('period', 'day')
     start_str = request.args.get('start')
     end_str = request.args.get('end')
+    transaction_period = request.args.get('transaction_period', period)
+    transaction_start_str = request.args.get('transaction_start', start_str)
+    transaction_end_str = request.args.get('transaction_end', end_str)
     transaction_type = request.args.get('transaction_type', 'all')
     if transaction_type not in ('all', 'income', 'expense'):
         transaction_type = 'all'
@@ -2519,6 +2551,9 @@ def get_finance_summary():
     except (TypeError, ValueError):
         page, page_size = 1, 25
     start_date, end_date = _period_to_range(period, start_str, end_str)
+    transaction_start_date, transaction_end_date = _period_to_range(
+        transaction_period, transaction_start_str, transaction_end_str
+    )
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -2543,7 +2578,7 @@ def get_finance_summary():
             """SELECT COUNT(*) AS total
                FROM finance_transactions
                WHERE occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + ';',
-            (start_date, end_date) + type_filter_params
+            (transaction_start_date, transaction_end_date) + type_filter_params
         )
         total_transactions = cur.fetchone()['total']
         total_pages = max((total_transactions + page_size - 1) // page_size, 1)
@@ -2555,7 +2590,7 @@ def get_finance_summary():
                WHERE occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + """
                ORDER BY occurred_at DESC
                LIMIT %s OFFSET %s;""",
-            (start_date, end_date) + type_filter_params + (page_size, (page - 1) * page_size)
+            (transaction_start_date, transaction_end_date) + type_filter_params + (page_size, (page - 1) * page_size)
         )
         transactions = cur.fetchall()
 
@@ -2564,6 +2599,8 @@ def get_finance_summary():
             "transaction_type": transaction_type,
             "start_date": str(start_date),
             "end_date": str(end_date),
+            "transaction_start_date": str(transaction_start_date),
+            "transaction_end_date": str(transaction_end_date),
             "summary": summary,
             "transactions": transactions,
             "pagination": {
@@ -2819,8 +2856,14 @@ def manager_face_enroll():
 # 🚀 10. Main Execution Block
 # ===================================================================
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    local_ip = get_local_network_ip()
+    print('\nV CarCare is ready:')
+    print(f'- Local computer: http://127.0.0.1:{port}')
+    print(f'- Mobile / same Wi-Fi: http://{local_ip}:{port}')
+    print('  Open the mobile link on a phone connected to the same Wi-Fi.\n')
     app.run(
         host='0.0.0.0',
-        port=5000,
+        port=port,
         debug=os.environ.get('FLASK_DEBUG', '').lower() in {'1', 'true', 'yes'}
     )
