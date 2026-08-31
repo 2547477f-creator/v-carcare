@@ -62,11 +62,9 @@
                 <label class="form-label text-secondary">สถานะ</label>
                 <select id="filter-status" class="form-select bg-dark text-white border-secondary" onchange="loadWithdrawals()">
                     <option value="">-- ทุกสถานะ --</option>
-                    <option value="pending">รออนุมัติ</option>
-                    <option value="approved">อนุมัติแล้ว (รอจ่าย)</option>
+                    <option value="pending">รอจ่ายเงิน</option>
                     <option value="paid">จ่ายเงินแล้ว</option>
                     <option value="rejected">ปฏิเสธ</option>
-                    <option value="cancelled">ยกเลิก</option>
                 </select>
             </div>
             <div class="col-md-4 d-flex align-items-end justify-content-end">
@@ -88,13 +86,12 @@
                             <th>ชื่อ-นามสกุล</th>
                             <th>เหตุผล/รายการเบิก</th>
                             <th class="text-end">จำนวนที่ขอ</th>
-                            <th class="text-end">จำนวนที่อนุมัติ</th>
                             <th class="text-center">สถานะ</th>
                             <th class="text-center no-print">การดำเนินการ</th>
                         </tr>
                     </thead>
                     <tbody id="withdrawal-table-body">
-                        <tr><td colspan="8" class="text-center text-muted">กำลังโหลดข้อมูล...</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted">กำลังโหลดข้อมูล...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -114,7 +111,7 @@
                 <div class="modal-body">
                     <p class="text-secondary small">
                         ขอเบิกได้สูงสุด <strong>3,000 บาท/ครั้ง</strong> และไม่เกิน <strong>3 ครั้ง/สัปดาห์</strong>
-                        โดยยอดรวมต้องไม่เกินรายได้สะสมของสัปดาห์นั้น คำขอจะถูกส่งไปรออนุมัติก่อนจ่ายจริง
+                        โดยยอดรวมต้องไม่เกินรายได้สะสมของสัปดาห์นั้น หลังสร้างรายการ สถานะจะเป็นรอจ่ายเงิน
                     </p>
                     <form id="withdrawalForm">
                         <div class="mb-3">
@@ -210,7 +207,7 @@
 
                     if (!res.ok) throw new Error(data.message || 'เกิดข้อผิดพลาดในการบันทึก');
 
-                    showAlert('ส่งคำขอเบิกเงินสำเร็จ รออนุมัติจากผู้จัดการ', 'success');
+                    showAlert('สร้างรายการเบิกเงินสำเร็จ สถานะ: รอจ่ายเงิน', 'success');
 
                     const modalEl = document.getElementById('addWithdrawalModal');
                     bootstrap.Modal.getInstance(modalEl).hide();
@@ -298,8 +295,7 @@
 
         function statusBadge(status) {
             const map = {
-                pending: ['text-bg-warning', 'รออนุมัติ'],
-                approved: ['text-bg-info', 'อนุมัติแล้ว (รอจ่าย)'],
+                pending: ['text-bg-warning', 'รอจ่ายเงิน'],
                 paid: ['text-bg-success', 'จ่ายเงินแล้ว'],
                 rejected: ['text-bg-danger', 'ปฏิเสธ'],
                 cancelled: ['text-bg-secondary', 'ยกเลิก']
@@ -311,17 +307,11 @@
         function actionButtons(item) {
             const buttons = [];
 
-            if (item.status === 'pending') {
-                buttons.push(`<button class="btn btn-sm btn-success" onclick="changeStatus(${item.id}, 'approved')"><i class="bi bi-check-lg"></i> อนุมัติ</button>`);
-                buttons.push(`<button class="btn btn-sm btn-outline-danger" onclick="openNoteModal(${item.id}, 'rejected', 'เหตุผลที่ปฏิเสธ')"><i class="bi bi-x-lg"></i> ปฏิเสธ</button>`);
-            }
-
-            if (item.status === 'approved') {
+            if (item.status === 'pending' || item.status === 'approved') {
                 buttons.push(`<button class="btn btn-sm btn-primary" onclick="changeStatus(${item.id}, 'paid')"><i class="bi bi-cash-coin"></i> จ่ายเงินแล้ว</button>`);
             }
-
-            if (item.status === 'pending' || item.status === 'approved') {
-                buttons.push(`<button class="btn btn-sm btn-outline-secondary" onclick="openNoteModal(${item.id}, 'cancelled', 'เหตุผลที่ยกเลิก')"><i class="bi bi-slash-circle"></i> ยกเลิก</button>`);
+            if (item.status === 'pending') {
+                buttons.push(`<button class="btn btn-sm btn-outline-danger" onclick="openNoteModal(${item.id}, 'rejected', 'เหตุผลที่ปฏิเสธ')"><i class="bi bi-x-lg"></i> ปฏิเสธ</button>`);
             }
 
             return buttons.length
@@ -370,15 +360,11 @@
             tbody.innerHTML = '';
 
             if (data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">ไม่พบข้อมูลการเบิกเงิน</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">ไม่พบข้อมูลการเบิกเงิน</td></tr>`;
                 return;
             }
 
             data.forEach(item => {
-                const approvedAmountText = item.approved_amount != null
-                    ? Number(item.approved_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 }) + ' บ.'
-                    : '-';
-
                 tbody.innerHTML += `
                     <tr>
                         <td>${new Date(item.created_at).toLocaleString('th-TH')}</td>
@@ -386,7 +372,6 @@
                         <td>${item.full_name}</td>
                         <td>${item.reason || '-'}</td>
                         <td class="text-end text-warning fw-bold">${Number(item.request_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บ.</td>
-                        <td class="text-end">${approvedAmountText}</td>
                         <td class="text-center">${statusBadge(item.status)}</td>
                         <td class="text-center no-print">${actionButtons(item)}</td>
                     </tr>

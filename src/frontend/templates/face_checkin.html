@@ -49,6 +49,7 @@
     </main>
 
     <script>
+        const mode = new URLSearchParams(location.search).get('mode') || 'login';
         const video = document.getElementById('camera-preview');
         const status = document.getElementById('camera-status');
         const startButton = document.getElementById('start-camera');
@@ -110,7 +111,15 @@
 
     try {
 
-        const response = await fetch("/api/face-login", {
+        const endpoint = mode === 'change-ip' ? '/api/security/change-primary-face-ip' : mode === 'reset' ? '/api/password-reset/face' : '/api/face-login';
+        const payload = { face_image: image };
+        if (mode === 'reset') {
+            const resetRequest = JSON.parse(sessionStorage.getItem('passwordResetRequest') || 'null');
+            if (!resetRequest) throw new Error('ไม่พบข้อมูลการรีเซ็ตรหัสผ่าน');
+            payload.role = resetRequest.role; payload.new_password = resetRequest.password;
+            if (payload.role === 'manager') payload.username = resetRequest.identity; else payload.staff_id = resetRequest.identity;
+        }
+        const response = await fetch(endpoint, {
 
             method: "POST",
 
@@ -118,9 +127,7 @@
                 "Content-Type": "application/json"
             },
 
-            body: JSON.stringify({
-                face_image: image
-            })
+            body: JSON.stringify(payload)
 
         });
 
@@ -131,9 +138,8 @@
             status.textContent = "ยืนยันตัวตนสำเร็จ กำลังเข้าสู่ระบบ...";
             status.className = "small text-success mb-3";
 
-            setTimeout(() => {
-                window.location.href = result.redirect;
-            }, 500);
+            if (mode === 'reset') sessionStorage.removeItem('passwordResetRequest');
+            setTimeout(() => { window.location.href = result.redirect || '/login'; }, 700);
 
         } else {
 

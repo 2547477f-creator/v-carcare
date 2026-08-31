@@ -262,6 +262,7 @@ def _ensure_central_fund_tables(cur):
             id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
             balance NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (balance >= 0),
             cash_float_balance NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (cash_float_balance >= 0),
+            shop_opened_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         INSERT INTO central_fund (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
@@ -271,6 +272,7 @@ def _ensure_central_fund_tables(cur):
             movement_type VARCHAR(30) NOT NULL CHECK (movement_type IN
                 ('income', 'expense', 'opening_float', 'closing_float', 'adjustment', 'fund_received')),
             amount NUMERIC(12,2) NOT NULL CHECK (amount <> 0),
+            balance_before NUMERIC(12,2),
             balance_after NUMERIC(12,2) NOT NULL CHECK (balance_after >= 0),
             description TEXT NOT NULL,
             finance_transaction_id BIGINT REFERENCES finance_transactions(id) ON DELETE SET NULL,
@@ -285,12 +287,14 @@ def _ensure_central_fund_tables(cur):
             ADD CONSTRAINT central_fund_transactions_movement_type_check
             CHECK (movement_type IN
                 ('income', 'expense', 'opening_float', 'closing_float', 'adjustment', 'fund_received'));
+        ALTER TABLE central_fund
+            ADD COLUMN IF NOT EXISTS shop_opened_at TIMESTAMPTZ;
+        ALTER TABLE central_fund_transactions
+            ADD COLUMN IF NOT EXISTS balance_before NUMERIC(12,2);
         CREATE UNIQUE INDEX IF NOT EXISTS uq_central_fund_transaction_finance
             ON central_fund_transactions(finance_transaction_id)
             WHERE finance_transaction_id IS NOT NULL;
-        CREATE UNIQUE INDEX IF NOT EXISTS uq_central_fund_opening_per_day
-            ON central_fund_transactions(opening_date)
-            WHERE movement_type = 'opening_float';
+        DROP INDEX IF EXISTS uq_central_fund_opening_per_day;
         CREATE INDEX IF NOT EXISTS idx_central_fund_transactions_occurred_at
             ON central_fund_transactions(occurred_at DESC);
     """)
@@ -312,31 +316,85 @@ def _record_central_fund_movement(cur, amount, movement_type, description,
     )
     cur.execute(
         """INSERT INTO central_fund_transactions
-               (movement_type, amount, balance_after, description, finance_transaction_id, created_by)
-           VALUES (%s, %s, %s, %s, %s, %s) RETURNING *;""",
-        (movement_type, amount, new_balance, description, finance_transaction_id, created_by)
+               (movement_type, amount, balance_before, balance_after, description, finance_transaction_id, created_by)
+           VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *;""",
+        (movement_type, amount, float(fund['balance']), new_balance, description, finance_transaction_id, created_by)
     )
     return cur.fetchone()
 
 
-def _ensure_daily_cash_float(cur):
+def _ensure_finance_payment_method_column(cur):
+    """Store the receipt channel with each finance entry for history filtering."""
+    cur.execute("""
+        ALTER TABLE finance_transactions
+        ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20);
+        CREATE INDEX IF NOT EXISTS idx_finance_transactions_payment_method
+        ON finance_transactions(payment_method);
+    """)
+
+
+def _client_ip():
+    """Return the direct client IP; do not trust forwarded headers unless a proxy is configured."""
+    return request.remote_addr or ''
+
+
+def _ensure_security_settings(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            setting_key VARCHAR(80) PRIMARY KEY,
+            setting_value TEXT,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+
+
+def _primary_face_scan_ip(cur):
+    _ensure_security_settings(cur)
+    cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'primary_face_scan_ip';")
+    row = cur.fetchone()
+    return row['setting_value'] if row else None
+
+
+def _face_image_to_user_id(face_image_b64, prefix):
+    if not face_image_b64:
+        raise ValueError('ไม่พบรูปภาพใบหน้า')
+    raw_image = face_image_b64.split(',', 1)[-1]
+    tmp_dir = os.path.join(app.static_folder, 'faces', 'tmp')
+    os.makedirs(tmp_dir, exist_ok=True)
+    tmp_path = os.path.join(tmp_dir, f"{prefix}_{uuid.uuid4().hex}.jpg")
+    try:
+        with open(tmp_path, 'wb') as fh:
+            fh.write(base64.b64decode(raw_image))
+        embedding = create_face_embedding(tmp_path)
+        if embedding is None:
+            raise ValueError('ไม่พบใบหน้าในภาพ')
+        matched_user_id = find_matching_app_user(embedding)
+        if matched_user_id is None:
+            raise ValueError('ไม่พบใบหน้านี้ในระบบ')
+        return matched_user_id
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+def _ensure_daily_cash_float(cur, force=False):
     """Move the fixed change float once per calendar day, when funds are available."""
     _ensure_central_fund_tables(cur)
-    cur.execute(
-        """SELECT 1 FROM central_fund_transactions
-           WHERE movement_type = 'opening_float' AND opening_date = CURRENT_DATE;"""
-    )
-    if cur.fetchone():
-        return False
+    if not force:
+        cur.execute("""SELECT 1 FROM central_fund_transactions
+           WHERE movement_type = 'opening_float' AND opening_date = CURRENT_DATE;""")
+        if cur.fetchone():
+            return False
     cur.execute("SELECT balance, cash_float_balance FROM central_fund WHERE id = 1 FOR UPDATE;")
     fund = cur.fetchone()
-    if float(fund['cash_float_balance']) > 0 or float(fund['balance']) < CENTRAL_FUND_OPENING_FLOAT:
+    if (not force and float(fund['cash_float_balance']) > 0) or float(fund['balance']) < CENTRAL_FUND_OPENING_FLOAT:
         return False
     cur.execute(
         """UPDATE central_fund
-           SET balance = balance - %s, cash_float_balance = cash_float_balance + %s, updated_at = NOW()
+           SET balance = balance - %s, cash_float_balance = cash_float_balance + %s,
+               shop_opened_at = CASE WHEN %s THEN NOW() ELSE shop_opened_at END, updated_at = NOW()
            WHERE id = 1;""",
-        (CENTRAL_FUND_OPENING_FLOAT, CENTRAL_FUND_OPENING_FLOAT)
+        (CENTRAL_FUND_OPENING_FLOAT, CENTRAL_FUND_OPENING_FLOAT, force)
     )
     cur.execute(
         """INSERT INTO central_fund_transactions
@@ -582,8 +640,76 @@ def staff_advances_page():
 # ===================================================================
 # 🔑 5. ROUTE ตั้งค่าเริ่มต้นระบบ & Authentication APIs
 # ===================================================================
+@app.route('/api/password-reset/face', methods=['POST'])
+def reset_password_with_face():
+    data = request.json or {}
+    role, password = data.get('role'), data.get('new_password') or ''
+    if role not in ('manager', 'staff') or len(password) < 4:
+        return jsonify({"status": "error", "message": "รหัสใหม่ต้องมีอย่างน้อย 4 ตัว"}), 400
+    try:
+        matched_id = _face_image_to_user_id(data.get('face_image'), 'reset')
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        if role == 'manager':
+            cur.execute("SELECT id FROM app_users WHERE username = %s AND role = 'manager' AND is_active = true;", ((data.get('username') or '').strip(),))
+            target = cur.fetchone()
+            if not target or target['id'] != matched_id:
+                return jsonify({"status": "error", "message": "ใบหน้าไม่ตรงกับบัญชีที่ระบุ"}), 403
+            cur.execute("UPDATE app_users SET password_hash = %s WHERE id = %s;", (generate_password_hash(password), matched_id))
+        else:
+            staff_id = int(data.get('staff_id'))
+            cur.execute("SELECT id FROM app_users WHERE staff_id = %s AND role = 'staff' AND is_active = true;", (staff_id,))
+            target = cur.fetchone()
+            if not target or target['id'] != matched_id:
+                return jsonify({"status": "error", "message": "ใบหน้าไม่ตรงกับพนักงานที่เลือก"}), 403
+            cur.execute("UPDATE staff SET pin_hash = %s WHERE id = %s;", (generate_password_hash(password), staff_id))
+        conn.commit(); return jsonify({"status": "success", "message": "รีเซ็ตรหัสผ่านแล้ว"})
+    except (TypeError, ValueError):
+        conn.rollback(); return jsonify({"status": "error", "message": "ข้อมูลพนักงานไม่ถูกต้อง"}), 400
+    finally:
+        cur.close(); conn.close()
+
+
+@app.route('/api/security/change-primary-face-ip', methods=['POST'])
+def change_primary_face_ip():
+    try:
+        matched_user_id = _face_image_to_user_id((request.json or {}).get('face_image'), 'ip_change')
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT role FROM app_users WHERE id = %s AND is_active = true;", (matched_user_id,))
+        user = cur.fetchone()
+        if not user or user['role'] != 'manager':
+            return jsonify({"status": "error", "message": "ต้องยืนยันด้วยใบหน้าผู้จัดการเท่านั้น"}), 403
+        _ensure_security_settings(cur)
+        cur.execute("""INSERT INTO system_settings (setting_key, setting_value, updated_at)
+                       VALUES ('primary_face_scan_ip', %s, NOW())
+                       ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW();""", (_client_ip(),))
+        conn.commit()
+        return jsonify({"status": "success", "ip": _client_ip()}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 @app.route('/api/face-login', methods=['POST'])
 def face_login():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        primary_ip = _primary_face_scan_ip(cur)
+    finally:
+        cur.close()
+        conn.close()
+    if primary_ip and primary_ip != _client_ip():
+        return jsonify({"status": "error", "message": "สแกนหน้าได้เฉพาะเครื่องหลักที่กำหนดไว้"}), 403
     data = request.json or {}
     face_image_b64 = data.get('face_image')
 
@@ -949,6 +1075,7 @@ def pay_and_pick_up_order(order_id):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        _ensure_finance_payment_method_column(cur)
         cur.execute(
             """SELECT o.queue_no, o.status, o.total_amount, v.license_plate
                FROM service_orders o JOIN vehicles v ON v.id = o.vehicle_id
@@ -973,14 +1100,19 @@ def pay_and_pick_up_order(order_id):
             (order_id, payment_method, order['total_amount'])
         )
         cur.execute(
-            """INSERT INTO finance_transactions (order_id, transaction_type, category, description, amount)
-               VALUES (%s, 'income', 'service', %s, %s) RETURNING *;""",
+            """INSERT INTO finance_transactions (order_id, transaction_type, category, description, amount, payment_method)
+               VALUES (%s, 'income', 'service', %s, %s, NULL) RETURNING *;""",
             (order_id, f"รายรับจากคิว {order['queue_no']} (ทะเบียน {order['license_plate']})", order['total_amount'])
         )
         finance_transaction = cur.fetchone()
+        _ensure_finance_payment_method_column(cur)
+        cur.execute(
+            "UPDATE finance_transactions SET payment_method = %s WHERE id = %s;",
+            (payment_method, finance_transaction['id'])
+        )
         if payment_method == 'cash':
             # Cash received belongs in the till used for change, not the central fund yet.
-            _ensure_daily_cash_float(cur)
+            _ensure_central_fund_tables(cur)
             cur.execute(
                 """UPDATE central_fund
                    SET cash_float_balance = cash_float_balance + %s, updated_at = NOW()
@@ -2430,7 +2562,7 @@ def create_staff_withdrawal():
 def update_staff_withdrawal_status(withdrawal_id):
     data = request.json or {}
     new_status = data.get('status')
-    valid_statuses = ('approved', 'rejected', 'paid', 'cancelled')
+    valid_statuses = ('paid', 'rejected')
 
     if new_status not in valid_statuses:
         return jsonify({"status": "error", "message": "สถานะไม่ถูกต้อง"}), 400
@@ -2446,59 +2578,27 @@ def update_staff_withdrawal_status(withdrawal_id):
         if not withdrawal:
             return jsonify({"status": "error", "message": "ไม่พบคำขอเบิกเงินนี้"}), 404
 
-        if new_status == 'approved':
+        if new_status == 'rejected':
             if withdrawal['status'] != 'pending':
-                return jsonify({"status": "error", "message": "อนุมัติได้เฉพาะคำขอที่ยังรออนุมัติเท่านั้น"}), 400
-
-            approved_amount_raw = data.get('approved_amount')
-            try:
-                approved_amount = float(approved_amount_raw) if approved_amount_raw is not None else float(withdrawal['request_amount'])
-            except (TypeError, ValueError):
-                return jsonify({"status": "error", "message": "จำนวนเงินที่อนุมัติไม่ถูกต้อง"}), 400
-
-            if approved_amount <= 0 or approved_amount > float(withdrawal['request_amount']):
-                return jsonify({"status": "error", "message": "จำนวนเงินที่อนุมัติต้องมากกว่า 0 และไม่เกินยอดที่ขอเบิก"}), 400
-
+                return jsonify({"status": "error", "message": "ปฏิเสธได้เฉพาะรายการที่รอจ่ายเงิน"}), 400
             cur.execute(
                 """UPDATE staff_withdrawals
-                   SET status = 'approved', approved_amount = %s, approved_by = %s,
-                       approved_at = NOW(), note = COALESCE(%s, note), updated_at = NOW()
-                   WHERE id = %s RETURNING *;""",
-                (approved_amount, manager_app_user_id, note, withdrawal_id)
-            )
-
-        elif new_status == 'rejected':
-            if withdrawal['status'] != 'pending':
-                return jsonify({"status": "error", "message": "ปฏิเสธได้เฉพาะคำขอที่ยังรออนุมัติเท่านั้น"}), 400
-
-            cur.execute(
-                """UPDATE staff_withdrawals
-                   SET status = 'rejected', approved_by = %s, approved_at = NOW(),
-                       note = COALESCE(%s, note), updated_at = NOW()
-                   WHERE id = %s RETURNING *;""",
-                (manager_app_user_id, note, withdrawal_id)
-            )
-
-        elif new_status == 'cancelled':
-            if withdrawal['status'] not in ('pending', 'approved'):
-                return jsonify({"status": "error", "message": "ยกเลิกได้เฉพาะคำขอที่ยังไม่จ่ายเงินจริง"}), 400
-
-            cur.execute(
-                """UPDATE staff_withdrawals
-                   SET status = 'cancelled', note = COALESCE(%s, note), updated_at = NOW()
+                   SET status = 'rejected', note = COALESCE(%s, note), updated_at = NOW()
                    WHERE id = %s RETURNING *;""",
                 (note, withdrawal_id)
             )
+            updated = cur.fetchone()
 
         elif new_status == 'paid':
-            if withdrawal['status'] != 'approved':
-                return jsonify({"status": "error", "message": "จ่ายเงินได้เฉพาะคำขอที่อนุมัติแล้วเท่านั้น"}), 400
+            if withdrawal['status'] not in ('pending', 'approved'):
+                return jsonify({"status": "error", "message": "รายการนี้จ่ายเงินแล้วหรือไม่สามารถจ่ายได้"}), 400
 
-            pay_amount = float(withdrawal['approved_amount'])
+            pay_amount = float(withdrawal['request_amount'])
 
             cur.execute(
                 """UPDATE staff_withdrawals
-                   SET status = 'paid', paid_at = NOW(), note = COALESCE(%s, note), updated_at = NOW()
+                   SET status = 'paid', approved_amount = request_amount, paid_at = NOW(),
+                       note = COALESCE(%s, note), updated_at = NOW()
                    WHERE id = %s RETURNING *;""",
                 (note, withdrawal_id)
             )
@@ -2520,8 +2620,6 @@ def update_staff_withdrawal_status(withdrawal_id):
                 finance_transaction_id=finance_transaction['id'], created_by=manager_app_user_id
             )
 
-        if new_status != 'paid':
-            updated = cur.fetchone()
         conn.commit()
         return jsonify({"status": "success", "withdrawal": updated}), 200
 
@@ -2545,6 +2643,9 @@ def get_finance_summary():
     transaction_type = request.args.get('transaction_type', 'all')
     if transaction_type not in ('all', 'income', 'expense'):
         transaction_type = 'all'
+    payment_method = request.args.get('payment_method', 'all')
+    if payment_method not in ('all', 'cash', 'transfer'):
+        payment_method = 'all'
     try:
         page = max(int(request.args.get('page', 1)), 1)
         page_size = min(max(int(request.args.get('page_size', 25)), 1), 100)
@@ -2558,6 +2659,7 @@ def get_finance_summary():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        _ensure_finance_payment_method_column(cur)
         cur.execute(
             """
             SELECT
@@ -2571,32 +2673,38 @@ def get_finance_summary():
         )
         summary = cur.fetchone()
 
-        type_filter_sql = '' if transaction_type == 'all' else ' AND transaction_type = %s'
+        type_filter_sql = '' if transaction_type == 'all' else ' AND f.transaction_type = %s'
         type_filter_params = () if transaction_type == 'all' else (transaction_type,)
+        payment_filter_sql = '' if payment_method == 'all' else " AND COALESCE(f.payment_method, p.method) = %s"
+        payment_filter_params = () if payment_method == 'all' else (payment_method,)
 
         cur.execute(
             """SELECT COUNT(*) AS total
-               FROM finance_transactions
-               WHERE occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + ';',
-            (transaction_start_date, transaction_end_date) + type_filter_params
+               FROM finance_transactions f
+               LEFT JOIN payments p ON p.order_id = f.order_id AND p.status = 'paid'
+               WHERE f.occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + payment_filter_sql + ';',
+            (transaction_start_date, transaction_end_date) + type_filter_params + payment_filter_params
         )
         total_transactions = cur.fetchone()['total']
         total_pages = max((total_transactions + page_size - 1) // page_size, 1)
         page = min(page, total_pages)
 
         cur.execute(
-            """SELECT id, transaction_type, category, description, amount, occurred_at
-               FROM finance_transactions
-               WHERE occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + """
-               ORDER BY occurred_at DESC
+            """SELECT f.id, f.transaction_type, f.category, f.description, f.amount, f.occurred_at,
+                      COALESCE(f.payment_method, p.method) AS payment_method
+               FROM finance_transactions f
+               LEFT JOIN payments p ON p.order_id = f.order_id AND p.status = 'paid'
+               WHERE f.occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + payment_filter_sql + """
+               ORDER BY f.occurred_at DESC
                LIMIT %s OFFSET %s;""",
-            (transaction_start_date, transaction_end_date) + type_filter_params + (page_size, (page - 1) * page_size)
+            (transaction_start_date, transaction_end_date) + type_filter_params + payment_filter_params + (page_size, (page - 1) * page_size)
         )
         transactions = cur.fetchall()
 
         return jsonify({
             "period": period,
             "transaction_type": transaction_type,
+            "payment_method": payment_method,
             "start_date": str(start_date),
             "end_date": str(end_date),
             "transaction_start_date": str(transaction_start_date),
@@ -2663,9 +2771,20 @@ def get_central_fund():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        _ensure_daily_cash_float(cur)
+        _ensure_central_fund_tables(cur)
         cur.execute("SELECT balance, cash_float_balance, updated_at FROM central_fund WHERE id = 1;")
         fund = cur.fetchone()
+        cur.execute(
+            """SELECT COALESCE(SUM(CASE WHEN p.method = 'transfer' THEN p.amount ELSE 0 END), 0) AS transfer_received,
+                      COALESCE(SUM(CASE WHEN p.method = 'cash' THEN p.amount ELSE 0 END), 0) AS cash_received
+               FROM payments p WHERE p.status = 'paid' AND p.paid_at::date = CURRENT_DATE;"""
+        )
+        daily_receipts = cur.fetchone()
+        cur.execute(
+            """SELECT EXISTS(SELECT 1 FROM central_fund_transactions
+               WHERE movement_type = 'opening_float' AND opening_date = CURRENT_DATE) AS is_open;"""
+        )
+        is_open = float(fund['cash_float_balance'] or 0) > 0
         cur.execute(
             """SELECT DISTINCT ON (occurred_at::date) occurred_at::date AS day, balance_after
                FROM central_fund_transactions
@@ -2679,10 +2798,37 @@ def get_central_fund():
         )
         movements = cur.fetchall()
         conn.commit()
-        return jsonify({"fund": fund, "history": history, "movements": movements}), 200
+        return jsonify({"fund": fund, "history": history, "movements": movements,
+                        "daily_receipts": daily_receipts, "is_open": is_open}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/central-fund/open', methods=['POST'])
+@manager_required
+def open_cash_float():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        _ensure_central_fund_tables(cur)
+        cur.execute("SELECT shop_opened_at FROM central_fund WHERE id = 1 FOR UPDATE;")
+        shop_opened_at = cur.fetchone()['shop_opened_at']
+        if shop_opened_at and shop_opened_at.date() == date.today():
+            return jsonify({"status": "error", "message": "เปิดร้านและนำเงินทอนออกแล้วในวันนี้"}), 400
+        opened = _ensure_daily_cash_float(cur, force=True)
+        if not opened:
+            return jsonify({"status": "error", "message": "ยอดกองกลางไม่เพียงพอสำหรับเงินทอน 3,000 บาท"}), 400
+        cur.execute("SELECT balance, cash_float_balance, shop_opened_at, updated_at FROM central_fund WHERE id = 1;")
+        fund = cur.fetchone()
+        conn.commit()
+        return jsonify({"status": "success", "opened": opened, "fund": fund}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 400
     finally:
         cur.close()
         conn.close()
@@ -2709,7 +2855,9 @@ def adjust_central_fund():
         difference = new_balance - current
         if abs(difference) > 0.00001:
             _record_central_fund_movement(
-                cur, difference, 'adjustment', note, created_by=session.get('user_id')
+                cur, difference, 'adjustment',
+                f"{note} | ยอดเดิม {current:,.2f} บาท → ยอดใหม่ {new_balance:,.2f} บาท",
+                created_by=session.get('user_id')
             )
         cur.execute("SELECT balance, cash_float_balance, updated_at FROM central_fund WHERE id = 1;")
         fund = cur.fetchone()
@@ -2738,6 +2886,7 @@ def receive_central_fund():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        _ensure_finance_payment_method_column(cur)
         cur.execute(
             """INSERT INTO finance_transactions (transaction_type, category, description, amount)
                VALUES ('income', 'central_fund_deposit', %s, %s) RETURNING *;""",

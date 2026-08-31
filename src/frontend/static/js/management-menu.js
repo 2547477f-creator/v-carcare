@@ -1,6 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
     const nav = document.querySelector('.sidebar .nav');
-    if (!nav || nav.querySelector('.management-menu')) return;
+    if (!nav) return;
+    const logout = nav.querySelector('.logout-link');
+    if (logout && !nav.querySelector('.face-scan-link')) {
+        const faceLink = document.createElement('a');
+        faceLink.href = '/face-checkin';
+        faceLink.className = 'nav-link face-scan-link text-warning';
+        faceLink.innerHTML = '<i class="bi bi-camera-fill me-2"></i> สแกนหน้าเช็กอิน';
+        nav.insertBefore(faceLink, logout);
+    }
+    if (nav.querySelector('.management-menu')) return;
     const staff = nav.querySelector('a[href="/staff"]');
     const advances = nav.querySelector('a[href="/staff-advances"]');
     const services = nav.querySelector('a[href="/service-management"]');
