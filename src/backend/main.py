@@ -582,7 +582,29 @@ def track():
 
 @app.route('/face-checkin')
 def face_checkin():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        primary_ip = _primary_face_scan_ip(cur)
+    finally:
+        cur.close()
+        conn.close()
+    if primary_ip and primary_ip != _client_ip():
+        return "ไม่อนุญาตให้ใช้งานสแกนหน้าจากเครื่องนี้", 403
     return render_template('face_checkin.html')
+
+
+@app.route('/api/face-scan-availability')
+def face_scan_availability():
+    """Expose only whether the current device is the configured scan terminal."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        primary_ip = _primary_face_scan_ip(cur)
+        return jsonify({"available": bool(primary_ip and primary_ip == _client_ip())})
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.route('/staff')
@@ -2641,7 +2663,7 @@ def get_finance_summary():
     transaction_start_str = request.args.get('transaction_start', start_str)
     transaction_end_str = request.args.get('transaction_end', end_str)
     transaction_type = request.args.get('transaction_type', 'all')
-    if transaction_type not in ('all', 'income', 'expense'):
+    if transaction_type not in ('all', 'income', 'expense', 'central_fund'):
         transaction_type = 'all'
     payment_method = request.args.get('payment_method', 'all')
     if payment_method not in ('all', 'cash', 'transfer'):
@@ -2667,14 +2689,23 @@ def get_finance_summary():
                 COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0) AS total_expense,
                 COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE -amount END), 0) AS net_profit
             FROM finance_transactions
-            WHERE occurred_at::date BETWEEN %s AND %s;
+            WHERE occurred_at::date BETWEEN %s AND %s
+              AND category <> 'central_fund_deposit';
             """,
             (start_date, end_date)
         )
         summary = cur.fetchone()
 
-        type_filter_sql = '' if transaction_type == 'all' else ' AND f.transaction_type = %s'
-        type_filter_params = () if transaction_type == 'all' else (transaction_type,)
+        if transaction_type == 'central_fund':
+            type_filter_sql = " AND f.category = 'central_fund_deposit'"
+            type_filter_params = ()
+        else:
+            # Keep fund deposits out of normal income/expense history.
+            type_filter_sql = " AND f.category <> 'central_fund_deposit'"
+            type_filter_params = ()
+            if transaction_type != 'all':
+                type_filter_sql += ' AND f.transaction_type = %s'
+                type_filter_params = (transaction_type,)
         payment_filter_sql = '' if payment_method == 'all' else " AND COALESCE(f.payment_method, p.method) = %s"
         payment_filter_params = () if payment_method == 'all' else (payment_method,)
 

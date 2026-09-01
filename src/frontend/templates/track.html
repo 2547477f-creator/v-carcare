@@ -4,144 +4,112 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>V CarCare - ติดตามสถานะคิวรถของคุณ</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        body { 
-            background-color: #121212; 
-            color: #E0E0E0; 
-            font-family: sans-serif;
-            padding-bottom: 40px;
-        }
-        .text-orange { color: #FF6B00; }
-        .bg-orange { background-color: #FF6B00; color: #121212; }
-        .card-custom { background-color: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 16px; }
-        
-        .client-container {
-            max-width: 500px;
-            margin: 0 auto;
-        }
-
-        .step-indicator {
-            position: relative;
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 25px;
-            padding: 0 5px;
-        }
-        .step-indicator::before {
-            content: '';
-            position: absolute;
-            top: 22px; left: 25px; right: 25px;
-            height: 4px; background-color: #2A2A2A;
-            z-index: 1;
-        }
-        .step-progress-line {
-            position: absolute;
-            top: 22px; left: 25px; width: 0%;
-            height: 4px; background-color: #FF6B00;
-            z-index: 2; transition: width 0.4s ease-in-out;
-        }
-        .step-item {
-            position: relative;
-            z-index: 3;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 60px;
-        }
-        .step-node {
-            width: 44px; height: 44px; border-radius: 50%;
-            background-color: #2A2A2A; border: 3px solid #1A1A1A;
-            display: flex; align-items: center; justify-content: center;
-            color: #8E8E93; font-weight: bold; transition: all 0.3s;
-        }
-        .step-node.active {
-            background-color: #FF6B00; color: #121212; border-color: #1A1A1A;
-            box-shadow: 0 0 15px rgba(255, 107, 0, 0.4);
-        }
-        .step-node.done {
-            background-color: #198754; color: white; border-color: #1A1A1A;
-        }
-        .step-label {
-            font-size: 11px; text-align: center; margin-top: 6px; color: #8E8E93; transition: color 0.3s;
-        }
-        .step-label.active { color: #FFFFFF; font-weight: bold; }
-        .step-label.done { color: #198754; }
-    </style>
 </head>
 <body>
 
 <div class="container-fluid p-3 client-container">
-    
+
     <div class="text-center my-4">
         <h2 class="text-orange fw-bold m-0">V <span class="text-white fs-4">CARCARE</span></h2>
         <small class="text-secondary">ระบบติดตามสถานะคิวรถอัตโนมัติ</small>
     </div>
 
-    <!-- ช่องกรอกหมายเลขคิว -->
-    <div class="card-custom p-3 mb-4">
-        <label class="text-secondary small fw-bold mb-2 d-block">กรอกหมายเลขคิวของคุณ (เช่น Q20260723-0001)</label>
-        <div class="input-group">
-            <input type="text" id="queue-input" class="form-control form-control-custom" placeholder="Q20260723-0001">
-            <button class="btn bg-orange fw-bold" onclick="lookupQueue()"><i class="bi bi-search"></i> ค้นหา</button>
+    <div class="detail-wrap">
+        <!-- รายละเอียดคิวที่เลือก (แสดงเมื่อกดที่การ์ดในกระดาน/ประวัติ) -->
+        <div id="result-area">
+            <div class="card-custom p-4 text-center mb-4 border-top border-orange border-4">
+                <span class="badge bg-dark border border-secondary text-secondary mb-2 px-3 py-2 fs-6 rounded-pill">คิวของคุณ</span>
+                <h2 class="text-white fw-bold my-1" id="car-plate">-</h2>
+                <p class="text-secondary m-0" id="car-detail">-</p>
+
+                <div class="mt-3 p-2 rounded bg-dark d-inline-block border border-secondary">
+                    <small class="text-secondary">บริการที่คุณเลือก:</small>
+                    <span class="text-warning fw-bold d-block" id="selected-services">-</span>
+                </div>
+            </div>
+
+            <div class="card-custom p-4 mb-4">
+                <h6 class="text-white fw-bold mb-4 text-center"><i class="bi bi-info-circle text-orange me-2"></i> สถานะการบริการปัจจุบัน</h6>
+
+                <div class="step-indicator">
+                    <div class="step-progress-line" id="progress-line"></div>
+
+                    <div class="step-item">
+                        <div class="step-node" id="node-1"><i class="bi bi-clock"></i></div>
+                        <div class="step-label" id="label-1">รอคิว</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-node" id="node-2"><i class="bi bi-droplet-fill"></i></div>
+                        <div class="step-label" id="label-2">กำลังล้าง</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-node" id="node-3"><i class="bi bi-stars"></i></div>
+                        <div class="step-label" id="label-3">เช็ดแห้ง/เคลือบ</div>
+                    </div>
+                    <div class="step-item">
+                        <div class="step-node" id="node-4"><i class="bi bi-check-lg"></i></div>
+                        <div class="step-label" id="label-4">พร้อมรับรถ</div>
+                    </div>
+                </div>
+
+                <div class="p-3 text-center rounded-3" id="status-box">
+                    <h5 class="text-orange fw-bold mb-1" id="status-title">-</h5>
+                    <small class="text-secondary" id="status-desc">ระบบจะอัปเดตอัตโนมัติเมื่อพนักงานเปลี่ยนสถานะงาน</small>
+                </div>
+            </div>
+
+            <div class="card-custom p-3 text-center mb-4">
+                <div class="small text-secondary mb-1">ยอดชำระโดยประมาณ</div>
+                <h4 class="text-success fw-bold m-0" id="estimated-amount">-</h4>
+                <hr class="border-secondary my-2">
+                <p class="small text-muted m-0 pickup-note">*กรุณาแสดงหน้าจอนี้ให้พนักงานดูตอนรับรถคืน</p>
+            </div>
+        </div>
+
+        <div id="error-area" class="alert alert-danger text-center"></div>
+    </div>
+
+    <!-- ===================== กระดานสถานะคิว 3 ช่อง เรียงแถวเดียวกัน ===================== -->
+    <div class="board-title"><i class="bi bi-grid-3x3-gap-fill text-orange me-1"></i> สถานะคิวรถวันนี้ (แตะรถเพื่อดูรายละเอียด)</div>
+    <div class="board-row">
+        <div class="board-col pending">
+            <div class="board-col-header">
+                <i class="bi bi-clock"></i>
+                <span class="col-name">รอคิว</span>
+                <span class="col-count" id="count-pending">0</span>
+            </div>
+            <div class="board-list" id="board-pending"></div>
+        </div>
+        <div class="board-col progress">
+            <div class="board-col-header">
+                <i class="bi bi-arrow-repeat"></i>
+                <span class="col-name">กำลังบริการ</span>
+                <span class="col-count" id="count-progress">0</span>
+            </div>
+            <div class="board-list" id="board-progress"></div>
+        </div>
+        <div class="board-col done">
+            <div class="board-col-header">
+                <i class="bi bi-check-circle"></i>
+                <span class="col-name">เสร็จแล้ว รอรับ</span>
+                <span class="col-count" id="count-done">0</span>
+            </div>
+            <div class="board-list" id="board-done"></div>
         </div>
     </div>
 
-    <div id="result-area" style="display:none;">
-        <!-- ข้อมูลตั๋วคิวลูกค้า -->
-        <div class="card-custom p-4 text-center mb-4 border-top border-orange border-4">
-            <span class="badge bg-dark border border-secondary text-secondary mb-2 px-3 py-2 fs-6 rounded-pill">คิวของคุณ</span>
-            <h2 class="text-white fw-bold my-1" id="car-plate">-</h2>
-            <p class="text-secondary m-0" id="car-detail">-</p>
-            
-            <div class="mt-3 p-2 rounded bg-dark d-inline-block border border-secondary">
-                <small class="text-secondary">บริการที่คุณเลือก:</small>
-                <span class="text-warning fw-bold d-block" id="selected-services">-</span>
-            </div>
-        </div>
-
-        <!-- กล่องแสดงสถานะการบริการแบบสเต็ป -->
-        <div class="card-custom p-4 mb-4">
-            <h6 class="text-white fw-bold mb-4 text-center"><i class="bi bi-info-circle text-orange me-2"></i> สถานะการบริการปัจจุบัน</h6>
-            
-            <div class="step-indicator">
-                <div class="step-progress-line" id="progress-line"></div>
-                
-                <div class="step-item">
-                    <div class="step-node" id="node-1"><i class="bi bi-clock"></i></div>
-                    <div class="step-label" id="label-1">รอคิว</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-node" id="node-2"><i class="bi bi-droplet-fill"></i></div>
-                    <div class="step-label" id="label-2">กำลังล้าง</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-node" id="node-3"><i class="bi bi-stars"></i></div>
-                    <div class="step-label" id="label-3">เช็ดแห้ง/เคลือบ</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-node" id="node-4"><i class="bi bi-check-lg"></i></div>
-                    <div class="step-label" id="label-4">พร้อมรับรถ</div>
-                </div>
-            </div>
-
-            <div class="p-3 text-center rounded-3" id="status-box" style="background-color: rgba(255,107,0,0.05); border: 1px dashed #FF6B00;">
-                <h5 class="text-orange fw-bold mb-1" id="status-title">-</h5>
-                <small class="text-secondary" id="status-desc">ระบบจะอัปเดตอัตโนมัติเมื่อพนักงานเปลี่ยนสถานะงาน</small>
-            </div>
-        </div>
-
-        <div class="card-custom p-3 text-center mb-4">
-            <div class="small text-secondary mb-1">ยอดชำระโดยประมาณ</div>
-            <h4 class="text-success fw-bold m-0" id="estimated-amount">-</h4>
-            <hr class="border-secondary my-2">
-            <p class="small text-muted m-0" style="font-size: 11px;">*กรุณาแสดงหน้าจอนี้ให้พนักงานดูตอนรับรถคืน</p>
-        </div>
+    <!-- ===================== ประวัติรับรถวันนี้ (อยู่ต่อท้ายในหน้าเดียวกัน) ===================== -->
+    <div class="board-title"><i class="bi bi-clock-history text-info me-1"></i> ประวัติรับรถวันนี้</div>
+    <div class="card-custom p-3 mb-3">
+        <div class="d-flex flex-column gap-2" id="history-results"></div>
     </div>
 
-    <div id="error-area" class="alert alert-danger text-center" style="display:none;"></div>
 </div>
 
 <script>
@@ -178,7 +146,23 @@
     };
 
     let pollTimer = null;
-    let currentQueue = null;
+    let refreshTimer = null;
+
+    function esc(v) {
+        const n = document.createElement('span');
+        n.textContent = v === undefined || v === null || v === '' ? '-' : v;
+        return n.innerHTML;
+    }
+
+    function dt(v) {
+        return v ? new Date(v).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
+    }
+
+    function plateOnly(o) {
+        return (o.license_plate || '-') + (o.province ? ' ' + o.province : '');
+    }
+
+    /* ---------------- รายละเอียดคิวรายคัน ---------------- */
 
     function renderStep(stepIndex) {
         const progressLine = document.getElementById('progress-line');
@@ -218,9 +202,9 @@
         document.getElementById('result-area').style.display = 'block';
         document.getElementById('error-area').style.display = 'none';
 
-        const plateLabel = order.license_plate + (order.province ? ' ' + order.province : '');
+        const plateLabelText = order.license_plate + (order.province ? ' ' + order.province : '');
         const typeLabel = order.vehicle_category === 'bike' ? 'มอเตอร์ไซค์' : 'รถยนต์';
-        document.getElementById('car-plate').innerText = plateLabel;
+        document.getElementById('car-plate').innerText = plateLabelText;
         document.getElementById('car-detail').innerText = `${typeLabel} (${order.size_code})`;
 
         const serviceNames = (order.items || []).map(i => i.service_name).join(' + ');
@@ -229,6 +213,8 @@
 
         const step = STATUS_TO_STEP[order.status] || 1;
         renderStep(step);
+
+        document.getElementById('result-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     async function fetchStatus(queueNo) {
@@ -249,34 +235,105 @@
         }
     }
 
-    function lookupQueue() {
-        const queueNo = document.getElementById('queue-input').value.trim();
-        if (!queueNo) return;
-        currentQueue = queueNo;
-
+    // เรียกเมื่อกดที่การ์ดในกระดาน/ประวัติ เพื่อเปิดดูรายละเอียดคันนั้น
+    function viewQueue(queueNo) {
         if (pollTimer) clearInterval(pollTimer);
         fetchStatus(queueNo);
-        pollTimer = setInterval(() => fetchStatus(queueNo), 6000); // อัปเดตอัตโนมัติทุก 6 วินาที
+        pollTimer = setInterval(() => fetchStatus(queueNo), 6000);
 
-        // เก็บหมายเลขคิวไว้เพื่อให้กลับมาดูซ้ำได้จากลิงก์เดิม
         const url = new URL(window.location);
         url.searchParams.set('q', queueNo);
         window.history.replaceState({}, '', url);
     }
 
-    document.getElementById('queue-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') lookupQueue();
-    });
+    /* ---------------- กระดานสถานะคิว 3 ช่อง (ไม่โชว์ยอดเงิน) ---------------- */
+
+    function boardCard(o) {
+        return `
+        <div class="board-card" onclick="viewQueue('${esc(o.queue_no)}')">
+            <div class="plate">${esc(plateOnly(o))}</div>
+            <div class="queue-no">${esc(o.queue_no)}</div>
+            <span class="service-line d-none d-md-block">${esc(o.services_summary) || '-'}</span>
+        </div>`;
+    }
+
+    function renderGroup(elId, list, emptyMsg) {
+        const el = document.getElementById(elId);
+        if (!list.length) {
+            el.innerHTML = `<p class="empty-hint">${emptyMsg}</p>`;
+            return;
+        }
+        el.innerHTML = list.map(boardCard).join('');
+    }
+
+    async function loadBoard() {
+        try {
+            const res = await fetch('/api/orders');
+            if (!res.ok) throw new Error('load failed');
+            const orders = await res.json();
+
+            const pending = orders.filter(o => o.status === 'pending');
+            const progress = orders.filter(o => ['in_progress', 'drying', 'ready'].includes(o.status));
+            const done = orders.filter(o => o.status === 'completed');
+
+            renderGroup('board-pending', pending, 'ไม่มีรถ');
+            renderGroup('board-progress', progress, 'ไม่มีรถ');
+            renderGroup('board-done', done, 'ไม่มีรถ');
+
+            document.getElementById('count-pending').innerText = pending.length;
+            document.getElementById('count-progress').innerText = progress.length;
+            document.getElementById('count-done').innerText = done.length;
+        } catch (err) {
+            ['board-pending', 'board-progress', 'board-done'].forEach(id => {
+                document.getElementById(id).innerHTML = '<p class="empty-hint text-danger">โหลดไม่สำเร็จ</p>';
+            });
+        }
+    }
+
+    /* ---------------- ประวัติรับรถวันนี้ (ไม่โชว์ยอดเงิน แสดงแค่สถานะ) ---------------- */
+
+    function historyCard(o) {
+        return `
+        <div class="history-card" onclick="viewQueue('${esc(o.queue_no)}')">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="fw-bold text-white small">${esc(plateOnly(o))}</span>
+                <span class="badge bg-success">รับรถแล้ว</span>
+            </div>
+            <div class="small text-secondary mt-1">${esc(o.services_summary) || '-'} · #${esc(o.queue_no)}</div>
+            <div class="small text-secondary mt-1"><i class="bi bi-clock me-1"></i>${dt(o.picked_up_at)}</div>
+        </div>`;
+    }
+
+    async function loadHistoryBoard() {
+        const el = document.getElementById('history-results');
+        try {
+            const today = new Date().toISOString().slice(0, 10);
+            const res = await fetch(`/api/orders?status=picked_up&date=${today}`);
+            if (!res.ok) throw new Error('load failed');
+            const orders = await res.json();
+            if (!orders.length) {
+                el.innerHTML = '<p class="empty-hint">ยังไม่มีรถที่รับไปวันนี้</p>';
+                return;
+            }
+            el.innerHTML = orders.map(historyCard).join('');
+        } catch (err) {
+            el.innerHTML = '<p class="empty-hint text-danger">โหลดประวัติไม่สำเร็จ</p>';
+        }
+    }
+
+    async function refreshAll() {
+        await Promise.all([loadBoard(), loadHistoryBoard()]);
+    }
 
     window.addEventListener('DOMContentLoaded', () => {
         const params = new URLSearchParams(window.location.search);
         const q = params.get('q');
-        if (q) {
-            document.getElementById('queue-input').value = q;
-            lookupQueue();
-        }
+        if (q) viewQueue(q);
+
+        refreshAll();
+        refreshTimer = setInterval(refreshAll, 8000); // อัปเดตอัตโนมัติทุก 8 วินาที
     });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

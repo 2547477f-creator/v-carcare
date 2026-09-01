@@ -10,7 +10,7 @@
     <title>V CarCare - จัดการพนักงาน</title>
 
     <link
-        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
         rel="stylesheet">
 
     <link
@@ -96,33 +96,37 @@
         @media (max-width: 767.98px) {
 
             body {
-                padding-top: 75px;
-                padding-bottom: 40px;
+                padding-top: 0;
+                padding-bottom: 78px;
             }
 
             .fb-nav-tabs {
                 position: fixed;
-                top: 0;
+                top: auto;
+                bottom: 0;
                 left: 0;
                 right: 0;
                 height: 65px;
                 background-color: #1A1A1A;
-                border-bottom: 1px solid #2A2A2A;
+                border-top: 1px solid #2A2A2A;
                 display: flex;
-                justify-content: space-around;
+                justify-content: flex-start;
+                overflow-x: auto;
                 align-items: stretch;
                 z-index: 1050;
             }
 
             .fb-tab-item {
-                flex: 1;
+                flex: 0 0 76px;
+                min-width: 76px;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
                 color: #8E8E93;
                 text-decoration: none;
-                font-size: 11px;
+                font-size: 10px;
+                white-space: nowrap;
                 font-weight: bold;
                 border-bottom: 3px solid transparent;
             }
@@ -263,14 +267,6 @@
 
     <div class="fb-nav-tabs d-flex d-md-none">
 
-        <a href="/staff-advances"
-           class="fb-tab-item">
-
-            <i class="bi bi-cash-stack"></i>
-            <span>เบิกเงิน</span>
-
-        </a>
-
         <a href="/"
            class="fb-tab-item">
 
@@ -287,6 +283,16 @@
 
         </a>
 
+        <a href="/register" class="fb-tab-item">
+            <i class="bi bi-person-vcard"></i>
+            <span>ลงทะเบียน</span>
+        </a>
+
+        <a href="/history" class="fb-tab-item">
+            <i class="bi bi-clock-history"></i>
+            <span>ประวัติ</span>
+        </a>
+
         <a href="/staff"
            class="fb-tab-item active">
 
@@ -295,12 +301,22 @@
 
         </a>
 
+        <a href="/staff-advances" class="fb-tab-item">
+            <i class="bi bi-cash-stack"></i>
+            <span>เบิกเงิน</span>
+        </a>
+
         <a href="/finance"
            class="fb-tab-item">
 
             <i class="bi bi-wallet2"></i>
             <span>บัญชี</span>
 
+        </a>
+
+        <a href="/service-management" class="fb-tab-item">
+            <i class="bi bi-tags"></i>
+            <span>บริการ</span>
         </a>
 
         <a href="{{ url_for('logout') }}"
@@ -3007,7 +3023,7 @@ window.addEventListener(
 
 
 <script
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js">
 </script>
 
 <script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>
