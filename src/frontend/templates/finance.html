@@ -123,6 +123,9 @@
             <div class="card-custom p-3 p-md-4">
                 <h5 class="text-white fw-bold mb-3"><i class="bi bi-journal-text text-orange me-2"></i> ประวัติรายการรับ-จ่ายเงินในระบบ</h5>
                 <div class="row g-2 justify-content-end mb-3">
+                    <div class="col-12 col-md-auto">
+                        <button type="button" class="btn btn-sm btn-outline-warning" onclick="loadCentralFundHistory()"><i class="bi bi-clock-history me-1"></i>ประวัติปรับยอด / เงินกองกลางเพิ่ม</button>
+                    </div>
                     <div class="col-6 col-md-auto">
                         <select id="history-period-filter" class="form-select form-select-sm form-control-custom" onchange="changeHistoryPeriod()">
                             <option value="current">ตามช่วงสรุปด้านบน</option>
@@ -327,6 +330,32 @@
                     </tr>`;
                 tbody.insertAdjacentHTML('beforeend', rowHtml);
             });
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`;
+        }
+    }
+
+    async function loadCentralFundHistory(activity = 'all') {
+        const tbody = document.getElementById('transaction-list');
+        const historyRange = getHistoryRange(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value);
+        const params = new URLSearchParams({ period: historyRange.period, activity });
+        if (historyRange.period === 'custom' && historyRange.start && historyRange.end) {
+            params.set('start', historyRange.start);
+            params.set('end', historyRange.end);
+        }
+        tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">กำลังโหลดประวัติเงินกองกลาง...</td></tr>';
+        try {
+            const res = await fetch(`/api/central-fund/history?${params.toString()}`);
+            if (!res.ok) throw new Error('โหลดประวัติเงินกองกลางไม่สำเร็จ');
+            const data = await res.json();
+            currentTransactions = data.transactions || [];
+            document.getElementById('transaction-pagination').innerHTML = '';
+            tbody.innerHTML = currentTransactions.length ? currentTransactions.map(item => {
+                const received = item.movement_type === 'fund_received';
+                const label = received ? 'เงินกองกลางเพิ่ม' : 'ปรับยอดกองกลาง';
+                const amount = Number(item.amount || 0);
+                return `<tr class="border-secondary"><td class="text-secondary small">${formatDateTime(item.occurred_at)}</td><td class="text-white fw-semibold">${item.description || '-'}</td><td><span class="badge ${received ? 'bg-warning-subtle text-warning border border-warning' : 'bg-info-subtle text-info border border-info'}">${label}</span></td><td class="text-end ${amount >= 0 ? 'text-success' : 'text-danger'} fw-bold">${amount >= 0 ? '+' : ''}${amount.toFixed(2)} บ.</td></tr>`;
+            }).join('') : '<tr><td colspan="4" class="text-secondary small">ไม่มีประวัติในช่วงเวลานี้</td></tr>';
         } catch (err) {
             tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`;
         }

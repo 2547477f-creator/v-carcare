@@ -969,11 +969,88 @@
 </div>
 
 
+<div class="modal fade" id="staffCalendarModal" tabindex="-1" aria-hidden="true">
+  <style>
+    #calendar-records { display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:4px; }
+    .calendar-weekday { color:#999; text-align:center; font-size:.8rem; padding:5px 0; }
+    .calendar-day { min-height:82px; background:#242424; border:1px solid #3a3a3a; border-radius:6px; padding:6px; }
+    .calendar-day.empty { background:transparent; border-color:transparent; }
+    .calendar-day .day-number { font-weight:bold; }
+    .calendar-day.worked { border-color:#198754; }
+    .calendar-day.late { border-color:#ffc107; }
+    .calendar-day .day-status { font-size:.72rem; margin-top:6px; line-height:1.2; }
+    @media (max-width:575px) { .calendar-day { min-height:64px; padding:3px; } .calendar-day .day-status { font-size:.62rem; } }
+  </style>
+  <div class="modal-dialog modal-lg modal-dialog-centered m-3 mx-auto">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title text-orange fw-bold"><i class="bi bi-calendar3 me-2"></i>ปฏิทินการทำงาน: <span id="calendar-staff-name">-</span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex gap-2 align-items-center mb-3">
+          <input type="month" id="calendar-month" class="form-control form-control-custom" style="max-width:220px">
+          <button class="btn bg-orange text-dark fw-bold" onclick="loadStaffCalendar()"><i class="bi bi-search me-1"></i>ดูข้อมูล</button>
+        </div>
+        <div id="calendar-summary" class="row g-2 mb-3"></div>
+        <div id="calendar-records" class="row g-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 
 let staffData = [];
 let stream = null;
 let faceImages = [];
+let calendarStaffId = null;
+
+function openStaffCalendar(id) {
+    const staff = staffData.find(s => s.id === id);
+    calendarStaffId = id;
+    document.getElementById('calendar-staff-name').textContent = staff ? staff.full_name : '-';
+    document.getElementById('calendar-month').value = getTodayString().slice(0, 7);
+    document.getElementById('calendar-summary').innerHTML = '<div class="text-secondary">กำลังโหลดข้อมูล...</div>';
+    document.getElementById('calendar-records').innerHTML = '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('staffCalendarModal')).show();
+    loadStaffCalendar();
+}
+
+async function loadStaffCalendar() {
+    if (!calendarStaffId) return;
+    const month = document.getElementById('calendar-month').value;
+    try {
+        const response = await fetch(`/api/staff/${calendarStaffId}/attendance-summary?month=${encodeURIComponent(month)}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'โหลดข้อมูลไม่สำเร็จ');
+        document.getElementById('calendar-summary').innerHTML = `
+          <div class="col-6 col-md-3"><div class="card-custom p-2 text-center"><small class="text-secondary">มาทำงาน</small><div class="fw-bold text-success">${data.worked_days} วัน</div></div></div>
+          <div class="col-6 col-md-3"><div class="card-custom p-2 text-center"><small class="text-secondary">มาสาย</small><div class="fw-bold text-warning">${data.late_days} วัน</div></div></div>
+          <div class="col-12 col-md-6"><div class="card-custom p-2 text-center"><small class="text-secondary">ยอดเงินสะสมเดือนนี้</small><div class="fw-bold text-info">${Number(data.earned).toLocaleString('th-TH')} บาท</div></div></div>`;
+        renderStaffCalendar(data);
+    } catch (error) { document.getElementById('calendar-summary').innerHTML = `<div class="text-danger">${escapeHtml(error.message)}</div>`; }
+}
+
+function renderStaffCalendar(data) {
+    const [year, month] = data.month.split('-').map(Number);
+    const firstDay = new Date(year, month - 1, 1).getDay();
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const records = Object.fromEntries(data.records.map(r => [r.work_date, r]));
+    const weekdays = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+    let html = weekdays.map(day => `<div class="calendar-weekday">${day}</div>`).join('');
+    for (let i = 0; i < firstDay; i++) html += '<div class="calendar-day empty"></div>';
+    for (let day = 1; day <= daysInMonth; day++) {
+        const key = `${data.month}-${String(day).padStart(2, '0')}`;
+        const record = records[key];
+        const statusClass = record && record.check_in_at ? (record.status === 'late' ? 'late' : 'worked') : '';
+        const status = record && record.check_in_at
+            ? (record.status === 'late' ? `<span class="text-warning">สาย ${record.late_minutes || 0} นาที</span>` : '<span class="text-success">มาทำงาน</span>')
+            : '<span class="text-secondary">-</span>';
+        html += `<div class="calendar-day ${statusClass}"><div class="day-number">${day}</div><div class="day-status">${status}${record && record.check_in_at ? `<br><span class="text-secondary">${formatAttendanceTime(record.check_in_at)}</span>` : ''}</div></div>`;
+    }
+    document.getElementById('calendar-records').innerHTML = html;
+}
 
 
 // ================================================================
@@ -1662,6 +1739,12 @@ function renderStaffCard(
 
                         <i class="bi bi-clock-history"></i>
 
+                    </button>
+
+                    <button class="btn btn-sm btn-outline-success"
+                            onclick="openStaffCalendar(${s.id})"
+                            title="ดูปฏิทินการทำงานและยอดเงิน">
+                        <i class="bi bi-calendar3"></i>
                     </button>
 
 

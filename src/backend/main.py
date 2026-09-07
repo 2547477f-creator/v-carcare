@@ -1,10 +1,14 @@
 import base64
+import hashlib
+import hmac
 from datetime import date, datetime, time, timedelta
 from functools import wraps
 import json
 import os
 import socket
 import uuid
+from urllib.error import HTTPError, URLError
+from urllib.request import Request as UrlRequest, urlopen
 
 import cv2
 from deepface import DeepFace
@@ -62,6 +66,7 @@ WORK_START_TIME = time(8, 0)
 STAFF_WITHDRAWAL_MAX_PER_REQUEST = 3000
 STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK = 2
 CENTRAL_FUND_OPENING_FLOAT = 3000
+LINE_REPLY_API_URL = 'https://api.line.me/v2/bot/message/reply'
 
 THAI_SERVICE_NAMES = {
     'wash': 'ล้างภายนอก',
@@ -86,6 +91,44 @@ def get_local_network_ip():
             return sock.getsockname()[0]
     except OSError:
         return '127.0.0.1'
+
+
+def _line_webhook_signature_is_valid(body, signature):
+    """Verify LINE's HMAC-SHA256 signature against the untouched request body."""
+    secret = os.environ.get('LINE_CHANNEL_SECRET', '')
+    if not secret or not signature:
+        return False
+    expected = base64.b64encode(
+        hmac.new(secret.encode('utf-8'), body, hashlib.sha256).digest()
+    ).decode('utf-8')
+    return hmac.compare_digest(expected, signature)
+
+
+def _line_reply(reply_token, text):
+    """Reply to one LINE event without exposing credentials in exceptions or logs."""
+    access_token = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
+    if not access_token:
+        app.logger.error('LINE reply skipped: access token is not configured')
+        return False
+    payload = json.dumps({
+        'replyToken': reply_token,
+        'messages': [{'type': 'text', 'text': text[:5000]}],
+    }).encode('utf-8')
+    request_obj = UrlRequest(
+        LINE_REPLY_API_URL,
+        data=payload,
+        headers={
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json',
+        },
+        method='POST',
+    )
+    try:
+        with urlopen(request_obj, timeout=5) as response:
+            return 200 <= response.status < 300
+    except (HTTPError, URLError, TimeoutError) as error:
+        app.logger.warning('LINE reply request failed: %s', getattr(error, 'code', type(error).__name__))
+        return False
 
 
 # ===================================================================
@@ -334,8 +377,15 @@ def _ensure_finance_payment_method_column(cur):
 
 
 def _client_ip():
-    """Return the direct client IP; do not trust forwarded headers unless a proxy is configured."""
-    return request.remote_addr or ''
+    """Return the client IP, using this machine's LAN IP for local browser access."""
+    remote_ip = request.remote_addr or ''
+
+    # เมื่อเปิดเว็บด้วย localhost เบราว์เซอร์และเซิร์ฟเวอร์คือเครื่องเดียวกัน
+    # Flask จะเห็นเป็น 127.0.0.1 แต่ต้องบันทึก IP LAN ของเครื่องหลักจริง
+    if remote_ip in ('127.0.0.1', '::1', '::ffff:127.0.0.1'):
+        return get_local_network_ip()
+
+    return remote_ip
 
 
 def _ensure_security_settings(cur):
@@ -580,6 +630,47 @@ def track():
     return render_template('track.html')
 
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Lightweight process health check; never returns secret values."""
+    return jsonify({
+        'status': 'ok',
+        'line_webhook_configured': bool(
+            os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
+            and os.environ.get('LINE_CHANNEL_SECRET')
+        ),
+    }), 200
+
+
+@app.route('/line/webhook', methods=['POST'])
+def line_webhook():
+    """Receive LINE Messaging API events and reply to text messages."""
+    body = request.get_data(cache=True)
+    signature = request.headers.get('X-Line-Signature', '')
+    if not _line_webhook_signature_is_valid(body, signature):
+        app.logger.warning('Rejected LINE webhook with an invalid signature')
+        return jsonify({'error': 'invalid signature'}), 401
+
+    try:
+        payload = json.loads(body.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return jsonify({'error': 'invalid JSON'}), 400
+
+    for event in payload.get('events', []):
+        message = event.get('message') or {}
+        if event.get('type') != 'message' or message.get('type') != 'text':
+            continue
+        reply_token = event.get('replyToken')
+        if not reply_token:
+            continue
+        incoming_text = (message.get('text') or '').strip()
+        reply_text = 'ได้รับข้อความแล้ว' if not incoming_text else f'ได้รับข้อความแล้ว: {incoming_text}'
+        _line_reply(reply_token, reply_text)
+
+    # LINE sends an empty events array when verifying the URL; it must receive 200.
+    return jsonify({'status': 'ok'}), 200
+
+
 @app.route('/face-checkin')
 def face_checkin():
     conn = get_db_connection()
@@ -590,8 +681,8 @@ def face_checkin():
         cur.close()
         conn.close()
     if primary_ip and primary_ip != _client_ip():
-        return "ไม่อนุญาตให้ใช้งานสแกนหน้าจากเครื่องนี้", 403
-    return render_template('face_checkin.html')
+        return render_template('face_checkin.html', scan_allowed=False)
+    return render_template('face_checkin.html', scan_allowed=True)
 
 
 @app.route('/api/face-scan-availability')
@@ -2359,6 +2450,46 @@ def edit_staff_attendance():
 # ===================================================================
 # 🔌 9. API: การเงิน & เบิกเงินพนักงาน (staff_advances.html / finance.html)
 # ===================================================================
+@app.route('/api/staff/<int:staff_id>/attendance-summary', methods=['GET'])
+@manager_required
+def staff_attendance_summary(staff_id):
+    month = request.args.get('month') or date.today().strftime('%Y-%m')
+    try:
+        month_start = datetime.strptime(month, '%Y-%m').date().replace(day=1)
+    except ValueError:
+        return jsonify({'message': 'รูปแบบเดือนต้องเป็น YYYY-MM'}), 400
+
+    month_end = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute('SELECT id, full_name, daily_wage FROM staff WHERE id = %s;', (staff_id,))
+        staff = cur.fetchone()
+        if not staff:
+            return jsonify({'message': 'ไม่พบพนักงาน'}), 404
+        cur.execute('''
+            SELECT work_date, check_in_at, check_out_at, status, late_minutes
+            FROM staff_attendance
+            WHERE staff_id = %s AND work_date >= %s AND work_date < %s
+            ORDER BY work_date;
+        ''', (staff_id, month_start, month_end))
+        records = [dict(row) for row in cur.fetchall()]
+        for row in records:
+            row['work_date'] = row['work_date'].isoformat()
+            for key in ('check_in_at', 'check_out_at'):
+                if row[key]: row[key] = row[key].isoformat()
+        worked_days = sum(1 for row in records if row['check_in_at'])
+        late_days = sum(1 for row in records if row['check_in_at'] and row['status'] == 'late')
+        staff_data = dict(staff)
+        staff_data['daily_wage'] = float(staff_data['daily_wage'] or 0)
+        return jsonify({'staff': staff_data, 'month': month, 'records': records,
+                        'worked_days': worked_days, 'late_days': late_days,
+                        'earned': worked_days * float(staff['daily_wage'] or 0)})
+    finally:
+        cur.close()
+        conn.close()
+
+
 @app.route('/api/staff/attendance/history', methods=['GET'])
 @manager_required
 def staff_attendance_history():
@@ -2839,6 +2970,36 @@ def get_central_fund():
         conn.close()
 
 
+@app.route('/api/central-fund/history', methods=['GET'])
+@manager_required
+def get_central_fund_history():
+    period = request.args.get('period', 'day')
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    activity = request.args.get('activity', 'all')
+    if activity not in ('all', 'adjustment', 'fund_received'):
+        activity = 'all'
+    start_date, end_date = _period_to_range(period, start_str, end_str)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        _ensure_central_fund_tables(cur)
+        type_sql = '' if activity == 'all' else ' AND movement_type = %s'
+        type_params = () if activity == 'all' else (activity,)
+        cur.execute(
+            """SELECT id, movement_type, amount, balance_before, balance_after, description, occurred_at
+               FROM central_fund_transactions
+               WHERE movement_type IN ('adjustment', 'fund_received')
+                 AND occurred_at::date BETWEEN %s AND %s""" + type_sql + " ORDER BY occurred_at DESC;",
+            (start_date, end_date) + type_params
+        )
+        return jsonify({"transactions": cur.fetchall(), "start_date": str(start_date), "end_date": str(end_date)}), 200
+    finally:
+        cur.close()
+        conn.close()
+
+
 @app.route('/api/central-fund/open', methods=['POST'])
 @manager_required
 def open_cash_float():
@@ -2888,6 +3049,12 @@ def adjust_central_fund():
             _record_central_fund_movement(
                 cur, difference, 'adjustment',
                 f"{note} | ยอดเดิม {current:,.2f} บาท → ยอดใหม่ {new_balance:,.2f} บาท",
+                created_by=session.get('user_id')
+            )
+        else:
+            # Keep an auditable ledger entry even when the manager saves the same balance.
+            _record_central_fund_movement(
+                cur, 0, 'adjustment', f"{note} | ยอดเดิมและยอดใหม่ {current:,.2f} บาท",
                 created_by=session.get('user_id')
             )
         cur.execute("SELECT balance, cash_float_balance, updated_at FROM central_fund WHERE id = 1;")

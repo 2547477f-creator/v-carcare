@@ -20,6 +20,7 @@
         <h2 class="h4 fw-bold text-warning mb-2"><i class="bi bi-camera-fill me-2"></i>สแกนหน้าเช็คอิน</h2>
         <p class="text-secondary small mb-4">จัดใบหน้าให้อยู่ในกรอบ แล้วกดบันทึกการเช็คอิน</p>
 
+        {% if not scan_allowed %}<div class="alert alert-warning py-2 small">เครื่องนี้ไม่ใช่เครื่องหลักที่ตั้งค่าไว้ การสแกนจะไม่สามารถเข้าสู่ระบบได้</div>{% endif %}
         <div class="camera-frame mb-3">
             <video id="camera-preview" autoplay playsinline muted></video>
             <div class="face-guide"></div>
