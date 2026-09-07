@@ -20,7 +20,7 @@
         <h2 class="h4 fw-bold text-warning mb-2"><i class="bi bi-camera-fill me-2"></i>สแกนหน้าเช็คอิน</h2>
         <p class="text-secondary small mb-4">จัดใบหน้าให้อยู่ในกรอบ แล้วกดบันทึกการเช็คอิน</p>
 
-        {% if not scan_allowed %}<div class="alert alert-warning py-2 small">เครื่องนี้ไม่ใช่เครื่องหลักที่ตั้งค่าไว้ การสแกนจะไม่สามารถเข้าสู่ระบบได้</div>{% endif %}
+        {% if not scan_allowed and face_mode not in ('change-ip', 'enroll', 'verify-manager-change') %}<div class="alert alert-warning py-2 small">เครื่องนี้ไม่ใช่เครื่องหลักที่ตั้งค่าไว้ การสแกนจะไม่สามารถเข้าสู่ระบบได้</div>{% endif %}
         <div class="camera-frame mb-3">
             <video id="camera-preview" autoplay playsinline muted></video>
             <div class="face-guide"></div>
@@ -51,6 +51,7 @@
 
     <script>
         const mode = new URLSearchParams(location.search).get('mode') || 'login';
+        const expectedRole = new URLSearchParams(location.search).get('role');
         const video = document.getElementById('camera-preview');
         const status = document.getElementById('camera-status');
         const startButton = document.getElementById('start-camera');
@@ -58,9 +59,24 @@
         const scanButton = document.getElementById('scan-face');
         let stream = null;
 
+        if (mode === 'enroll' || mode === 'verify-manager-change') {
+            const isManagerVerification = mode === 'verify-manager-change';
+            document.title = 'ลงทะเบียนใบหน้าผู้จัดการ - V CarCare';
+            document.querySelector('h2').innerHTML = isManagerVerification ? '<i class="bi bi-shield-check me-2"></i>ยืนยันผู้จัดการเดิม' : '<i class="bi bi-person-bounding-box me-2"></i>ลงทะเบียนใบหน้าผู้จัดการ';
+            document.querySelector('main p').textContent = isManagerVerification ? 'สแกนใบหน้าผู้จัดการเดิมก่อนดำเนินการเปลี่ยนผู้จัดการ' : 'จัดใบหน้าให้อยู่ในกรอบ แล้วกดบันทึกเพื่อใช้ยืนยันตัวตนในภายหลัง';
+            scanButton.innerHTML = isManagerVerification ? '<i class="bi bi-shield-check me-2"></i>ยืนยันใบหน้า' : '<i class="bi bi-person-check-fill me-2"></i>บันทึกใบหน้า';
+        }
+        if (mode === 'change-ip') {
+            document.title = 'ตั้งค่า IP เครื่องหลัก - V CarCare';
+            document.querySelector('h2').innerHTML = '<i class="bi bi-router-fill me-2"></i>ตั้งค่า IP เครื่องหลัก';
+            document.querySelector('main p').textContent = 'สแกนใบหน้าผู้จัดการที่กำลังเข้าสู่ระบบ เพื่อบันทึก IP ของเครื่องนี้เป็นเครื่องหลัก';
+            scanButton.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>ยืนยันและตั้งค่า IP';
+        }
+
         async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+                if (!navigator.mediaDevices?.getUserMedia) throw new Error('unsupported');
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'user' } }, audio: false });
                 video.srcObject = stream;
                 status.textContent = 'เปิดกล้องแล้ว — โปรดจัดใบหน้าให้อยู่ในกรอบ';
                 status.className = 'small text-success mb-3';
@@ -68,7 +84,7 @@
                 stopButton.disabled = false;
                 scanButton.disabled = false;
             } catch (error) {
-                status.textContent = 'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์';
+                status.textContent = location.protocol === 'http:' && location.hostname !== 'localhost' ? 'เบราว์เซอร์บล็อกกล้องบน HTTP: กรุณาเปิดผ่าน localhost หรือ HTTPS' : 'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้องในเบราว์เซอร์';
                 status.className = 'small text-danger mb-3';
             }
         }
@@ -112,8 +128,9 @@
 
     try {
 
-        const endpoint = mode === 'change-ip' ? '/api/security/change-primary-face-ip' : mode === 'reset' ? '/api/password-reset/face' : '/api/face-login';
-        const payload = { face_image: image };
+        const endpoint = mode === 'enroll' ? '/api/manager/face-enroll' : mode === 'verify-manager-change' ? '/api/security/verify-current-manager' : mode === 'change-ip' ? '/api/security/change-primary-face-ip' : mode === 'reset' ? '/api/password-reset/face' : '/api/face-login';
+        const payload = mode === 'enroll' ? { face_images: [image] } : { face_image: image };
+        if (mode === 'login' && ['manager', 'staff'].includes(expectedRole)) payload.expected_role = expectedRole;
         if (mode === 'reset') {
             const resetRequest = JSON.parse(sessionStorage.getItem('passwordResetRequest') || 'null');
             if (!resetRequest) throw new Error('ไม่พบข้อมูลการรีเซ็ตรหัสผ่าน');

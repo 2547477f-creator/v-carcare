@@ -50,6 +50,16 @@ app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 app.secret_key = os.environ.get("SECRET_KEY", "vcarcare-dev-secret-change-me")
 CORS(app, supports_credentials=True)
 
+
+@app.after_request
+def disable_browser_cache_for_app_updates(response):
+    """Prevent phones from retaining old templates/scripts after a local update."""
+    if request.path.startswith('/static/') or response.mimetype == 'text/html':
+        response.headers['Cache-Control'] = 'no-store, max-age=0, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 # ===================================================================
 # ⚙️ 2. การเชื่อมต่อฐานข้อมูล PostgreSQL & Config
 # ===================================================================
@@ -216,12 +226,17 @@ def _cosine_distance(a, b):
     return 1 - (np.dot(a, b) / denom)
 
 
-def find_matching_app_user(captured_embedding):
+def find_matching_app_user(captured_embedding, role=None):
     """เทียบ embedding ที่ถ่ายมากับทุกโปรไฟล์ใบหน้าที่บันทึกไว้"""
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT app_user_id, embedding FROM face_profiles WHERE app_user_id IS NOT NULL;")
+        query = "SELECT fp.app_user_id, fp.embedding FROM face_profiles fp JOIN app_users au ON au.id = fp.app_user_id WHERE fp.app_user_id IS NOT NULL AND au.is_active = true"
+        params = []
+        if role in ('manager', 'staff'):
+            query += " AND au.role = %s"
+            params.append(role)
+        cur.execute(query + ";", params)
         rows = cur.fetchall()
     finally:
         cur.close()
@@ -673,6 +688,7 @@ def line_webhook():
 
 @app.route('/face-checkin')
 def face_checkin():
+    mode = request.args.get('mode', 'login')
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -680,9 +696,11 @@ def face_checkin():
     finally:
         cur.close()
         conn.close()
-    if primary_ip and primary_ip != _client_ip():
-        return render_template('face_checkin.html', scan_allowed=False)
-    return render_template('face_checkin.html', scan_allowed=True)
+    return render_template(
+        'face_checkin.html',
+        scan_allowed=not primary_ip or primary_ip == _client_ip(),
+        face_mode=mode
+    )
 
 
 @app.route('/api/face-scan-availability')
@@ -692,7 +710,11 @@ def face_scan_availability():
     cur = conn.cursor()
     try:
         primary_ip = _primary_face_scan_ip(cur)
-        return jsonify({"available": bool(primary_ip and primary_ip == _client_ip())})
+        return jsonify({
+            "available": bool(primary_ip and primary_ip == _client_ip()),
+            "can_enroll_manager_face": session.get('role') == 'manager',
+            "current_role": session.get('role')
+        })
     finally:
         cur.close()
         conn.close()
@@ -786,6 +808,7 @@ def reset_password_with_face():
 
 
 @app.route('/api/security/change-primary-face-ip', methods=['POST'])
+@manager_required
 def change_primary_face_ip():
     try:
         matched_user_id = _face_image_to_user_id((request.json or {}).get('face_image'), 'ip_change')
@@ -796,7 +819,7 @@ def change_primary_face_ip():
     try:
         cur.execute("SELECT role FROM app_users WHERE id = %s AND is_active = true;", (matched_user_id,))
         user = cur.fetchone()
-        if not user or user['role'] != 'manager':
+        if not user or user['role'] != 'manager' or matched_user_id != session.get('user_id'):
             return jsonify({"status": "error", "message": "ต้องยืนยันด้วยใบหน้าผู้จัดการเท่านั้น"}), 403
         _ensure_security_settings(cur)
         cur.execute("""INSERT INTO system_settings (setting_key, setting_value, updated_at)
@@ -812,6 +835,65 @@ def change_primary_face_ip():
         conn.close()
 
 
+@app.route('/api/security/verify-current-manager', methods=['POST'])
+@manager_required
+def verify_current_manager_for_change():
+    try:
+        matched_user_id = _face_image_to_user_id((request.json or {}).get('face_image'), 'manager_change_verify')
+    except ValueError as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+    if matched_user_id != session.get('user_id'):
+        return jsonify({'status': 'error', 'message': 'ใบหน้าไม่ตรงกับผู้จัดการที่กำลังเข้าสู่ระบบ'}), 403
+    session['manager_change_verified'] = True
+    return jsonify({'status': 'success', 'redirect': url_for('manager_change_page')})
+
+
+@app.route('/manager-change')
+@manager_required
+def manager_change_page():
+    if not session.get('manager_change_verified'):
+        return redirect(url_for('face_checkin', mode='verify-manager-change'))
+    return render_template('manager_change.html')
+
+
+@app.route('/api/security/change-manager', methods=['POST'])
+@manager_required
+def change_manager():
+    if not session.get('manager_change_verified'):
+        return jsonify({'status': 'error', 'message': 'กรุณาสแกนยืนยันใบหน้าผู้จัดการเดิมก่อน'}), 403
+    data = request.json or {}
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    face_image = data.get('face_image')
+    if not username or len(password) < 6 or not face_image:
+        return jsonify({'status': 'error', 'message': 'กรอกชื่อผู้ใช้ รหัสผ่านอย่างน้อย 6 ตัวอักษร และสแกนหน้าใหม่ให้ครบ'}), 400
+    raw_image = face_image.split(',', 1)[-1]
+    conn = get_db_connection(); cur = conn.cursor()
+    try:
+        user_id = session['user_id']
+        cur.execute('SELECT id FROM app_users WHERE username = %s AND id <> %s;', (username, user_id))
+        if cur.fetchone():
+            return jsonify({'status': 'error', 'message': 'ชื่อผู้ใช้นี้ถูกใช้แล้ว'}), 409
+        faces_dir = os.path.join(app.static_folder, 'faces'); os.makedirs(faces_dir, exist_ok=True)
+        filename = f'manager_{user_id}_{uuid.uuid4().hex[:8]}.jpg'
+        filepath = os.path.join(faces_dir, filename)
+        with open(filepath, 'wb') as fh: fh.write(base64.b64decode(raw_image))
+        embedding = create_face_embedding(filepath)
+        if embedding is None:
+            return jsonify({'status': 'error', 'message': 'ไม่พบใบหน้าในภาพ กรุณาสแกนใหม่'}), 400
+        cur.execute('DELETE FROM face_profiles WHERE app_user_id = %s;', (user_id,))
+        cur.execute('UPDATE app_users SET username = %s, password_hash = %s WHERE id = %s;',
+                    (username, generate_password_hash(password), user_id))
+        cur.execute("INSERT INTO face_profiles (app_user_id, image_path, embedding, model_name) VALUES (%s, %s, %s, 'Facenet512');",
+                    (user_id, f'faces/{filename}', psycopg2.Binary(json.dumps(embedding).encode('utf-8'))))
+        conn.commit(); session.clear()
+        return jsonify({'status': 'success', 'redirect': url_for('login')})
+    except Exception as e:
+        conn.rollback(); return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        cur.close(); conn.close()
+
+
 @app.route('/api/face-login', methods=['POST'])
 def face_login():
     conn = get_db_connection()
@@ -825,6 +907,10 @@ def face_login():
         return jsonify({"status": "error", "message": "สแกนหน้าได้เฉพาะเครื่องหลักที่กำหนดไว้"}), 403
     data = request.json or {}
     face_image_b64 = data.get('face_image')
+    # When scanning from an already logged-in sidebar, never allow a role change.
+    expected_role = data.get('expected_role') or session.get('role')
+    if expected_role not in (None, 'manager', 'staff'):
+        return jsonify({'status': 'error', 'message': 'ประเภทผู้ใช้ไม่ถูกต้อง'}), 400
 
     if not face_image_b64:
         return jsonify({"status": "error", "message": "ไม่พบรูปภาพ"}), 400
@@ -844,7 +930,7 @@ def face_login():
         if embedding is None:
             return jsonify({"status": "error", "message": "ไม่พบใบหน้าในภาพ กรุณาลองใหม่"}), 400
 
-        matched_user_id = find_matching_app_user(embedding)
+        matched_user_id = find_matching_app_user(embedding, expected_role)
         if matched_user_id is None:
             return jsonify({"status": "error", "message": "ไม่พบใบหน้านี้ในระบบ กรุณาติดต่อผู้จัดการ"}), 401
 
@@ -3205,12 +3291,20 @@ def manager_face_enroll():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     local_ip = get_local_network_ip()
+    cert_file = os.environ.get('SSL_CERT_FILE', os.path.join(os.path.dirname(__file__), 'certs', 'v-carcare.pem'))
+    key_file = os.environ.get('SSL_KEY_FILE', os.path.join(os.path.dirname(__file__), 'certs', 'v-carcare-key.pem'))
+    https_enabled = os.environ.get('HTTPS_ENABLED', 'true').lower() in {'1', 'true', 'yes'}
+    ssl_context = (cert_file, key_file) if https_enabled else None
+    scheme = 'https' if ssl_context else 'http'
+    if ssl_context and (not os.path.isfile(cert_file) or not os.path.isfile(key_file)):
+        raise RuntimeError('ไม่พบไฟล์ HTTPS certificate กรุณาสร้างไฟล์ certs/v-carcare.pem และ certs/v-carcare-key.pem')
     print('\nV CarCare is ready:')
-    print(f'- Local computer: http://127.0.0.1:{port}')
-    print(f'- Mobile / same Wi-Fi: http://{local_ip}:{port}')
+    print(f'- Local computer: {scheme}://localhost:{port}')
+    print(f'- Mobile / same Wi-Fi: {scheme}://{local_ip}:{port}')
     print('  Open the mobile link on a phone connected to the same Wi-Fi.\n')
     app.run(
         host='0.0.0.0',
         port=port,
+        ssl_context=ssl_context,
         debug=os.environ.get('FLASK_DEBUG', '').lower() in {'1', 'true', 'yes'}
     )

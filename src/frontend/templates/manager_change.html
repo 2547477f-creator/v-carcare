@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>เปลี่ยนผู้จัดการ - V CarCare</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="bg-dark text-white"><main class="container py-4" style="max-width:620px">
+  <h3 class="text-warning"><i class="bi bi-person-gear me-2"></i>เปลี่ยนผู้จัดการ</h3>
+  <p class="text-secondary">ยืนยันใบหน้าผู้จัดการเดิมแล้ว กรุณากรอกข้อมูลและสแกนใบหน้าผู้จัดการใหม่</p>
+  <div class="card bg-black border-secondary p-3">
+    <label class="form-label">ชื่อผู้ใช้ใหม่</label><input id="username" class="form-control mb-3" autocomplete="username">
+    <label class="form-label">รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)</label><input id="password" type="password" class="form-control mb-3" autocomplete="new-password">
+    <video id="camera" class="w-100 rounded border border-warning mb-3" autoplay playsinline muted style="transform:scaleX(-1);max-height:340px;object-fit:cover"></video>
+    <p id="status" class="small text-secondary">กดเปิดกล้อง แล้วจัดใบหน้าผู้จัดการใหม่ให้อยู่ในกรอบ</p>
+    <div class="d-flex gap-2"><button id="start" class="btn btn-outline-warning"><i class="bi bi-camera-video"></i> เปิดกล้อง</button><button id="save" class="btn btn-warning fw-bold" disabled><i class="bi bi-person-check"></i> บันทึกผู้จัดการใหม่</button></div>
+  </div>
+</main><script>
+let stream; const video=document.querySelector('#camera'), status=document.querySelector('#status'), save=document.querySelector('#save');
+document.querySelector('#start').onclick=async()=>{try{if(!navigator.mediaDevices?.getUserMedia)throw Error();stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'user'}},audio:false});video.srcObject=stream;save.disabled=false;status.textContent='เปิดกล้องแล้ว';status.className='small text-success'}catch(e){status.textContent=location.protocol==='http:'&&location.hostname!=='localhost'?'เบราว์เซอร์บล็อกกล้องบน HTTP: กรุณาเปิดผ่าน localhost หรือ HTTPS':'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์กล้อง';status.className='small text-danger'}};
+document.querySelector('#save').onclick=async()=>{const username=document.querySelector('#username').value.trim(),password=document.querySelector('#password').value;if(!username||password.length<6)return alert('กรอกชื่อผู้ใช้และรหัสผ่านอย่างน้อย 6 ตัวอักษร');const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;const x=c.getContext('2d');x.translate(c.width,0);x.scale(-1,1);x.drawImage(video,0,0);save.disabled=true;status.textContent='กำลังบันทึก...';const r=await fetch('/api/security/change-manager',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,face_image:c.toDataURL('image/jpeg')})});const d=await r.json();if(d.status==='success')location.href=d.redirect;else{save.disabled=false;status.textContent=d.message;status.className='small text-danger'}};
+addEventListener('beforeunload',()=>stream?.getTracks().forEach(t=>t.stop()));
+</script></body></html>

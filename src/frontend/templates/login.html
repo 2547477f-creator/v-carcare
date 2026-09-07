@@ -213,7 +213,6 @@
 
         <div class="text-center mt-3">
             <button type="button" class="btn btn-outline-warning w-100 py-2 fw-bold" onclick="startPasswordReset()"><i class="bi bi-key-fill me-2"></i>รีเซ็ตรหัสผ่าน</button>
-            <button type="button" class="btn btn-outline-info w-100 py-2 fw-bold mt-2" onclick="startIpChange()"><i class="bi bi-router-fill me-2"></i>เปลี่ยน IP เครื่องหลัก (ผู้จัดการ)</button>
         </div>
 
     </div>
@@ -260,10 +259,6 @@
             if (!identity || !password) return;
             sessionStorage.setItem('passwordResetRequest', JSON.stringify({ role, identity, password }));
             location.href = '/face-checkin?mode=reset';
-        }
-        function startIpChange() {
-            if (!document.getElementById('tab-manager').classList.contains('active')) return alert('เปลี่ยน IP ได้เฉพาะฝั่งผู้จัดการ');
-            location.href = '/face-checkin?mode=change-ip';
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>

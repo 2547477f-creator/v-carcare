@@ -20,21 +20,73 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const logout = nav.querySelector('.logout-link');
     let faceScanAvailable = false;
+    let canEnrollManagerFace = false;
+    let currentRole = null;
     try {
         const response = await fetch('/api/face-scan-availability');
-        faceScanAvailable = response.ok && (await response.json()).available === true;
+        const availability = response.ok ? await response.json() : {};
+        faceScanAvailable = availability.available === true;
+        canEnrollManagerFace = availability.can_enroll_manager_face === true;
+        currentRole = availability.current_role;
     } catch (_) {}
     if (faceScanAvailable && logout && !nav.querySelector('.face-scan-link')) {
         const faceLink = document.createElement('a');
-        faceLink.href = '/face-checkin';
+        faceLink.href = `/face-checkin?role=${encodeURIComponent(currentRole || 'staff')}`;
         faceLink.className = 'nav-link face-scan-link text-warning';
         faceLink.innerHTML = '<i class="bi bi-camera-fill me-2"></i> สแกนหน้าเช็กอิน';
         nav.insertBefore(faceLink, logout);
     }
-    if (faceScanAvailable && serviceMobileNav) {
+    if (canEnrollManagerFace && logout && !nav.querySelector('.manager-face-enroll-link')) {
+        const enrollLink = document.createElement('a');
+        enrollLink.href = '/face-checkin?mode=enroll';
+        enrollLink.className = 'nav-link manager-face-enroll-link text-info';
+        enrollLink.innerHTML = '<i class="bi bi-person-bounding-box me-2"></i> ลงทะเบียนใบหน้าผู้จัดการ';
+        nav.insertBefore(enrollLink, logout);
+    }
+    if (canEnrollManagerFace && logout && !nav.querySelector('.manager-change-link')) {
+        const changeLink = document.createElement('a');
+        changeLink.href = '/face-checkin?mode=verify-manager-change';
+        changeLink.className = 'nav-link manager-change-link text-warning';
+        changeLink.innerHTML = '<i class="bi bi-person-gear me-2"></i> เปลี่ยนผู้จัดการ';
+        nav.insertBefore(changeLink, logout);
+    }
+    if (canEnrollManagerFace && logout && !nav.querySelector('.change-ip-link')) {
+        const ipLink = document.createElement('a');
+        ipLink.href = '/face-checkin?mode=change-ip';
+        ipLink.className = 'nav-link change-ip-link text-info';
+        ipLink.innerHTML = '<i class="bi bi-router-fill me-2"></i> ตั้งค่า IP เครื่องหลัก';
+        nav.insertBefore(ipLink, logout);
+    }
+    // เมนูมือถือเป็นแถบล่างคนละชุดกับ Sidebar จึงต้องเพิ่มปุ่มแยกต่างหาก
+    if (canEnrollManagerFace) {
+        document.querySelectorAll('.fb-nav-tabs').forEach(mobileNav => {
+            if (mobileNav.querySelector('.change-ip-link')) return;
+            const mobileLogout = mobileNav.querySelector('.logout-link');
+            if (!mobileLogout) return;
+            const ipLink = document.createElement('a');
+            ipLink.href = '/face-checkin?mode=change-ip';
+            ipLink.className = 'fb-tab-item change-ip-link text-info';
+            ipLink.innerHTML = '<i class="bi bi-router-fill"></i><span>ตั้งค่า IP</span>';
+            mobileNav.insertBefore(ipLink, mobileLogout);
+        });
+    }
+    // ปุ่มสแกนหน้าบนมือถือจะแสดงได้เฉพาะอุปกรณ์ที่เป็นเครื่องหลักเท่านั้น
+    if (faceScanAvailable) {
+        document.querySelectorAll('.fb-nav-tabs').forEach(mobileNav => {
+            if (mobileNav.querySelector('.face-scan-link')) return;
+            const mobileLogout = mobileNav.querySelector('.logout-link');
+            if (!mobileLogout) return;
+            const faceLink = document.createElement('a');
+            faceLink.href = `/face-checkin?role=${encodeURIComponent(currentRole || 'staff')}`;
+            faceLink.className = 'fb-tab-item face-scan-link text-warning';
+            faceLink.innerHTML = '<i class="bi bi-camera-fill"></i><span>สแกนหน้า</span>';
+            mobileNav.insertBefore(faceLink, mobileLogout);
+        });
+    }
+    if (faceScanAvailable && serviceMobileNav && !serviceMobileNav.querySelector('.face-scan-link')) {
         const faceLink = document.createElement('a');
-        faceLink.href = '/face-checkin';
-        faceLink.className = 'fb-tab-item text-warning';
+        faceLink.href = `/face-checkin?role=${encodeURIComponent(currentRole || 'staff')}`;
+        faceLink.className = 'fb-tab-item face-scan-link text-warning';
         faceLink.innerHTML = '<i class="bi bi-camera-fill"></i><span>สแกนหน้า</span>';
         serviceMobileNav.insertBefore(faceLink, serviceMobileNav.querySelector('.logout-link'));
     }
