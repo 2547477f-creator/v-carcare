@@ -70,7 +70,10 @@
                     <option value="rejected">ปฏิเสธ</option>
                 </select>
             </div>
-            <div class="col-md-4 d-flex align-items-end justify-content-end">
+            <div class="col-md-4 d-flex align-items-end justify-content-end gap-2">
+                <button class="btn btn-outline-info" type="button" onclick="editWithdrawalRequestLimit()" title="ตั้งค่าจำนวนครั้งที่พนักงานเบิกได้ต่อสัปดาห์">
+                    <i class="bi bi-sliders"></i> ตั้งค่าจำนวนครั้ง
+                </button>
                 <button class="btn btn-warning fw-bold w-100" data-bs-toggle="modal" data-bs-target="#addWithdrawalModal">
                     <i class="bi bi-plus-circle me-1"></i> สร้างคำขอเบิกเงินใหม่
                 </button>
@@ -180,6 +183,24 @@
                     ${message}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>`;
+        }
+
+        async function editWithdrawalRequestLimit() {
+            try {
+                const currentResponse = await fetch('/api/staff-withdrawals/settings');
+                const current = await currentResponse.json();
+                if (!currentResponse.ok) throw new Error(current.message || 'โหลดการตั้งค่าไม่สำเร็จ');
+                const value = prompt('จำนวนครั้งที่พนักงานเบิกได้ต่อสัปดาห์ (1-20)', current.max_requests_per_week);
+                if (value === null) return;
+                const response = await fetch('/api/staff-withdrawals/settings', {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ max_requests_per_week: Number(value) })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'บันทึกการตั้งค่าไม่สำเร็จ');
+                showAlert(`ตั้งค่าเบิกได้สูงสุด ${data.max_requests_per_week} ครั้ง/สัปดาห์แล้ว`, 'success');
+                if (document.getElementById('modal-staff-id').value) loadEligibility();
+            } catch (error) { showAlert(error.message, 'danger'); }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -330,6 +351,7 @@
         }
 
         async function changeStatus(id, status, note) {
+            if (status === 'paid' && !confirm('ยืนยันว่าจ่ายเงินให้พนักงานคนนี้เรียบร้อยแล้ว? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) return;
             try {
                 const res = await fetch(`/api/staff-withdrawals/${id}/status`, {
                     method: 'PUT',

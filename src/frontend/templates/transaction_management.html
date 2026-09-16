@@ -87,6 +87,7 @@
             const description = document.getElementById('description').value.trim();
             const amount = Number(document.getElementById('amount').value);
             if (!description || !Number.isFinite(amount) || amount <= 0) return alert('กรุณากรอกรายละเอียดและจำนวนเงินให้ถูกต้อง');
+            if (!confirm(`ยืนยันบันทึก${typeLabel} "${description}" จำนวน ${amount.toLocaleString(undefined, {minimumFractionDigits: 2})} บาท?`)) return;
             const res = await fetch('/api/finance/transactions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({transaction_type:transactionType, category, description, amount})});
             if (!res.ok) return alert('บันทึกรายการไม่สำเร็จ');
             window.location.href = '/finance';

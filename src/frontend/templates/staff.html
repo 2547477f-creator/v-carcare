@@ -648,7 +648,7 @@
                         id="face-count"
                         class="text-warning mt-3">
 
-                        รูปใบหน้า: 0 / 5
+                        รูปใบหน้า: 0 / 1
 
                     </p>
 
@@ -787,6 +787,16 @@
 
                 <div class="mb-2">
 
+                    <label class="form-label text-secondary small">สถานะ</label>
+                    <select id="backdate-attendance-type" class="form-select form-control-custom" onchange="toggleBackdateTimeFields()">
+                        <option value="work">มาทำงาน</option>
+                        <option value="leave">ลางาน</option>
+                    </select>
+
+                </div>
+
+                <div id="backdate-checkin-field" class="mb-2">
+
                     <label class="form-label text-secondary small">
                         เวลาเข้างาน
                     </label>
@@ -796,6 +806,20 @@
                         id="backdate-time"
                         class="form-control form-control-custom"
                         value="08:00">
+
+                </div>
+
+                <div id="backdate-checkout-field" class="mb-2">
+
+                    <label class="form-label text-secondary small">
+                        เวลาออกงาน
+                    </label>
+
+                    <input
+                        type="time"
+                        id="backdate-checkout-time"
+                        class="form-control form-control-custom">
+                    <small class="text-secondary d-block mt-1">ไม่บังคับ หากยังไม่ต้องการบันทึกเวลาออกงาน</small>
 
                 </div>
 
@@ -900,7 +924,7 @@
                 </div>
 
 
-                <div class="mb-3">
+                <div id="edit-attendance-checkin-field" class="mb-3">
 
                     <label class="form-label text-secondary small">
                         เวลาเข้างาน
@@ -914,8 +938,16 @@
 
                 </div>
 
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">สถานะวันทำงาน</label>
+                    <select id="edit-attendance-status" class="form-select form-control-custom" onchange="toggleEditAttendanceTimeFields()">
+                        <option value="work">มาทำงาน</option>
+                        <option value="leave">ลางาน</option>
+                    </select>
+                </div>
 
-                <div class="mb-2">
+
+                <div id="edit-attendance-checkout-field" class="mb-2">
 
                     <label class="form-label text-secondary small">
                         เวลาออกงาน
@@ -978,6 +1010,7 @@
     .calendar-day .day-number { font-weight:bold; }
     .calendar-day.worked { border-color:#198754; }
     .calendar-day.late { border-color:#ffc107; }
+    .calendar-day.leave { border-color:#0dcaf0; }
     .calendar-day .day-status { font-size:.72rem; margin-top:6px; line-height:1.2; }
     @media (max-width:575px) { .calendar-day { min-height:64px; padding:3px; } .calendar-day .day-status { font-size:.62rem; } }
   </style>
@@ -1004,6 +1037,7 @@
 let staffData = [];
 let stream = null;
 let faceImages = [];
+let isSavingStaff = false;
 let calendarStaffId = null;
 
 function openStaffCalendar(id) {
@@ -1043,11 +1077,18 @@ function renderStaffCalendar(data) {
     for (let day = 1; day <= daysInMonth; day++) {
         const key = `${data.month}-${String(day).padStart(2, '0')}`;
         const record = records[key];
-        const statusClass = record && record.check_in_at ? (record.status === 'late' ? 'late' : 'worked') : '';
-        const status = record && record.check_in_at
+        const isFutureDay = key > getTodayString();
+        const statusClass = record?.status === 'leave' ? 'leave' : record && record.check_in_at ? (record.status === 'late' ? 'late' : 'worked') : '';
+        const status = record?.status === 'leave'
+            ? '<span class="text-info">ลางาน</span>'
+            : record && record.check_in_at
             ? (record.status === 'late' ? `<span class="text-warning">สาย ${record.late_minutes || 0} นาที</span>` : '<span class="text-success">มาทำงาน</span>')
-            : '<span class="text-secondary">-</span>';
-        html += `<div class="calendar-day ${statusClass}"><div class="day-number">${day}</div><div class="day-status">${status}${record && record.check_in_at ? `<br><span class="text-secondary">${formatAttendanceTime(record.check_in_at)}</span>` : ''}</div></div>`;
+            : isFutureDay ? '' : '<span class="text-danger">ขาดงาน</span>';
+        const attendanceTimes = record && record.check_in_at
+            ? `<br><span class="text-secondary">เข้า ${formatAttendanceTime(record.check_in_at)}</span>`
+              + (record.check_out_at ? `<br><span class="text-info">ออก ${formatAttendanceTime(record.check_out_at)}</span>` : '')
+            : '';
+        html += `<div class="calendar-day ${statusClass}"><div class="day-number">${day}</div><div class="day-status">${status}${attendanceTimes}</div></div>`;
     }
     document.getElementById('calendar-records').innerHTML = html;
 }
@@ -1992,6 +2033,9 @@ function openBackdateModal(
         'backdate-time'
     ).value =
         '08:00';
+    document.getElementById('backdate-checkout-time').value = '';
+    document.getElementById('backdate-attendance-type').value = 'work';
+    toggleBackdateTimeFields();
 
 
     const modalElement =
@@ -2008,6 +2052,20 @@ function openBackdateModal(
 
     modal.show();
 
+}
+
+
+function toggleBackdateTimeFields() {
+    const isLeave = document.getElementById('backdate-attendance-type').value === 'leave';
+    document.getElementById('backdate-checkin-field').classList.toggle('d-none', isLeave);
+    document.getElementById('backdate-checkout-field').classList.toggle('d-none', isLeave);
+}
+
+
+function toggleEditAttendanceTimeFields() {
+    const isLeave = document.getElementById('edit-attendance-status').value === 'leave';
+    document.getElementById('edit-attendance-checkin-field').classList.toggle('d-none', isLeave);
+    document.getElementById('edit-attendance-checkout-field').classList.toggle('d-none', isLeave);
 }
 
 
@@ -2060,6 +2118,8 @@ function openAttendanceEdit(staffId) {
     document.getElementById('edit-attendance-date').value = workDate;
     document.getElementById('edit-attendance-checkin').value = attendanceTimeForInput(staff.check_in_at);
     document.getElementById('edit-attendance-checkout').value = attendanceTimeForInput(staff.check_out_at);
+    document.getElementById('edit-attendance-status').value = staff.status === 'leave' ? 'leave' : 'work';
+    toggleEditAttendanceTimeFields();
 
     bootstrap.Modal.getOrCreateInstance(
         document.getElementById('editAttendanceModal')
@@ -2074,6 +2134,7 @@ async function saveAttendanceEdit() {
     const workDate = document.getElementById('edit-attendance-date').value;
     const checkInTime = document.getElementById('edit-attendance-checkin').value;
     const checkOutTime = document.getElementById('edit-attendance-checkout').value;
+    const attendanceStatus = document.getElementById('edit-attendance-status').value;
 
     if (!staffId || !workDate) {
         showAlert('กรุณาเลือกพนักงานและวันที่', 'warning');
@@ -2081,15 +2142,17 @@ async function saveAttendanceEdit() {
     }
 
     try {
-        const response = await fetch('/api/staff/attendance/edit', {
+        const response = await fetch(attendanceStatus === 'leave' ? '/api/staff/attendance/leave' : '/api/staff/attendance/edit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({
                 staff_id: Number(staffId),
                 work_date: workDate,
-                check_in_time: checkInTime,
-                check_out_time: checkOutTime
+                ...(attendanceStatus === 'leave' ? {} : {
+                    check_in_time: checkInTime,
+                    check_out_time: checkOutTime
+                })
             })
         });
         const data = await response.json();
@@ -2136,10 +2199,17 @@ async function submitBackdateAttendance() {
             'backdate-time'
         ).value;
 
+    const checkOutTime =
+        document.getElementById(
+            'backdate-checkout-time'
+        ).value;
+
+    const attendanceType = document.getElementById('backdate-attendance-type').value;
+
 
     if (!staffId ||
         !workDate ||
-        !checkInTime) {
+        (!checkInTime && attendanceType !== 'leave')) {
 
         showAlert(
             'กรุณากรอกข้อมูลให้ครบถ้วน',
@@ -2155,7 +2225,7 @@ async function submitBackdateAttendance() {
 
         const response =
             await fetch(
-                '/api/staff/attendance/backdate',
+                attendanceType === 'leave' ? '/api/staff/attendance/leave' : '/api/staff/attendance/backdate',
                 {
                     method: 'POST',
 
@@ -2174,8 +2244,10 @@ async function submitBackdateAttendance() {
                         work_date:
                             workDate,
 
-                        check_in_time:
-                            checkInTime
+                        ...(attendanceType === 'leave' ? {} : {
+                            check_in_time: checkInTime,
+                            check_out_time: checkOutTime
+                        })
 
                     })
 
@@ -2286,6 +2358,17 @@ async function editWage(id) {
         newWage === null ||
         newWage.trim() === '' ||
         isNaN(newWage)
+    ) {
+
+        return;
+
+    }
+
+
+    if (
+        !confirm(
+            `ยืนยันเปลี่ยนค่าแรงของ "${staff ? staff.full_name : ''}" เป็น ${Number(newWage).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท/วัน?`
+        )
     ) {
 
         return;
@@ -2705,10 +2788,10 @@ function captureFace() {
     }
 
 
-    if (faceImages.length >= 5) {
+    if (faceImages.length >= 1) {
 
         alert(
-            'เก็บรูปครบ 5 รูปแล้ว'
+            'เก็บรูปครบ 1 รูปแล้ว'
         );
 
         return;
@@ -2788,18 +2871,18 @@ function captureFace() {
 
 
     faceCount.innerText =
-        `รูปใบหน้า: ${faceImages.length} / 5`;
+        `รูปใบหน้า: ${faceImages.length} / 1`;
 
 
     if (
-        faceImages.length === 5
+        faceImages.length === 1
     ) {
 
         faceCount.className =
             'text-success mt-3';
 
         faceCount.innerText =
-            'เก็บใบหน้าครบ 5 รูปแล้ว';
+            'เก็บใบหน้าครบ 1 รูปแล้ว';
 
     }
 
@@ -2812,10 +2895,10 @@ function captureFace() {
 
 async function captureAndSave() {
 
-    if (faceImages.length < 5) {
+    if (faceImages.length < 1) {
 
         alert(
-            'กรุณาถ่ายรูปใบหน้าให้ครบ 5 รูปก่อน'
+            'กรุณาถ่ายรูปใบหน้าอย่างน้อย 1 รูปก่อน'
         );
 
         return;
@@ -2865,6 +2948,8 @@ async function captureAndSave() {
 
     try {
 
+        isSavingStaff = true;
+        document.querySelectorAll('#addStaffModal button').forEach(button => button.disabled = true);
         btnSave.disabled = true;
 
 
@@ -2960,6 +3045,8 @@ async function captureAndSave() {
                 );
 
 
+        // This is a successful completion, so allow the modal to close.
+        isSavingStaff = false;
         modal.hide();
 
 
@@ -2987,6 +3074,8 @@ async function captureAndSave() {
 
     finally {
 
+        isSavingStaff = false;
+        document.querySelectorAll('#addStaffModal button').forEach(button => button.disabled = false);
         btnSave.innerHTML =
             originalText;
 
@@ -3005,6 +3094,18 @@ async function captureAndSave() {
 document
     .getElementById('addStaffModal')
     .addEventListener(
+        'hide.bs.modal',
+        function (event) {
+            if (isSavingStaff) {
+                event.preventDefault();
+                showAlert('กำลังบันทึกข้อมูลพนักงาน กรุณารอให้เสร็จก่อน', 'warning');
+            }
+        }
+    );
+
+document
+    .getElementById('addStaffModal')
+    .addEventListener(
         'hidden.bs.modal',
         function () {
 
@@ -3017,7 +3118,7 @@ document
             document
                 .getElementById('face-count')
                 .innerText =
-                'รูปใบหน้า: 0 / 5';
+                'รูปใบหน้า: 0 / 1';
 
 
             document

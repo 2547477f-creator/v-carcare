@@ -45,7 +45,7 @@
     </nav>
     <main class="container py-4" style="max-width: 760px;">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="m-0 text-orange"><i class="bi bi-person-vcard me-2"></i>ลงทะเบียนลูกค้าและรถ</h2>
+            <h2 class="m-0 text-orange"><i class="bi bi-person-vcard me-2"></i>{% if edit_vehicle_id %}แก้ไขข้อมูลลูกค้าและรถ{% else %}ลงทะเบียนลูกค้าและรถ{% endif %}</h2>
             <a class="btn btn-outline-light" href="/pos">ไปหน้ารับรถ</a>
         </div>
         <div id="alertBox"></div>
@@ -62,11 +62,12 @@
                 <div class="col-md-6"><label class="form-label" for="category">ประเภทรถ<span class="required-mark">*</span></label><select id="category" class="form-select" required onchange="setSizes()"><option value="">เลือกประเภทรถ</option><option value="car">รถยนต์</option><option value="bike">มอเตอร์ไซค์</option></select></div>
                 <div class="col-md-6"><label class="form-label" for="size">ขนาดรถ<span class="required-mark">*</span></label><select id="size" class="form-select" required disabled><option value="">เลือกประเภทรถก่อน</option></select></div>
             </div>
-            <button class="btn btn-warning mt-4 fw-bold" type="submit"><i class="bi bi-save me-2"></i>บันทึกการลงทะเบียน</button>
+            <button id="saveRegistrationBtn" class="btn btn-warning mt-4 fw-bold" type="submit"><i class="bi bi-save me-2"></i>{% if edit_vehicle_id %}บันทึกการแก้ไข{% else %}บันทึกการลงทะเบียน{% endif %}</button>
         </form>
     </main>
     </div>
     <script>
+        const editVehicleId = {{ edit_vehicle_id|tojson }};
         const thaiProvinces = [
             'กรุงเทพมหานคร', 'กระบี่', 'กาญจนบุรี', 'กาฬสินธุ์', 'กำแพงเพชร', 'ขอนแก่น', 'จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี', 'ชัยนาท', 'ชัยภูมิ', 'ชุมพร', 'เชียงราย', 'เชียงใหม่', 'ตรัง', 'ตราด', 'ตาก', 'นครนายก', 'นครปฐม', 'นครพนม', 'นครราชสีมา', 'นครศรีธรรมราช', 'นครสวรรค์', 'นนทบุรี', 'นราธิวาส', 'น่าน', 'บึงกาฬ', 'บุรีรัมย์', 'ปทุมธานี', 'ประจวบคีรีขันธ์', 'ปราจีนบุรี', 'ปัตตานี', 'พระนครศรีอยุธยา', 'พะเยา', 'พังงา', 'พัทลุง', 'พิจิตร', 'พิษณุโลก', 'เพชรบุรี', 'เพชรบูรณ์', 'แพร่', 'ภูเก็ต', 'มหาสารคาม', 'มุกดาหาร', 'แม่ฮ่องสอน', 'ยโสธร', 'ยะลา', 'ร้อยเอ็ด', 'ระนอง', 'ระยอง', 'ราชบุรี', 'ลพบุรี', 'ลำปาง', 'ลำพูน', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สงขลา', 'สตูล', 'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระแก้ว', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย', 'สุพรรณบุรี', 'สุราษฎร์ธานี', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อ่างทอง', 'อำนาจเจริญ', 'อุดรธานี', 'อุตรดิตถ์', 'อุทัยธานี', 'อุบลราชธานี'
         ];
@@ -111,14 +112,40 @@
             size.disabled = !category; size.innerHTML = `<option value="">${category ? 'เลือกขนาดรถ' : 'เลือกประเภทรถก่อน'}</option>` + (category ? options.map(x => `<option value="${x[0]}">${x[1]}</option>`).join('') : '');
         }
         function alertBox(message, type) { document.getElementById('alertBox').innerHTML = `<div class="alert alert-${type}">${message}</div>`; }
+        async function loadVehicleForEdit() {
+            if (!editVehicleId) return;
+            try {
+                const res = await fetch(`/api/vehicles/${editVehicleId}`);
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'ไม่พบข้อมูลรถ');
+                const item = data.data;
+                phone.value = item.phone || '';
+                lineId.value = item.line_id || '';
+                licensePlate.value = item.license_plate || '';
+                province.value = item.province || '';
+                category.value = item.category || '';
+                setSizes();
+                size.value = item.size_code || '';
+            } catch (err) {
+                alertBox(err.message, 'danger');
+            }
+        }
+
         document.getElementById('registerForm').addEventListener('submit', async (event) => {
             event.preventDefault();
             const payload = { phone: phone.value.trim(), line_id: lineId.value.trim(), license_plate: licensePlate.value.trim(), province: province.value.trim(), category: category.value, size: size.value };
-            const res = await fetch('/api/registrations', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const url = editVehicleId ? `/api/vehicles/${editVehicleId}` : '/api/registrations';
+            const method = editVehicleId ? 'PUT' : 'POST';
+            const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
             const data = await res.json();
             if (!res.ok) return alertBox(data.message || data.error || 'บันทึกไม่สำเร็จ', 'danger');
-            alertBox('ลงทะเบียนเรียบร้อยแล้ว สามารถไปเปิดคิวที่หน้า POS ได้', 'success'); event.target.reset(); setSizes();
+            if (editVehicleId) {
+                alertBox('บันทึกการแก้ไขเรียบร้อยแล้ว <a class="alert-link" href="/pos">กลับไปเปิดคิวที่หน้า POS</a>', 'success');
+            } else {
+                alertBox('ลงทะเบียนเรียบร้อยแล้ว สามารถไปเปิดคิวที่หน้า POS ได้', 'success'); event.target.reset(); setSizes();
+            }
         });
+        loadVehicleForEdit();
     </script>
 <script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>
 </body>

@@ -379,7 +379,8 @@
             drying: 'กำลังเช็ดแห้ง/เคลือบ',
             ready: 'พร้อมรับรถ',
             completed: 'เสร็จสิ้น',
-            picked_up: 'รับรถแล้ว'
+            picked_up: 'รับรถแล้ว',
+            cancelled: 'ยกเลิกแล้ว'
         };
 
         function vehicleLabel(order) {
@@ -396,9 +397,17 @@
             let actionHtml = '';
             // ปุ่มอัปเดตสถานะตามขั้นตอน
             if (order.status === 'pending') {
-                actionHtml = `<button class="btn btn-sm btn-outline-warning px-3" onclick="advanceOrder(${order.order_id}, 'in_progress')">เริ่มงาน</button>`;
+                actionHtml = `
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-danger px-3" onclick="cancelOrder(${order.order_id})" title="ยกเลิกคิวนี้"><i class="bi bi-x-lg"></i></button>
+                        <button class="btn btn-sm btn-outline-warning px-3" onclick="advanceOrder(${order.order_id}, 'in_progress')">เริ่มงาน</button>
+                    </div>`;
             } else if (order.status === 'in_progress' || order.status === 'drying' || order.status === 'ready') {
-                actionHtml = `<button class="btn btn-sm btn-success px-3" onclick="advanceOrder(${order.order_id}, 'completed')">ล้างเสร็จ</button>`;
+                actionHtml = `
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-danger px-3" onclick="cancelOrder(${order.order_id})" title="ยกเลิกรายการนี้"><i class="bi bi-x-lg"></i></button>
+                        <button class="btn btn-sm btn-success px-3" onclick="advanceOrder(${order.order_id}, 'completed')">ล้างเสร็จ</button>
+                    </div>`;
             } else if (order.status === 'completed') {
                 // กดล้างเสร็จแล้วจะเรียก openInspection แทนเพื่อเช็กความเสียหายก่อน
                 actionHtml = `<button class="btn btn-sm btn-success fw-bold px-3" onclick="openInspection(${order.order_id}, ${Number(order.total_amount)})"><i class="bi bi-cash-coin me-1"></i>ชำระเงิน</button>`;
@@ -431,6 +440,28 @@
                 await loadOrders(); // โหลดข้อมูลใหม่หลังจากอัปเดต
             } catch (err) {
                 alert('อัปเดตสถานะไม่สำเร็จ: ' + err.message);
+            }
+        }
+
+        // ยกเลิกรายการได้จนกว่างานจะเสร็จ โดยบันทึกสถานะ cancelled ไว้ในประวัติ
+        async function cancelOrder(orderId) {
+            if (!confirm('ยืนยันยกเลิกรายการนี้? รายการจะถูกเก็บไว้ในประวัติเป็นสถานะ “ยกเลิกแล้ว” และไม่สามารถย้อนกลับได้')) return;
+
+            const cardPc = document.getElementById(`order-${orderId}-pc`);
+            const cardMb = document.getElementById(`order-${orderId}-mb`);
+            [cardPc, cardMb].forEach(el => { if (el) el.style.opacity = '0.5'; });
+
+            try {
+                const res = await fetch(`/api/orders/${orderId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'cancelled' })
+                });
+                if (!res.ok) throw new Error('ยกเลิกไม่สำเร็จ');
+                await loadOrders(); // โหลดข้อมูลใหม่หลังจากยกเลิก
+            } catch (err) {
+                alert('ยกเลิกคิวไม่สำเร็จ: ' + err.message);
+                [cardPc, cardMb].forEach(el => { if (el) el.style.opacity = '1'; });
             }
         }
 

@@ -254,11 +254,7 @@
         }
         function startPasswordReset() {
             const role = document.getElementById('tab-manager').classList.contains('active') ? 'manager' : 'staff';
-            const identity = prompt(role === 'manager' ? 'ชื่อผู้ใช้ผู้จัดการ' : 'รหัสพนักงาน');
-            const password = prompt(role === 'manager' ? 'รหัสผ่านใหม่' : 'PIN ใหม่');
-            if (!identity || !password) return;
-            sessionStorage.setItem('passwordResetRequest', JSON.stringify({ role, identity, password }));
-            location.href = '/face-checkin?mode=reset';
+            location.href = `/face-checkin?mode=reset&role=${encodeURIComponent(role)}`;
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>

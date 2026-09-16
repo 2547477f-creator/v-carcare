@@ -1,17 +1,16 @@
 import base64
-import hashlib
-import hmac
+import binascii
 from datetime import date, datetime, time, timedelta
 from functools import wraps
 import json
 import os
 import socket
+import time as clock
+import threading
 import uuid
-from urllib.error import HTTPError, URLError
-from urllib.request import Request as UrlRequest, urlopen
 
 import cv2
-from deepface import DeepFace
+from insightface.app import FaceAnalysis
 from dotenv import load_dotenv
 from flask import (
     Flask,
@@ -52,9 +51,9 @@ CORS(app, supports_credentials=True)
 
 
 @app.after_request
-def disable_browser_cache_for_app_updates(response):
-    """Prevent phones from retaining old templates/scripts after a local update."""
-    if request.path.startswith('/static/') or response.mimetype == 'text/html':
+def disable_browser_cache_for_face_updates(response):
+    """Ensure scan terminals receive the current role-locking JavaScript."""
+    if response.mimetype == 'text/html' or request.path.endswith('.js'):
         response.headers['Cache-Control'] = 'no-store, max-age=0, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -76,7 +75,11 @@ WORK_START_TIME = time(8, 0)
 STAFF_WITHDRAWAL_MAX_PER_REQUEST = 3000
 STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK = 2
 CENTRAL_FUND_OPENING_FLOAT = 3000
-LINE_REPLY_API_URL = 'https://api.line.me/v2/bot/message/reply'
+FACE_MATCH_DISTANCE_THRESHOLD = 0.42
+FACE_MODEL_NAME = 'InsightFace-buffalo_sc'
+_face_app = None
+_auto_shop_open_thread = None
+_auto_shop_open_thread_lock = threading.Lock()
 
 THAI_SERVICE_NAMES = {
     'wash': 'ล้างภายนอก',
@@ -101,44 +104,6 @@ def get_local_network_ip():
             return sock.getsockname()[0]
     except OSError:
         return '127.0.0.1'
-
-
-def _line_webhook_signature_is_valid(body, signature):
-    """Verify LINE's HMAC-SHA256 signature against the untouched request body."""
-    secret = os.environ.get('LINE_CHANNEL_SECRET', '')
-    if not secret or not signature:
-        return False
-    expected = base64.b64encode(
-        hmac.new(secret.encode('utf-8'), body, hashlib.sha256).digest()
-    ).decode('utf-8')
-    return hmac.compare_digest(expected, signature)
-
-
-def _line_reply(reply_token, text):
-    """Reply to one LINE event without exposing credentials in exceptions or logs."""
-    access_token = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '')
-    if not access_token:
-        app.logger.error('LINE reply skipped: access token is not configured')
-        return False
-    payload = json.dumps({
-        'replyToken': reply_token,
-        'messages': [{'type': 'text', 'text': text[:5000]}],
-    }).encode('utf-8')
-    request_obj = UrlRequest(
-        LINE_REPLY_API_URL,
-        data=payload,
-        headers={
-            'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json',
-        },
-        method='POST',
-    )
-    try:
-        with urlopen(request_obj, timeout=5) as response:
-            return 200 <= response.status < 300
-    except (HTTPError, URLError, TimeoutError) as error:
-        app.logger.warning('LINE reply request failed: %s', getattr(error, 'code', type(error).__name__))
-        return False
 
 
 # ===================================================================
@@ -180,22 +145,31 @@ def calculate_attendance_status(check_in_at):
 
 def create_face_embedding(image_path):
     """สร้าง Face Embedding จากรูปภาพ"""
-    detector_backends = ["retinaface", "mtcnn", "opencv"]
+    global _face_app
+    if _face_app is None:
+        _face_app = FaceAnalysis(
+            name='buffalo_sc', root=os.path.join(ROOT_DIR, '.models'),
+            providers=['CPUExecutionProvider'],
+        )
+        _face_app.prepare(ctx_id=-1, det_size=(320, 320))
+    image = cv2.imread(image_path)
+    if image is None:
+        return None
+    faces = _face_app.get(image)
+    if not faces:
+        return None
+    face = max(faces, key=lambda item: (item.bbox[2] - item.bbox[0]) * (item.bbox[3] - item.bbox[1]))
+    return face.normed_embedding.tolist()
 
-    for backend in detector_backends:
-        try:
-            embedding = DeepFace.represent(
-                img_path=image_path,
-                model_name="Facenet512",
-                detector_backend=backend,
-                enforce_detection=True
-            )
-            return embedding[0]["embedding"]
-        except Exception as e:
-            print(f"[create_face_embedding] backend '{backend}' failed: {e}")
-            continue
 
-    return None
+def warm_up_face_model():
+    """Load the recognition model before the first user presses Scan."""
+    try:
+        create_face_embedding(os.path.join(app.static_folder, 'faces', 'warmup.jpg'))
+        print("[face] InsightFace model ready")
+    except Exception as exc:
+        # Do not prevent the web server from starting; represent() will retry.
+        print(f"[face] model warm-up failed: {exc}")
 
 
 def ensure_thai_service_names(cur):
@@ -226,26 +200,38 @@ def _cosine_distance(a, b):
     return 1 - (np.dot(a, b) / denom)
 
 
+FACE_PROFILE_CACHE_SECONDS = 60
+_face_profile_cache = {"loaded_at": 0, "rows": []}
+
+
 def find_matching_app_user(captured_embedding, role=None):
     """เทียบ embedding ที่ถ่ายมากับทุกโปรไฟล์ใบหน้าที่บันทึกไว้"""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        query = "SELECT fp.app_user_id, fp.embedding FROM face_profiles fp JOIN app_users au ON au.id = fp.app_user_id WHERE fp.app_user_id IS NOT NULL AND au.is_active = true"
-        params = []
-        if role in ('manager', 'staff'):
-            query += " AND au.role = %s"
-            params.append(role)
-        cur.execute(query + ";", params)
-        rows = cur.fetchall()
-    finally:
-        cur.close()
-        conn.close()
+    if clock.monotonic() - _face_profile_cache["loaded_at"] >= FACE_PROFILE_CACHE_SECONDS:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("""
+                SELECT fp.app_user_id, fp.embedding, au.role
+                FROM face_profiles fp
+                JOIN app_users au ON au.id = fp.app_user_id
+                WHERE fp.app_user_id IS NOT NULL
+                  AND au.is_active = true
+                  AND fp.model_name = %s;
+            """, (FACE_MODEL_NAME,))
+            _face_profile_cache["rows"] = cur.fetchall()
+            _face_profile_cache["loaded_at"] = clock.monotonic()
+        finally:
+            cur.close()
+            conn.close()
+
+    rows = _face_profile_cache["rows"]
 
     best_user_id = None
     best_distance = None
 
     for row in rows:
+        if role and row["role"] != role:
+            continue
         stored_embedding = _load_embedding(row['embedding'])
         distance = _cosine_distance(captured_embedding, stored_embedding)
         if best_distance is None or distance < best_distance:
@@ -392,15 +378,17 @@ def _ensure_finance_payment_method_column(cur):
 
 
 def _client_ip():
-    """Return the client IP, using this machine's LAN IP for local browser access."""
-    remote_ip = request.remote_addr or ''
+    """Return the direct client IP; do not trust forwarded headers unless a proxy is configured."""
+    return request.remote_addr or ''
 
-    # เมื่อเปิดเว็บด้วย localhost เบราว์เซอร์และเซิร์ฟเวอร์คือเครื่องเดียวกัน
-    # Flask จะเห็นเป็น 127.0.0.1 แต่ต้องบันทึก IP LAN ของเครื่องหลักจริง
-    if remote_ip in ('127.0.0.1', '::1', '::ffff:127.0.0.1'):
-        return get_local_network_ip()
 
-    return remote_ip
+def _is_primary_face_terminal(primary_ip):
+    """Treat localhost and this computer's LAN address as one scan terminal."""
+    client_ip = _client_ip()
+    if not primary_ip or primary_ip == client_ip:
+        return True
+    loopback_ips = {'127.0.0.1', '::1'}
+    return client_ip in loopback_ips and primary_ip in loopback_ips | {get_local_network_ip()}
 
 
 def _ensure_security_settings(cur):
@@ -445,6 +433,7 @@ def _face_image_to_user_id(face_image_b64, prefix):
 def _ensure_daily_cash_float(cur, force=False):
     """Move the fixed change float once per calendar day, when funds are available."""
     _ensure_central_fund_tables(cur)
+    cash_float_amount = _get_cash_float_amount(cur)
     if not force:
         cur.execute("""SELECT 1 FROM central_fund_transactions
            WHERE movement_type = 'opening_float' AND opening_date = CURRENT_DATE;""")
@@ -452,23 +441,123 @@ def _ensure_daily_cash_float(cur, force=False):
             return False
     cur.execute("SELECT balance, cash_float_balance FROM central_fund WHERE id = 1 FOR UPDATE;")
     fund = cur.fetchone()
-    if (not force and float(fund['cash_float_balance']) > 0) or float(fund['balance']) < CENTRAL_FUND_OPENING_FLOAT:
+    # Never issue another float while the shop is still open.  ``force`` only
+    # permits another opening after a same-day close; it must not bypass this
+    # active-float safeguard.
+    if float(fund['cash_float_balance'] or 0) > 0 or float(fund['balance']) < cash_float_amount:
         return False
     cur.execute(
         """UPDATE central_fund
            SET balance = balance - %s, cash_float_balance = cash_float_balance + %s,
                shop_opened_at = CASE WHEN %s THEN NOW() ELSE shop_opened_at END, updated_at = NOW()
            WHERE id = 1;""",
-        (CENTRAL_FUND_OPENING_FLOAT, CENTRAL_FUND_OPENING_FLOAT, force)
+        (cash_float_amount, cash_float_amount, force)
     )
     cur.execute(
         """INSERT INTO central_fund_transactions
                (movement_type, amount, balance_after, description, opening_date)
            VALUES ('opening_float', %s, %s, %s, CURRENT_DATE);""",
-        (-CENTRAL_FUND_OPENING_FLOAT, float(fund['balance']) - CENTRAL_FUND_OPENING_FLOAT,
+        (-cash_float_amount, float(fund['balance']) - cash_float_amount,
          'นำเงินออกเป็นเงินทอนประจำวัน')
     )
     return True
+
+
+def _get_auto_open_settings(cur):
+    _ensure_security_settings(cur)
+    cur.execute("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('auto_shop_open_enabled', 'auto_shop_open_time');")
+    values = {row['setting_key']: row['setting_value'] for row in cur.fetchall()}
+    return {
+        'enabled': values.get('auto_shop_open_enabled', 'false').lower() == 'true',
+        'time': values.get('auto_shop_open_time', '08:00'),
+    }
+
+
+def _get_cash_float_amount(cur):
+    """Return the manager-configured float, retaining 3,000 as the default."""
+    _ensure_security_settings(cur)
+    cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'cash_float_amount';")
+    row = cur.fetchone()
+    try:
+        amount = float(row['setting_value']) if row else CENTRAL_FUND_OPENING_FLOAT
+        return amount if amount > 0 else CENTRAL_FUND_OPENING_FLOAT
+    except (TypeError, ValueError):
+        return CENTRAL_FUND_OPENING_FLOAT
+
+
+def _get_withdrawal_max_requests(cur):
+    _ensure_security_settings(cur)
+    cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'staff_withdrawal_max_requests_per_week';")
+    row = cur.fetchone()
+    try:
+        value = int(row['setting_value']) if row else STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK
+        return value if value > 0 else STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK
+    except (TypeError, ValueError):
+        return STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK
+
+
+def _central_fund_has_active_cash_float(cur):
+    cur.execute("SELECT cash_float_balance FROM central_fund WHERE id = 1;")
+    fund = cur.fetchone()
+    return bool(fund and float(fund['cash_float_balance'] or 0) > 0)
+
+
+def _run_scheduled_shop_open():
+    """Open once per day after the configured time while this server is running."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        settings = _get_auto_open_settings(cur)
+        if not settings['enabled'] or datetime.now().strftime('%H:%M') < settings['time']:
+            return False
+        today = date.today().isoformat()
+        cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'auto_shop_open_last_date';")
+        last_run = cur.fetchone()
+        if last_run and last_run['setting_value'] == today:
+            return False
+        opened = _ensure_daily_cash_float(cur, force=True)
+        # A shop already opened manually at the scheduled moment is also a
+        # successful scheduled state.  Mark it so closing later today does not
+        # cause the scheduler to open a second float.
+        if opened or _central_fund_has_active_cash_float(cur):
+            cur.execute("""INSERT INTO system_settings (setting_key, setting_value, updated_at)
+                           VALUES ('auto_shop_open_last_date', %s, NOW())
+                           ON CONFLICT (setting_key) DO UPDATE
+                           SET setting_value = EXCLUDED.setting_value, updated_at = NOW();""", (today,))
+        conn.commit()
+        return opened
+    except Exception as exc:
+        conn.rollback()
+        app.logger.warning('Scheduled shop open failed: %s', exc)
+        return False
+    finally:
+        cur.close()
+        conn.close()
+
+
+def _auto_shop_open_loop():
+    while True:
+        _run_scheduled_shop_open()
+        clock.sleep(5)
+
+
+def start_auto_shop_open_scheduler():
+    """Start one in-process scheduler regardless of how Flask is launched."""
+    global _auto_shop_open_thread
+    with _auto_shop_open_thread_lock:
+        if _auto_shop_open_thread and _auto_shop_open_thread.is_alive():
+            return
+        _auto_shop_open_thread = threading.Thread(
+            target=_auto_shop_open_loop, name='auto-shop-open', daemon=True
+        )
+        _auto_shop_open_thread.start()
+
+
+@app.before_request
+def ensure_auto_shop_open_scheduler():
+    # This also covers deployments started with ``flask run`` or a WSGI server,
+    # which do not execute the module's ``__main__`` block below.
+    start_auto_shop_open_scheduler()
 
 
 # ===================================================================
@@ -631,7 +720,10 @@ def pos():
 @app.route('/register')
 @login_required
 def register():
-    return render_template('register.html', session_role=session.get('role'), session_name=session.get('display_name'))
+    return render_template(
+        'register.html', session_role=session.get('role'), session_name=session.get('display_name'),
+        edit_vehicle_id=request.args.get('vehicle_id', type=int)
+    )
 
 
 @app.route('/history')
@@ -645,50 +737,20 @@ def track():
     return render_template('track.html')
 
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Lightweight process health check; never returns secret values."""
-    return jsonify({
-        'status': 'ok',
-        'line_webhook_configured': bool(
-            os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
-            and os.environ.get('LINE_CHANNEL_SECRET')
-        ),
-    }), 200
-
-
-@app.route('/line/webhook', methods=['POST'])
-def line_webhook():
-    """Receive LINE Messaging API events and reply to text messages."""
-    body = request.get_data(cache=True)
-    signature = request.headers.get('X-Line-Signature', '')
-    if not _line_webhook_signature_is_valid(body, signature):
-        app.logger.warning('Rejected LINE webhook with an invalid signature')
-        return jsonify({'error': 'invalid signature'}), 401
-
-    try:
-        payload = json.loads(body.decode('utf-8'))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return jsonify({'error': 'invalid JSON'}), 400
-
-    for event in payload.get('events', []):
-        message = event.get('message') or {}
-        if event.get('type') != 'message' or message.get('type') != 'text':
-            continue
-        reply_token = event.get('replyToken')
-        if not reply_token:
-            continue
-        incoming_text = (message.get('text') or '').strip()
-        reply_text = 'ได้รับข้อความแล้ว' if not incoming_text else f'ได้รับข้อความแล้ว: {incoming_text}'
-        _line_reply(reply_token, reply_text)
-
-    # LINE sends an empty events array when verifying the URL; it must receive 200.
-    return jsonify({'status': 'ok'}), 200
-
-
 @app.route('/face-checkin')
-def face_checkin():
+@app.route('/face-checkin/')
+@app.route('/face-checkin/<string:required_role>')
+@app.route('/face-checkin/<string:required_role>/')
+def face_checkin(required_role=None):
     mode = request.args.get('mode', 'login')
+    if required_role and session.get('role') and required_role != session['role']:
+        return "ไม่อนุญาตให้สแกนข้ามสิทธิ์", 403
+    # The scan screen's selected role must win over an existing browser
+    # session, so one enrolled face can be used independently for Staff or
+    # Manager without being routed to the previous session's role.
+    scan_role = required_role or request.args.get('role') or session.get('role')
+    if scan_role not in ('manager', 'staff'):
+        scan_role = None
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -696,10 +758,13 @@ def face_checkin():
     finally:
         cur.close()
         conn.close()
+    if not _is_primary_face_terminal(primary_ip) and mode != 'change-ip':
+        return "ไม่อนุญาตให้ใช้งานสแกนหน้าจากเครื่องนี้", 403
     return render_template(
         'face_checkin.html',
-        scan_allowed=not primary_ip or primary_ip == _client_ip(),
-        face_mode=mode
+        face_mode=mode,
+        scan_role=scan_role,
+        scan_allowed=_is_primary_face_terminal(primary_ip),
     )
 
 
@@ -710,10 +775,11 @@ def face_scan_availability():
     cur = conn.cursor()
     try:
         primary_ip = _primary_face_scan_ip(cur)
+        current_role = session.get('role')
         return jsonify({
-            "available": bool(primary_ip and primary_ip == _client_ip()),
-            "can_enroll_manager_face": session.get('role') == 'manager',
-            "current_role": session.get('role')
+            "available": bool(primary_ip and _is_primary_face_terminal(primary_ip)),
+            "current_role": current_role,
+            "can_enroll_manager_face": current_role == 'manager',
         })
     finally:
         cur.close()
@@ -775,40 +841,74 @@ def staff_advances_page():
 # ===================================================================
 # 🔑 5. ROUTE ตั้งค่าเริ่มต้นระบบ & Authentication APIs
 # ===================================================================
+@app.route('/api/password-reset/face/verify', methods=['POST'])
+def verify_password_reset_face():
+    data = request.json or {}
+    role = data.get('role')
+    if role not in ('manager', 'staff'):
+        return jsonify({"status": "error", "message": "กรุณาเลือกสิทธิ์ที่จะเปลี่ยนรหัสผ่าน"}), 400
+    try:
+        matched_id = _face_image_to_user_id(data.get('face_image'), 'reset')
+        conn = get_db_connection()
+        cur = conn.cursor()
+        if role == 'manager':
+            cur.execute("SELECT id, username AS display_name, username FROM app_users WHERE id = %s AND role = 'manager' AND is_active = true;", (matched_id,))
+            target = cur.fetchone()
+        else:
+            cur.execute("""SELECT au.id, au.staff_id, s.full_name AS display_name, au.username
+                           FROM app_users au JOIN staff s ON s.id = au.staff_id
+                           WHERE au.id = %s AND au.role = 'staff' AND au.is_active = true;""", (matched_id,))
+            target = cur.fetchone()
+        if not target:
+            return jsonify({"status": "error", "message": "ใบหน้าไม่อยู่ในสิทธิ์ที่เลือก"}), 403
+        session['password_reset_user_id'] = target['id']
+        session['password_reset_role'] = role
+        return jsonify({"status": "success", "display_name": target['display_name'] or target['username']}), 200
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    except Exception as exc:
+        app.logger.exception('Password-reset face verification failed')
+        return jsonify({"status": "error", "message": "ไม่สามารถตรวจสอบใบหน้าได้ กรุณาลองใหม่"}), 500
+    finally:
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
+            conn.close()
+
+
 @app.route('/api/password-reset/face', methods=['POST'])
 def reset_password_with_face():
     data = request.json or {}
-    role, password = data.get('role'), data.get('new_password') or ''
-    if role not in ('manager', 'staff') or len(password) < 4:
+    password = data.get('new_password') or ''
+    user_id = session.get('password_reset_user_id')
+    role = session.get('password_reset_role')
+    if not user_id or role not in ('manager', 'staff'):
+        return jsonify({"status": "error", "message": "กรุณาสแกนใบหน้าเพื่อยืนยันตัวตนก่อน"}), 403
+    if len(password) < 4:
         return jsonify({"status": "error", "message": "รหัสใหม่ต้องมีอย่างน้อย 4 ตัว"}), 400
-    try:
-        matched_id = _face_image_to_user_id(data.get('face_image'), 'reset')
-    except ValueError as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
     conn = get_db_connection(); cur = conn.cursor()
     try:
         if role == 'manager':
-            cur.execute("SELECT id FROM app_users WHERE username = %s AND role = 'manager' AND is_active = true;", ((data.get('username') or '').strip(),))
-            target = cur.fetchone()
-            if not target or target['id'] != matched_id:
-                return jsonify({"status": "error", "message": "ใบหน้าไม่ตรงกับบัญชีที่ระบุ"}), 403
-            cur.execute("UPDATE app_users SET password_hash = %s WHERE id = %s;", (generate_password_hash(password), matched_id))
+            cur.execute("UPDATE app_users SET password_hash = %s WHERE id = %s AND role = 'manager' AND is_active = true;", (generate_password_hash(password), user_id))
         else:
-            staff_id = int(data.get('staff_id'))
-            cur.execute("SELECT id FROM app_users WHERE staff_id = %s AND role = 'staff' AND is_active = true;", (staff_id,))
-            target = cur.fetchone()
-            if not target or target['id'] != matched_id:
-                return jsonify({"status": "error", "message": "ใบหน้าไม่ตรงกับพนักงานที่เลือก"}), 403
-            cur.execute("UPDATE staff SET pin_hash = %s WHERE id = %s;", (generate_password_hash(password), staff_id))
-        conn.commit(); return jsonify({"status": "success", "message": "รีเซ็ตรหัสผ่านแล้ว"})
-    except (TypeError, ValueError):
-        conn.rollback(); return jsonify({"status": "error", "message": "ข้อมูลพนักงานไม่ถูกต้อง"}), 400
+            cur.execute("""UPDATE staff SET pin_hash = %s WHERE id = (
+                             SELECT staff_id FROM app_users WHERE id = %s AND role = 'staff' AND is_active = true
+                         );""", (generate_password_hash(password), user_id))
+        if cur.rowcount != 1:
+            conn.rollback()
+            return jsonify({"status": "error", "message": "ไม่พบบัญชีที่ยืนยันไว้"}), 404
+        conn.commit()
+        session.pop('password_reset_user_id', None)
+        session.pop('password_reset_role', None)
+        return jsonify({"status": "success", "message": "เปลี่ยนรหัสผ่านเรียบร้อยแล้ว", "redirect": "/login"})
+    except Exception as exc:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(exc)}), 500
     finally:
         cur.close(); conn.close()
 
 
 @app.route('/api/security/change-primary-face-ip', methods=['POST'])
-@manager_required
 def change_primary_face_ip():
     try:
         matched_user_id = _face_image_to_user_id((request.json or {}).get('face_image'), 'ip_change')
@@ -819,7 +919,7 @@ def change_primary_face_ip():
     try:
         cur.execute("SELECT role FROM app_users WHERE id = %s AND is_active = true;", (matched_user_id,))
         user = cur.fetchone()
-        if not user or user['role'] != 'manager' or matched_user_id != session.get('user_id'):
+        if not user or user['role'] != 'manager':
             return jsonify({"status": "error", "message": "ต้องยืนยันด้วยใบหน้าผู้จัดการเท่านั้น"}), 403
         _ensure_security_settings(cur)
         cur.execute("""INSERT INTO system_settings (setting_key, setting_value, updated_at)
@@ -835,67 +935,11 @@ def change_primary_face_ip():
         conn.close()
 
 
-@app.route('/api/security/verify-current-manager', methods=['POST'])
-@manager_required
-def verify_current_manager_for_change():
-    try:
-        matched_user_id = _face_image_to_user_id((request.json or {}).get('face_image'), 'manager_change_verify')
-    except ValueError as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 400
-    if matched_user_id != session.get('user_id'):
-        return jsonify({'status': 'error', 'message': 'ใบหน้าไม่ตรงกับผู้จัดการที่กำลังเข้าสู่ระบบ'}), 403
-    session['manager_change_verified'] = True
-    return jsonify({'status': 'success', 'redirect': url_for('manager_change_page')})
-
-
-@app.route('/manager-change')
-@manager_required
-def manager_change_page():
-    if not session.get('manager_change_verified'):
-        return redirect(url_for('face_checkin', mode='verify-manager-change'))
-    return render_template('manager_change.html')
-
-
-@app.route('/api/security/change-manager', methods=['POST'])
-@manager_required
-def change_manager():
-    if not session.get('manager_change_verified'):
-        return jsonify({'status': 'error', 'message': 'กรุณาสแกนยืนยันใบหน้าผู้จัดการเดิมก่อน'}), 403
-    data = request.json or {}
-    username = (data.get('username') or '').strip()
-    password = data.get('password') or ''
-    face_image = data.get('face_image')
-    if not username or len(password) < 6 or not face_image:
-        return jsonify({'status': 'error', 'message': 'กรอกชื่อผู้ใช้ รหัสผ่านอย่างน้อย 6 ตัวอักษร และสแกนหน้าใหม่ให้ครบ'}), 400
-    raw_image = face_image.split(',', 1)[-1]
-    conn = get_db_connection(); cur = conn.cursor()
-    try:
-        user_id = session['user_id']
-        cur.execute('SELECT id FROM app_users WHERE username = %s AND id <> %s;', (username, user_id))
-        if cur.fetchone():
-            return jsonify({'status': 'error', 'message': 'ชื่อผู้ใช้นี้ถูกใช้แล้ว'}), 409
-        faces_dir = os.path.join(app.static_folder, 'faces'); os.makedirs(faces_dir, exist_ok=True)
-        filename = f'manager_{user_id}_{uuid.uuid4().hex[:8]}.jpg'
-        filepath = os.path.join(faces_dir, filename)
-        with open(filepath, 'wb') as fh: fh.write(base64.b64decode(raw_image))
-        embedding = create_face_embedding(filepath)
-        if embedding is None:
-            return jsonify({'status': 'error', 'message': 'ไม่พบใบหน้าในภาพ กรุณาสแกนใหม่'}), 400
-        cur.execute('DELETE FROM face_profiles WHERE app_user_id = %s;', (user_id,))
-        cur.execute('UPDATE app_users SET username = %s, password_hash = %s WHERE id = %s;',
-                    (username, generate_password_hash(password), user_id))
-        cur.execute("INSERT INTO face_profiles (app_user_id, image_path, embedding, model_name) VALUES (%s, %s, %s, 'Facenet512');",
-                    (user_id, f'faces/{filename}', psycopg2.Binary(json.dumps(embedding).encode('utf-8'))))
-        conn.commit(); session.clear()
-        return jsonify({'status': 'success', 'redirect': url_for('login')})
-    except Exception as e:
-        conn.rollback(); return jsonify({'status': 'error', 'message': str(e)}), 500
-    finally:
-        cur.close(); conn.close()
-
-
 @app.route('/api/face-login', methods=['POST'])
-def face_login():
+@app.route('/api/face-login/', methods=['POST'])
+@app.route('/api/face-login/<string:required_role>', methods=['POST'])
+@app.route('/api/face-login/<string:required_role>/', methods=['POST'])
+def face_login(required_role=None):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -903,14 +947,15 @@ def face_login():
     finally:
         cur.close()
         conn.close()
-    if primary_ip and primary_ip != _client_ip():
+    if not _is_primary_face_terminal(primary_ip):
         return jsonify({"status": "error", "message": "สแกนหน้าได้เฉพาะเครื่องหลักที่กำหนดไว้"}), 403
     data = request.json or {}
     face_image_b64 = data.get('face_image')
-    # When scanning from an already logged-in sidebar, never allow a role change.
-    expected_role = data.get('expected_role') or session.get('role')
-    if expected_role not in (None, 'manager', 'staff'):
-        return jsonify({'status': 'error', 'message': 'ประเภทผู้ใช้ไม่ถูกต้อง'}), 400
+    expected_role = required_role or data.get('expected_role') or session.get('role') or 'staff'
+    if required_role and data.get('expected_role') not in (None, required_role):
+        return jsonify({"status": "error", "message": "หน้าสแกนและสิทธิ์ที่ส่งมาไม่ตรงกัน"}), 403
+    if expected_role not in ('manager', 'staff'):
+        return jsonify({"status": "error", "message": "กรุณาเลือกหน้าสแกน Manager หรือ Staff"}), 400
 
     if not face_image_b64:
         return jsonify({"status": "error", "message": "ไม่พบรูปภาพ"}), 400
@@ -941,6 +986,9 @@ def face_login():
             user = cur.fetchone()
             if not user:
                 return jsonify({"status": "error", "message": "บัญชีนี้ถูกปิดใช้งาน"}), 403
+
+            if user['role'] != expected_role:
+                return jsonify({"status": "error", "message": "ใบหน้านี้ไม่ใช่สิทธิ์ของหน้าสแกนที่เลือก"}), 403
 
             if user['role'] == 'manager':
                 session['user_id'] = user['id']
@@ -1588,6 +1636,105 @@ def lookup_vehicle():
         conn.close()
 
 
+def _ensure_vehicle_edit_history(cur):
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS vehicle_edit_history (
+            id BIGSERIAL PRIMARY KEY,
+            vehicle_id BIGINT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+            customer_id BIGINT REFERENCES customers(id) ON DELETE SET NULL,
+            before_data JSONB NOT NULL,
+            after_data JSONB NOT NULL,
+            edited_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+            edited_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_vehicle_edit_history_vehicle
+            ON vehicle_edit_history(vehicle_id, edited_at DESC);
+    """)
+
+
+@app.route('/api/vehicles/<int:vehicle_id>', methods=['GET'])
+@login_required
+def get_vehicle(vehicle_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""SELECT v.id AS vehicle_id, v.customer_id, v.license_plate, v.province,
+                             v.category, v.size_code, c.phone, c.line_id
+                      FROM vehicles v JOIN customers c ON c.id = v.customer_id
+                      WHERE v.id = %s;""", (vehicle_id,))
+        vehicle = cur.fetchone()
+        if not vehicle:
+            return jsonify({"status": "error", "message": "ไม่พบข้อมูลรถ"}), 404
+        return jsonify({"status": "success", "data": vehicle}), 200
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/vehicles/<int:vehicle_id>', methods=['PUT'])
+@login_required
+def update_vehicle(vehicle_id):
+    data = request.json or {}
+    license_plate = (data.get('license_plate') or '').strip()
+    province = (data.get('province') or '').strip() or None
+    phone = (data.get('phone') or '').strip()
+    line_id = (data.get('line_id') or '').strip() or None
+    category = data.get('category')
+    size_code = data.get('size')
+    if not all((license_plate, phone, category, size_code)) or category not in ('car', 'bike'):
+        return jsonify({"status": "error", "message": "กรุณากรอกข้อมูลลูกค้าและรถให้ครบถ้วน"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        _ensure_vehicle_edit_history(cur)
+        cur.execute("""SELECT v.id AS vehicle_id, v.customer_id, v.license_plate, v.province,
+                             v.category, v.size_code, c.phone, c.line_id
+                      FROM vehicles v JOIN customers c ON c.id = v.customer_id
+                      WHERE v.id = %s FOR UPDATE;""", (vehicle_id,))
+        before = cur.fetchone()
+        if not before:
+            conn.rollback()
+            return jsonify({"status": "error", "message": "ไม่พบข้อมูลรถ"}), 404
+
+        cur.execute("""SELECT id FROM vehicles
+                       WHERE license_plate = %s AND province IS NOT DISTINCT FROM %s AND id <> %s;""",
+                    (license_plate, province, vehicle_id))
+        if cur.fetchone():
+            conn.rollback()
+            return jsonify({"status": "error", "message": "ทะเบียนและจังหวัดนี้ถูกลงทะเบียนไว้แล้ว"}), 409
+
+        cur.execute("SELECT id FROM customers WHERE phone = %s FOR UPDATE;", (phone,))
+        matched_customer = cur.fetchone()
+        if matched_customer:
+            customer_id = matched_customer['id']
+            cur.execute("UPDATE customers SET line_id = %s, updated_at = NOW() WHERE id = %s;", (line_id, customer_id))
+        else:
+            cur.execute("INSERT INTO customers (phone, line_id) VALUES (%s, %s) RETURNING id;", (phone, line_id))
+            customer_id = cur.fetchone()['id']
+
+        cur.execute("""UPDATE vehicles SET customer_id = %s, license_plate = %s, province = %s,
+                                            category = %s, size_code = %s
+                       WHERE id = %s RETURNING id AS vehicle_id, customer_id, license_plate, province, category, size_code;""",
+                    (customer_id, license_plate, province, category, size_code, vehicle_id))
+        after = cur.fetchone()
+        after['phone'] = phone
+        after['line_id'] = line_id
+        cur.execute("""INSERT INTO vehicle_edit_history
+                       (vehicle_id, customer_id, before_data, after_data, edited_by)
+                       VALUES (%s, %s, %s::jsonb, %s::jsonb, %s);""",
+                    (vehicle_id, customer_id, json.dumps(dict(before), default=str),
+                     json.dumps(dict(after), default=str), session.get('user_id')))
+        conn.commit()
+        return jsonify({"status": "success", "data": after, "message": "บันทึกการแก้ไขข้อมูลรถเรียบร้อยแล้ว"}), 200
+    except Exception as exc:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(exc)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 @app.route('/api/registrations', methods=['POST'])
 @login_required
 def register_vehicle():
@@ -1909,6 +2056,29 @@ def add_staff():
 
     if not full_name:
         return jsonify({"status": "error", "message": "กรุณากรอกชื่อพนักงาน"}), 400
+    if not face_images:
+        return jsonify({"status": "error", "message": "กรุณาถ่ายรูปใบหน้าอย่างน้อย 1 รูป"}), 400
+
+    # Validate the face before creating any staff/account rows.  One clear
+    # InsightFace embedding is sufficient and avoids making enrollment wait for
+    # five identical CPU inferences.
+    prepared_faces = []
+    tmp_dir = os.path.join(app.static_folder, 'faces', 'tmp')
+    os.makedirs(tmp_dir, exist_ok=True)
+    try:
+        face_image_b64 = face_images[0].split(',', 1)[-1]
+        tmp_path = os.path.join(tmp_dir, f"staff_enroll_{uuid.uuid4().hex}.jpg")
+        with open(tmp_path, 'wb') as fh:
+            fh.write(base64.b64decode(face_image_b64))
+        embedding = create_face_embedding(tmp_path)
+        if embedding is None:
+            raise ValueError("ไม่พบใบหน้าในรูป กรุณาถ่ายใหม่ให้เห็นใบหน้าชัดเจน")
+        prepared_faces.append((tmp_path, embedding))
+    except (ValueError, TypeError, binascii.Error) as exc:
+        for tmp_path, _ in prepared_faces:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        return jsonify({"status": "error", "message": str(exc) or "รูปใบหน้าไม่ถูกต้อง"}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -1949,36 +2119,18 @@ def add_staff():
                 raise RuntimeError("ไม่สามารถสร้างบัญชีล็อกอินสำหรับพนักงานได้")
             new_app_user_id = existing_app_user['id']
 
+        faces_dir = os.path.join(app.static_folder, 'faces')
         saved_images = 0
-        if face_images:
-            faces_dir = os.path.join(app.static_folder, 'faces')
-            os.makedirs(faces_dir, exist_ok=True)
-
-            for index, face_image_b64 in enumerate(face_images[:5]):
-                if ',' in face_image_b64:
-                    face_image_b64 = face_image_b64.split(',')[1]
-
-                filename = f"staff_{new_staff['id']}_{index}_{uuid.uuid4().hex[:6]}.jpg"
-                filepath = os.path.join(faces_dir, filename)
-
-                image_data = base64.b64decode(face_image_b64)
-                with open(filepath, "wb") as fh:
-                    fh.write(image_data)
-
-                embedding = create_face_embedding(filepath)
-                if embedding is None:
-                    conn.rollback()
-                    return jsonify({
-                        "status": "error",
-                        "message": f"ไม่พบใบหน้าในรูปที่ {index + 1}"
-                    }), 400
-
-                cur.execute(
-                    """INSERT INTO face_profiles (staff_id, app_user_id, image_path, embedding, model_name)
-                       VALUES (%s, %s, %s, %s, 'Facenet512');""",
-                    (new_staff["id"], new_app_user_id, f"faces/{filename}", psycopg2.Binary(json.dumps(embedding).encode('utf-8')))
-                )
-                saved_images += 1
+        for index, (tmp_path, embedding) in enumerate(prepared_faces):
+            filename = f"staff_{new_staff['id']}_{index}_{uuid.uuid4().hex[:6]}.jpg"
+            filepath = os.path.join(faces_dir, filename)
+            os.replace(tmp_path, filepath)
+            cur.execute(
+                """INSERT INTO face_profiles (staff_id, app_user_id, image_path, embedding, model_name)
+                   VALUES (%s, %s, %s, %s, %s);""",
+                (new_staff["id"], new_app_user_id, f"faces/{filename}", psycopg2.Binary(json.dumps(embedding).encode('utf-8')), FACE_MODEL_NAME)
+            )
+            saved_images += 1
 
         conn.commit()
         new_staff['pin_code'] = str(pin_code)
@@ -1996,6 +2148,9 @@ def add_staff():
     finally:
         cur.close()
         conn.close()
+        for tmp_path, _ in prepared_faces:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
 
 @app.route('/api/staff/<int:staff_id>', methods=['PUT'])
@@ -2222,6 +2377,45 @@ def staff_attendance():
         conn.close()
 
 
+@app.route('/api/staff/attendance/leave', methods=['POST'])
+@manager_required
+def mark_staff_leave():
+    data = request.json or {}
+    staff_id = data.get('staff_id')
+    try:
+        work_date = datetime.strptime((data.get('work_date') or '').strip(), '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'status': 'error', 'message': 'กรุณาระบุวันที่ให้ถูกต้อง'}), 400
+    if not staff_id or work_date > date.today():
+        return jsonify({'status': 'error', 'message': 'ไม่สามารถบันทึกการลาในวันอนาคตได้'}), 400
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute('SELECT id FROM staff WHERE id = %s;', (staff_id,))
+        if not cur.fetchone():
+            return jsonify({'status': 'error', 'message': 'ไม่พบพนักงาน'}), 404
+        cur.execute('SELECT id FROM staff_attendance WHERE staff_id = %s AND work_date = %s;', (staff_id, work_date))
+        record = cur.fetchone()
+        if record:
+            cur.execute("""UPDATE staff_attendance
+                           SET check_in_at = NULL, check_out_at = NULL, method = 'manual_edit',
+                               status = 'leave', late_minutes = 0
+                           WHERE id = %s RETURNING *;""", (record['id'],))
+        else:
+            cur.execute("""INSERT INTO staff_attendance
+                           (staff_id, work_date, method, status, late_minutes)
+                           VALUES (%s, %s, 'manual_edit', 'leave', 0) RETURNING *;""", (staff_id, work_date))
+        attendance = cur.fetchone()
+        conn.commit()
+        return jsonify({'status': 'success', 'message': 'บันทึกสถานะลาเรียบร้อยแล้ว', 'record': attendance}), 200
+    except Exception as exc:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(exc)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 @app.route('/api/staff/attendance/backdate', methods=['POST'])
 @manager_required
 def backdate_staff_attendance():
@@ -2231,6 +2425,7 @@ def backdate_staff_attendance():
     staff_id = data.get('staff_id')
     work_date_str = (data.get('work_date') or '').strip()
     check_in_time_str = (data.get('check_in_time') or '').strip()
+    check_out_time_str = (data.get('check_out_time') or '').strip()
 
     if not staff_id:
         return jsonify({
@@ -2284,6 +2479,16 @@ def backdate_staff_attendance():
         work_date,
         check_in_time_only
     )
+    check_out_datetime = None
+    if check_out_time_str:
+        try:
+            check_out_datetime = datetime.combine(
+                work_date, datetime.strptime(check_out_time_str, '%H:%M').time()
+            )
+        except ValueError:
+            return jsonify({"status": "error", "message": "รูปแบบเวลาออกงานไม่ถูกต้อง"}), 400
+        if check_out_datetime < check_in_datetime:
+            return jsonify({"status": "error", "message": "เวลาออกงานต้องไม่ก่อนเวลาเข้างาน"}), 400
     attendance_status, late_minutes = calculate_attendance_status(
         check_in_datetime
     )
@@ -2344,6 +2549,7 @@ def backdate_staff_attendance():
                 UPDATE staff_attendance
                 SET
                     check_in_at = %s,
+                    check_out_at = %s,
                     method = 'manual_backdate',
                     status = %s,
                     late_minutes = %s
@@ -2352,6 +2558,7 @@ def backdate_staff_attendance():
                 """,
                 (
                     check_in_datetime,
+                    check_out_datetime,
                     attendance_status,
                     late_minutes,
                     attendance['id']
@@ -2367,12 +2574,14 @@ def backdate_staff_attendance():
                         staff_id,
                         work_date,
                         check_in_at,
+                        check_out_at,
                         method,
                         status,
                         late_minutes
                     )
                 VALUES
                     (
+                        %s,
                         %s,
                         %s,
                         %s,
@@ -2386,6 +2595,7 @@ def backdate_staff_attendance():
                     staff_id,
                     work_date,
                     check_in_datetime,
+                    check_out_datetime,
                     attendance_status,
                     late_minutes
                 )
@@ -2550,8 +2760,8 @@ def staff_attendance_summary(staff_id):
     cur = conn.cursor()
     try:
         cur.execute('SELECT id, full_name, daily_wage FROM staff WHERE id = %s;', (staff_id,))
-        staff = cur.fetchone()
-        if not staff:
+        staff_member = cur.fetchone()
+        if not staff_member:
             return jsonify({'message': 'ไม่พบพนักงาน'}), 404
         cur.execute('''
             SELECT work_date, check_in_at, check_out_at, status, late_minutes
@@ -2560,17 +2770,18 @@ def staff_attendance_summary(staff_id):
             ORDER BY work_date;
         ''', (staff_id, month_start, month_end))
         records = [dict(row) for row in cur.fetchall()]
-        for row in records:
-            row['work_date'] = row['work_date'].isoformat()
+        for record in records:
+            record['work_date'] = record['work_date'].isoformat()
             for key in ('check_in_at', 'check_out_at'):
-                if row[key]: row[key] = row[key].isoformat()
-        worked_days = sum(1 for row in records if row['check_in_at'])
-        late_days = sum(1 for row in records if row['check_in_at'] and row['status'] == 'late')
-        staff_data = dict(staff)
-        staff_data['daily_wage'] = float(staff_data['daily_wage'] or 0)
-        return jsonify({'staff': staff_data, 'month': month, 'records': records,
-                        'worked_days': worked_days, 'late_days': late_days,
-                        'earned': worked_days * float(staff['daily_wage'] or 0)})
+                if record[key]:
+                    record[key] = record[key].isoformat()
+        worked_days = sum(1 for record in records if record['check_in_at'])
+        late_days = sum(1 for record in records if record['check_in_at'] and record['status'] == 'late')
+        return jsonify({
+            'staff': dict(staff_member), 'month': month, 'records': records,
+            'worked_days': worked_days, 'late_days': late_days,
+            'earned': worked_days * float(staff_member['daily_wage'] or 0),
+        }), 200
     finally:
         cur.close()
         conn.close()
@@ -2626,6 +2837,34 @@ def staff_attendance_history():
         conn.close()
 
 
+@app.route('/api/staff-withdrawals/settings', methods=['GET', 'PUT'])
+@manager_required
+def staff_withdrawal_settings():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == 'PUT':
+            try:
+                max_requests = int((request.json or {}).get('max_requests_per_week'))
+            except (TypeError, ValueError):
+                return jsonify({'status': 'error', 'message': 'กรุณาระบุจำนวนครั้งเป็นตัวเลข'}), 400
+            if not 1 <= max_requests <= 20:
+                return jsonify({'status': 'error', 'message': 'จำนวนครั้งต้องอยู่ระหว่าง 1 ถึง 20'}), 400
+            _ensure_security_settings(cur)
+            cur.execute("""INSERT INTO system_settings (setting_key, setting_value, updated_at)
+                           VALUES ('staff_withdrawal_max_requests_per_week', %s, NOW())
+                           ON CONFLICT (setting_key) DO UPDATE
+                           SET setting_value = EXCLUDED.setting_value, updated_at = NOW();""", (str(max_requests),))
+            conn.commit()
+        return jsonify({'status': 'success', 'max_requests_per_week': _get_withdrawal_max_requests(cur)})
+    except Exception as exc:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(exc)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 @app.route('/api/staff-withdrawals', methods=['GET'])
 @manager_required
 def get_staff_withdrawals():
@@ -2670,6 +2909,7 @@ def staff_withdrawal_eligibility():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        max_requests = _get_withdrawal_max_requests(cur)
         cur.execute("SELECT daily_wage FROM staff WHERE id = %s AND is_active = true;", (staff_id,))
         staff_member = cur.fetchone()
         if not staff_member:
@@ -2697,7 +2937,8 @@ def staff_withdrawal_eligibility():
             "earned_income": earned_income,
             "already_requested_this_week": already_requested,
             "remaining_income": max(earned_income - already_requested, 0),
-            "remaining_requests": max(STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK - requested['req_count'], 0),
+            "remaining_requests": max(max_requests - requested['req_count'], 0),
+            "max_requests_per_week": max_requests,
             "max_per_request": STAFF_WITHDRAWAL_MAX_PER_REQUEST,
         }), 200
     finally:
@@ -2733,6 +2974,7 @@ def create_staff_withdrawal():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        max_requests = _get_withdrawal_max_requests(cur)
         cur.execute("SELECT id, full_name, daily_wage FROM staff WHERE id = %s;", (int(staff_id),))
         staff_member = cur.fetchone()
         if not staff_member:
@@ -2755,10 +2997,10 @@ def create_staff_withdrawal():
         )
         existing = cur.fetchone()
 
-        if existing['req_count'] >= STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK:
+        if existing['req_count'] >= max_requests:
             return jsonify({
                 "status": "error",
-                "message": f"พนักงานขอเบิกครบ {STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK} ครั้งในสัปดาห์นี้แล้ว"
+                "message": f"พนักงานขอเบิกครบ {max_requests} ครั้งในสัปดาห์นี้แล้ว"
             }), 400
 
         remaining_income = earned_income - float(existing['req_total'])
@@ -3028,11 +3270,25 @@ def get_central_fund():
                FROM payments p WHERE p.status = 'paid' AND p.paid_at::date = CURRENT_DATE;"""
         )
         daily_receipts = cur.fetchone()
+        # This is a display-only daily summary.  In particular, do not use this
+        # aggregate to create another central-fund movement when the shop closes:
+        # transfer payments already enter the fund when paid, while cash enters it
+        # once through the cash-float closing flow.
+        cur.execute(
+            """SELECT COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0) AS total_income,
+                      COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0) AS total_expense
+               FROM finance_transactions
+               WHERE occurred_at::date = CURRENT_DATE
+                 AND category <> 'central_fund_deposit';"""
+        )
+        daily_summary = cur.fetchone()
         cur.execute(
             """SELECT EXISTS(SELECT 1 FROM central_fund_transactions
                WHERE movement_type = 'opening_float' AND opening_date = CURRENT_DATE) AS is_open;"""
         )
         is_open = float(fund['cash_float_balance'] or 0) > 0
+        auto_open = _get_auto_open_settings(cur)
+        cash_float_amount = _get_cash_float_amount(cur)
         cur.execute(
             """SELECT DISTINCT ON (occurred_at::date) occurred_at::date AS day, balance_after
                FROM central_fund_transactions
@@ -3047,10 +3303,82 @@ def get_central_fund():
         movements = cur.fetchall()
         conn.commit()
         return jsonify({"fund": fund, "history": history, "movements": movements,
-                        "daily_receipts": daily_receipts, "is_open": is_open}), 200
+                        "daily_receipts": daily_receipts, "is_open": is_open,
+                        "daily_summary": daily_summary, "auto_open": auto_open,
+                        "cash_float_amount": cash_float_amount}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/central-fund/auto-open', methods=['PUT'])
+@manager_required
+def update_auto_shop_open():
+    data = request.json or {}
+    enabled = bool(data.get('enabled'))
+    open_time = str(data.get('time') or '08:00')
+    try:
+        datetime.strptime(open_time, '%H:%M')
+    except ValueError:
+        return jsonify({"status": "error", "message": "เวลาต้องเป็นรูปแบบ HH:MM"}), 400
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        _ensure_security_settings(cur)
+        for key, value in (('auto_shop_open_enabled', str(enabled).lower()), ('auto_shop_open_time', open_time)):
+            cur.execute("""INSERT INTO system_settings (setting_key, setting_value, updated_at)
+                           VALUES (%s, %s, NOW())
+                           ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = NOW();""", (key, value))
+        # A newly saved time is a new schedule.  Do not let a run from an
+        # earlier configuration prevent the manager from applying it today.
+        cur.execute("""INSERT INTO system_settings (setting_key, setting_value, updated_at)
+                       VALUES ('auto_shop_open_last_date', '', NOW())
+                       ON CONFLICT (setting_key) DO UPDATE
+                       SET setting_value = EXCLUDED.setting_value, updated_at = NOW();""")
+        conn.commit()
+        # Apply a newly saved schedule immediately.  This makes a time that is
+        # already due open the shop now instead of waiting for the next poll.
+        opened_now = _run_scheduled_shop_open() if enabled else False
+        return jsonify({
+            "status": "success",
+            "auto_open": {"enabled": enabled, "time": open_time},
+            "opened_now": opened_now,
+            "is_open": _central_fund_has_active_cash_float(cur),
+        })
+    except Exception as exc:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(exc)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route('/api/central-fund/cash-float-amount', methods=['PUT'])
+@manager_required
+def update_cash_float_amount():
+    try:
+        amount = float((request.json or {}).get('amount'))
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "กรุณาระบุจำนวนเงินทอนที่ถูกต้อง"}), 400
+    if not 0 < amount <= 1_000_000:
+        return jsonify({"status": "error", "message": "จำนวนเงินทอนต้องมากกว่า 0 และไม่เกิน 1,000,000 บาท"}), 400
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        _ensure_security_settings(cur)
+        cur.execute("""INSERT INTO system_settings (setting_key, setting_value, updated_at)
+                       VALUES ('cash_float_amount', %s, NOW())
+                       ON CONFLICT (setting_key) DO UPDATE
+                       SET setting_value = EXCLUDED.setting_value, updated_at = NOW();""", (str(amount),))
+        conn.commit()
+        return jsonify({"status": "success", "cash_float_amount": amount,
+                        "message": "บันทึกยอดเงินทอนแล้ว มีผลกับการเปิดร้านครั้งถัดไป"})
+    except Exception as exc:
+        conn.rollback()
+        return jsonify({"status": "error", "message": str(exc)}), 500
     finally:
         cur.close()
         conn.close()
@@ -3093,10 +3421,11 @@ def open_cash_float():
     cur = conn.cursor()
     try:
         _ensure_central_fund_tables(cur)
-        cur.execute("SELECT shop_opened_at FROM central_fund WHERE id = 1 FOR UPDATE;")
-        shop_opened_at = cur.fetchone()['shop_opened_at']
-        if shop_opened_at and shop_opened_at.date() == date.today():
-            return jsonify({"status": "error", "message": "เปิดร้านและนำเงินทอนออกแล้วในวันนี้"}), 400
+        # A manual re-open is valid after the float has been closed, even on the
+        # same day.  Only block an active shop so two floats cannot overlap.
+        cur.execute("SELECT cash_float_balance FROM central_fund WHERE id = 1 FOR UPDATE;")
+        if float(cur.fetchone()['cash_float_balance'] or 0) > 0:
+            return jsonify({"status": "error", "message": "ร้านยังเปิดอยู่ กรุณาปิดร้านหรือฝากเงินทอนก่อน"}), 400
         opened = _ensure_daily_cash_float(cur, force=True)
         if not opened:
             return jsonify({"status": "error", "message": "ยอดกองกลางไม่เพียงพอสำหรับเงินทอน 3,000 บาท"}), 400
@@ -3135,12 +3464,6 @@ def adjust_central_fund():
             _record_central_fund_movement(
                 cur, difference, 'adjustment',
                 f"{note} | ยอดเดิม {current:,.2f} บาท → ยอดใหม่ {new_balance:,.2f} บาท",
-                created_by=session.get('user_id')
-            )
-        else:
-            # Keep an auditable ledger entry even when the manager saves the same balance.
-            _record_central_fund_movement(
-                cur, 0, 'adjustment', f"{note} | ยอดเดิมและยอดใหม่ {current:,.2f} บาท",
                 created_by=session.get('user_id')
             )
         cur.execute("SELECT balance, cash_float_balance, updated_at FROM central_fund WHERE id = 1;")
@@ -3246,7 +3569,9 @@ def manager_face_enroll():
         os.makedirs(faces_dir, exist_ok=True)
 
         saved_images = 0
-        for index, face_image_b64 in enumerate(face_images[:5]):
+        # The browser sends one enrollment image.  Keep the server-side limit at
+        # one as well so a crafted request cannot make camera enrollment slow.
+        for index, face_image_b64 in enumerate(face_images[:1]):
             if ',' in face_image_b64:
                 face_image_b64 = face_image_b64.split(',')[1]
 
@@ -3266,8 +3591,8 @@ def manager_face_enroll():
 
             cur.execute(
                 """INSERT INTO face_profiles (app_user_id, image_path, embedding, model_name)
-                   VALUES (%s, %s, %s, 'Facenet512');""",
-                (app_user_id, f"faces/{filename}", psycopg2.Binary(json.dumps(embedding).encode('utf-8')))
+                   VALUES (%s, %s, %s, %s);""",
+                (app_user_id, f"faces/{filename}", psycopg2.Binary(json.dumps(embedding).encode('utf-8')), FACE_MODEL_NAME)
             )
             saved_images += 1
 
@@ -3291,17 +3616,19 @@ def manager_face_enroll():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     local_ip = get_local_network_ip()
-    cert_file = os.environ.get('SSL_CERT_FILE', os.path.join(os.path.dirname(__file__), 'certs', 'v-carcare.pem'))
-    key_file = os.environ.get('SSL_KEY_FILE', os.path.join(os.path.dirname(__file__), 'certs', 'v-carcare-key.pem'))
-    https_enabled = os.environ.get('HTTPS_ENABLED', 'true').lower() in {'1', 'true', 'yes'}
-    ssl_context = (cert_file, key_file) if https_enabled else None
-    scheme = 'https' if ssl_context else 'http'
-    if ssl_context and (not os.path.isfile(cert_file) or not os.path.isfile(key_file)):
-        raise RuntimeError('ไม่พบไฟล์ HTTPS certificate กรุณาสร้างไฟล์ certs/v-carcare.pem และ certs/v-carcare-key.pem')
+    warm_up_face_model()
+    start_auto_shop_open_scheduler()
+    # Browsers only expose cameras to secure contexts.  Use an adhoc HTTPS
+    # certificate by default so LAN clients can scan via the machine IP.
+    use_https = os.environ.get('FLASK_HTTPS', '1').lower() not in {'0', 'false', 'no'}
+    cert_path = os.path.join(ROOT_DIR, '.certs', 'vcarcare-cert.pem')
+    key_path = os.path.join(ROOT_DIR, '.certs', 'vcarcare-key.pem')
+    ssl_context = (cert_path, key_path) if use_https and os.path.exists(cert_path) and os.path.exists(key_path) else ('adhoc' if use_https else None)
+    scheme = 'https' if use_https else 'http'
     print('\nV CarCare is ready:')
-    print(f'- Local computer: {scheme}://localhost:{port}')
+    print(f'- Local computer: {scheme}://127.0.0.1:{port}')
     print(f'- Mobile / same Wi-Fi: {scheme}://{local_ip}:{port}')
-    print('  Open the mobile link on a phone connected to the same Wi-Fi.\n')
+    print('  If the browser shows a certificate warning, choose Advanced > Continue.\n')
     app.run(
         host='0.0.0.0',
         port=port,

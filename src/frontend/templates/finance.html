@@ -70,11 +70,29 @@
                     <div><h5 class="text-white fw-bold mb-1"><i class="bi bi-safe2 text-warning me-2"></i>เงินกองกลาง</h5><small class="text-secondary">รายจ่าย การเบิกพนักงาน เงินเดือน และค่าความเสียหาย จะตัดจากยอดนี้อัตโนมัติ</small></div>
                     <div class="d-flex gap-2 flex-wrap"><button id="open-shop-btn" class="btn btn-primary fw-bold" onclick="openShop()"><i class="bi bi-shop me-1"></i>เปิดร้าน (นำเงินทอน 3,000 บาท)</button><button class="btn btn-success fw-bold" onclick="receiveCentralFund()"><i class="bi bi-plus-circle me-1"></i>ได้รับเงินกองกลางเพิ่ม</button><button class="btn btn-outline-warning" onclick="adjustCentralFund()"><i class="bi bi-pencil-square me-1"></i>แก้ไขยอด</button><button class="btn btn-warning fw-bold" onclick="closeCashFloat()"><i class="bi bi-box-arrow-in-down me-1"></i>ปิดร้าน / ฝากเงินทอน</button></div>
                 </div>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 rounded bg-dark border border-secondary">
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="auto-open-enabled">
+                        <label class="form-check-label text-white" for="auto-open-enabled">เปิดร้านอัตโนมัติ</label>
+                    </div>
+                    <input id="auto-open-time" type="time" class="form-control form-control-custom" style="width: 130px; padding: 6px 10px;">
+                    <button class="btn btn-outline-info btn-sm" onclick="saveAutoOpen()"><i class="bi bi-clock me-1"></i>บันทึกเวลา</button>
+                    <small id="auto-open-hint" class="text-secondary">ระบบตรวจทุก 5 วินาทีขณะ server ทำงาน</small>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 rounded bg-dark border border-secondary">
+                    <label class="text-white small" for="cash-float-amount">เงินทอนต่อการเปิดร้าน</label>
+                    <input id="cash-float-amount" type="number" min="1" step="0.01" class="form-control form-control-custom" style="width: 140px; padding: 6px 10px;">
+                    <span class="text-secondary small">บาท</span>
+                    <button class="btn btn-outline-warning btn-sm" onclick="saveCashFloatAmount()">บันทึกยอดเงินทอน</button>
+                    <small class="text-secondary">มีผลกับการเปิดร้านครั้งถัดไป</small>
+                </div>
                 <div class="row g-3 align-items-center">
                     <div class="col-md-3"><small class="text-secondary d-block">ยอดกองกลางปัจจุบัน</small><h2 id="central-fund-balance" class="text-warning fw-bold mb-0">0.00 บาท</h2></div>
-                    <div class="col-md-3"><small class="text-secondary d-block">เงินสดสำหรับทอน</small><h4 id="cash-float-balance" class="text-info fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">ระบบนำออก 3,000 บาทในตอนเช้า</small></div>
+                    <div class="col-md-3"><small class="text-secondary d-block">เงินสดสำหรับทอน</small><h4 id="cash-float-balance" class="text-info fw-bold mb-0">0.00 บาท</h4></div>
                     <div class="col-md-3"><small class="text-secondary d-block">รับเงินโอนวันนี้</small><h4 id="transfer-received" class="text-success fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">บวกเข้ากองกลางแล้ว</small></div>
                     <div class="col-md-3"><small class="text-secondary d-block">รับเงินสดวันนี้</small><h4 id="cash-received" class="text-info fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">รวมอยู่ในเงินสดสำหรับทอน</small></div>
+                    <div class="col-md-3"><small class="text-secondary d-block">รายรับรวมวันนี้</small><h4 id="daily-income-total" class="text-success fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">ยอดสรุป ไม่เข้ากองกลางซ้ำ</small></div>
+                    <div class="col-md-3"><small class="text-secondary d-block">รายจ่ายวันนี้</small><h4 id="daily-expense-total" class="text-danger fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">ตามรายการรายจ่ายของวันนี้</small></div>
                     <div class="col-md-6" style="position: relative; height: 160px;"><canvas id="central-fund-chart"></canvas></div>
                 </div>
             </div>
@@ -383,19 +401,60 @@
             document.getElementById('cash-float-balance').innerText = `${Number(data.fund.cash_float_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
             document.getElementById('transfer-received').innerText = `${Number(data.daily_receipts?.transfer_received || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
             document.getElementById('cash-received').innerText = `${Number(data.daily_receipts?.cash_received || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+            const cashFloatAmount = Number(data.cash_float_amount || 3000);
+            document.getElementById('cash-float-amount').value = cashFloatAmount;
+            document.getElementById('daily-income-total').innerText = `${Number(data.daily_summary?.total_income || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+            document.getElementById('daily-expense-total').innerText = `${Number(data.daily_summary?.total_expense || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
             const openButton = document.getElementById('open-shop-btn');
-            openButton.disabled = false;
-            openButton.innerHTML = data.is_open ? '<i class="bi bi-check-circle me-1"></i>เปิดร้านแล้ววันนี้' : '<i class="bi bi-shop me-1"></i>เปิดร้าน (นำเงินทอน 3,000 บาท)';
+            openButton.disabled = Boolean(data.is_open);
+            openButton.innerHTML = data.is_open ? '<i class="bi bi-check-circle me-1"></i>ร้านกำลังเปิดอยู่' : `<i class="bi bi-shop me-1"></i>เปิดร้าน (นำเงินทอน ${cashFloatAmount.toLocaleString()} บาท)`;
+            document.getElementById('auto-open-enabled').checked = Boolean(data.auto_open?.enabled);
+            document.getElementById('auto-open-time').value = data.auto_open?.time || '08:00';
             renderCentralFundChart(data.history);
         } catch (err) { console.error(err); }
     }
 
     async function openShop() {
-        if (!confirm('ยืนยันเปิดร้านและหักเงิน 3,000 บาทจากกองกลางทันที?')) return;
+        const amount = Number(document.getElementById('cash-float-amount').value || 3000);
+        if (!confirm(`ยืนยันเปิดร้านและหักเงิน ${amount.toLocaleString()} บาทจากกองกลางทันที?`)) return;
         try {
             const res = await fetch('/api/central-fund/open', { method: 'POST' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.message || 'เปิดร้านไม่สำเร็จ');
+            await loadCentralFund();
+        } catch (err) { alert(err.message); }
+    }
+
+    async function saveCashFloatAmount() {
+        const amount = Number(document.getElementById('cash-float-amount').value);
+        if (!Number.isFinite(amount) || amount <= 0) return alert('กรุณาระบุยอดเงินทอนที่มากกว่า 0 บาท');
+        try {
+            const res = await fetch('/api/central-fund/cash-float-amount', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'บันทึกยอดเงินทอนไม่สำเร็จ');
+            alert(data.message);
+            await loadCentralFund();
+        } catch (err) { alert(err.message); }
+    }
+
+    async function saveAutoOpen() {
+        const enabled = document.getElementById('auto-open-enabled').checked;
+        const time = document.getElementById('auto-open-time').value;
+        if (!time) return alert('กรุณาเลือกเวลาเปิดร้าน');
+        try {
+            const res = await fetch('/api/central-fund/auto-open', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled, time })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'บันทึกเวลาไม่สำเร็จ');
+            document.getElementById('auto-open-hint').innerText = data.opened_now
+                ? 'เปิดร้านอัตโนมัติแล้ว และนำเงินทอน 3,000 บาทออกเรียบร้อย'
+                : data.is_open ? 'ร้านเปิดอยู่แล้ว มีเงินทอน 3,000 บาท'
+                : enabled ? `ระบบจะเปิดร้านอัตโนมัติเวลา ${time}` : 'ปิดการเปิดร้านอัตโนมัติแล้ว';
             await loadCentralFund();
         } catch (err) { alert(err.message); }
     }
@@ -406,6 +465,7 @@
         const balance = Number(value);
         if (!Number.isFinite(balance) || balance < 0) return alert('กรุณาระบุยอดเงินที่ถูกต้อง');
         const note = prompt('หมายเหตุการปรับยอด (ไม่บังคับ)', 'ปรับยอดเงินกองกลางโดยผู้จัดการ');
+        if (!confirm(`ยืนยันปรับยอดเงินกองกลางเป็น ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท?`)) return;
         try {
             const res = await fetch('/api/central-fund', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ balance, note }) });
             const data = await res.json();
@@ -420,6 +480,7 @@
         const amount = Number(value);
         if (!Number.isFinite(amount) || amount <= 0) return alert('กรุณาระบุจำนวนเงินที่มากกว่า 0');
         const description = prompt('ที่มาของเงิน/หมายเหตุ (ไม่บังคับ)', 'ได้รับเงินเพิ่มเข้ากองกลาง');
+        if (!confirm(`ยืนยันรับเงินเข้ากองกลางจำนวน ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท?`)) return;
         try {
             const res = await fetch('/api/central-fund/deposits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, description }) });
             const data = await res.json();

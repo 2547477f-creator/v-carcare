@@ -77,7 +77,7 @@
             
             try {
                 const queryParam = searchInput.value.trim();
-                let url = `/api/orders?status=picked_up`;
+                let url = `/api/orders?status=history`;
                 if (selectedDate) url += `&date=${encodeURIComponent(selectedDate)}`;
                 if (queryParam) url += `&q=${encodeURIComponent(queryParam)}`;
 
@@ -110,6 +110,7 @@
             }
 
             results.innerHTML = filtered.map(o => {
+                const isCancelled = o.status === 'cancelled';
                 const note = o.damage_note || 'ไม่มีอะไรเสียหาย';
                 const isNoDamage = note === 'ไม่มีอะไรเสียหาย';
                 const noteColor = isNoDamage ? 'text-secondary' : 'text-warning';
@@ -124,7 +125,7 @@
                                     <h5 class="text-white mb-1">คิว #${esc(o.queue_no)} · ${esc(o.license_plate)}</h5>
                                     <div class="text-secondary">${esc(o.province)} · ${esc(o.vehicle_category)} ${esc(o.size_code)}</div>
                                 </div>
-                                <span class="badge bg-success">รับรถแล้ว</span>
+                                <span class="badge ${isCancelled ? 'bg-danger' : 'bg-success'}">${isCancelled ? 'ยกเลิกแล้ว' : 'รับรถแล้ว'}</span>
                             </div>
                             <hr class="border-secondary my-2">
                             <div class="small text-secondary mb-2"><i class="bi bi-stars me-1 text-info"></i>${esc(o.services_summary)}</div>
@@ -134,7 +135,7 @@
                         </div>
                         <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary border-opacity-50">
                             <span class="history-time"><i class="bi bi-clock me-1"></i>${dt(o.picked_up_at)}</span>
-                            <strong class="text-warning fs-6">${Number(o.total_amount||0).toLocaleString('th-TH',{minimumFractionDigits:2})} บาท</strong>
+                            <strong class="${isCancelled ? 'text-secondary text-decoration-line-through' : 'text-warning'} fs-6">${Number(o.total_amount||0).toLocaleString('th-TH',{minimumFractionDigits:2})} บาท</strong>
                         </div>
                     </article>
                 </div>
