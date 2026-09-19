@@ -87,7 +87,7 @@
                     <small class="text-secondary">มีผลกับการเปิดร้านครั้งถัดไป</small>
                 </div>
                 <div class="row g-3 align-items-center">
-                    <div class="col-md-3"><small class="text-secondary d-block">ยอดกองกลางปัจจุบัน</small><h2 id="central-fund-balance" class="text-warning fw-bold mb-0">0.00 บาท</h2></div>
+                    <div class="col-md-3"><small class="text-secondary d-block">ยอดกองกลางปัจจุบัน</small><h2 id="central-fund-balance" class="text-warning fw-bold mb-1">0.00 บาท</h2><small class="text-secondary d-block">เงินยกยอด</small><small id="central-fund-opening-balance" class="text-warning">0.00 บาท</small></div>
                     <div class="col-md-3"><small class="text-secondary d-block">เงินสดสำหรับทอน</small><h4 id="cash-float-balance" class="text-info fw-bold mb-0">0.00 บาท</h4></div>
                     <div class="col-md-3"><small class="text-secondary d-block">รับเงินโอนวันนี้</small><h4 id="transfer-received" class="text-success fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">บวกเข้ากองกลางแล้ว</small></div>
                     <div class="col-md-3"><small class="text-secondary d-block">รับเงินสดวันนี้</small><h4 id="cash-received" class="text-info fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">รวมอยู่ในเงินสดสำหรับทอน</small></div>
@@ -398,6 +398,10 @@
             const data = await res.json();
             centralFundBalance = Number(data.fund.balance || 0);
             document.getElementById('central-fund-balance').innerText = `${centralFundBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+            const openingBalance = data.fund.opening_balance;
+            document.getElementById('central-fund-opening-balance').innerText = openingBalance === null || openingBalance === undefined
+                ? '-'
+                : `${Number(openingBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
             document.getElementById('cash-float-balance').innerText = `${Number(data.fund.cash_float_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
             document.getElementById('transfer-received').innerText = `${Number(data.daily_receipts?.transfer_received || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
             document.getElementById('cash-received').innerText = `${Number(data.daily_receipts?.cash_received || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;

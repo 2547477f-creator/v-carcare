@@ -4,14 +4,12 @@ from datetime import date, datetime, time, timedelta
 from functools import wraps
 import json
 import os
-import socket
 import time as clock
 import threading
 import uuid
 
 import cv2
 from insightface.app import FaceAnalysis
-from dotenv import load_dotenv
 from flask import (
     Flask,
     flash,
@@ -25,28 +23,27 @@ from flask import (
 from flask_cors import CORS
 import numpy as np
 import psycopg2
-from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash, generate_password_hash
+
+from .auth import login_required, manager_required
+from .config import (
+    CENTRAL_FUND_OPENING_FLOAT, FACE_MATCH_DISTANCE_THRESHOLD, FACE_MODEL_NAME,
+    ROOT_DIR, STAFF_WITHDRAWAL_MAX_PER_REQUEST, STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK,
+    STATIC_DIR, TEMPLATE_DIR, THAI_SERVICE_NAMES, WORK_START_TIME,
+)
+from .database import (
+    get_db_connection as _get_db_connection,
+    get_local_network_ip as _get_local_network_ip,
+)
 
 # ===================================================================
 # ⚙️ 0. ตั้งค่า Environment Variable & Path
 # ===================================================================
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
-load_dotenv(os.path.join(ROOT_DIR, '.env'))
-# The project keeps its local database configuration beside this module.  Keep
-# the root .env supported too, but load this file as a fallback when it exists.
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
-
 # ===================================================================
 # 📂 1. โฟลเดอร์ frontend (templates / static) & Flask App Setup
 # ===================================================================
-template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/templates'))
-static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/static'))
-
-app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
-app.secret_key = os.environ.get("SECRET_KEY", "vcarcare-dev-secret-change-me")
+app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+app.secret_key = os.environ.get("SECRET_KEY")
 CORS(app, supports_credentials=True)
 
 
@@ -62,24 +59,12 @@ def disable_browser_cache_for_face_updates(response):
 # ===================================================================
 # ⚙️ 2. การเชื่อมต่อฐานข้อมูล PostgreSQL & Config
 # ===================================================================
-DB_CONFIG = {
-    "host": os.environ.get("DB_HOST", "localhost"),
-    "database": os.environ.get("DB_NAME", "v_carcare"),
-    "user": os.environ.get("DB_USER", "postgres"),
-    "password": os.environ.get("DB_PASSWORD", "postgres"),
-    "port": os.environ.get("DB_PORT", "5432"),
-}
-
 FACE_MATCH_DISTANCE_THRESHOLD = 0.30  # ยิ่งน้อยยิ่งเข้มงวด (cosine distance ของ Facenet512)
-WORK_START_TIME = time(8, 0)
-STAFF_WITHDRAWAL_MAX_PER_REQUEST = 3000
-STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK = 2
-CENTRAL_FUND_OPENING_FLOAT = 3000
 FACE_MATCH_DISTANCE_THRESHOLD = 0.42
-FACE_MODEL_NAME = 'InsightFace-buffalo_sc'
 _face_app = None
 _auto_shop_open_thread = None
 _auto_shop_open_thread_lock = threading.Lock()
+_attendance_start_cache = {"loaded_at": 0, "time": WORK_START_TIME}
 
 THAI_SERVICE_NAMES = {
     'wash': 'ล้างภายนอก',
@@ -94,16 +79,31 @@ THAI_SERVICE_NAMES = {
 
 def get_db_connection():
     """เปิดการเชื่อมต่อกับฐานข้อมูล"""
-    return psycopg2.connect(**DB_CONFIG, cursor_factory=RealDictCursor)
+    return _get_db_connection()
 
 
 def get_local_network_ip():
+    return _get_local_network_ip()
+
+
+def configured_attendance_start_time():
+    """Use the configured shop-opening time as the attendance cut-off."""
+    if clock.monotonic() - _attendance_start_cache['loaded_at'] < 60:
+        return _attendance_start_cache['time']
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.connect(('8.8.8.8', 80))
-            return sock.getsockname()[0]
-    except OSError:
-        return '127.0.0.1'
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'auto_shop_open_time';")
+        row = cur.fetchone()
+        if row and row['setting_value']:
+            _attendance_start_cache['time'] = datetime.strptime(row['setting_value'], '%H:%M').time()
+        cur.close()
+        conn.close()
+    except Exception:
+        # Attendance remains usable when settings have not been initialized.
+        pass
+    _attendance_start_cache['loaded_at'] = clock.monotonic()
+    return _attendance_start_cache['time']
 
 
 # ===================================================================
@@ -129,11 +129,11 @@ def calculate_attendance_status(check_in_at):
 
     start_dt = datetime.combine(
         work_date,
-        WORK_START_TIME
+        configured_attendance_start_time()
     )
 
     # มาตรงเวลา
-    if check_in_time <= WORK_START_TIME:
+    if check_in_time <= configured_attendance_start_time():
         return 'on_time', 0
 
     late_minutes = int(
@@ -141,6 +141,9 @@ def calculate_attendance_status(check_in_at):
     )
 
     return 'late', max(late_minutes, 1)
+
+
+from .attendance import calculate_attendance_status, configured_attendance_start_time
 
 
 def create_face_embedding(image_path):
@@ -243,6 +246,9 @@ def find_matching_app_user(captured_embedding, role=None):
     return None
 
 
+from .face_recognition import create_face_embedding, warm_up_face_model
+
+
 def _iso_week_bounds(iso_year, iso_week):
     """คืนค่า (วันจันทร์, วันอาทิตย์) ของสัปดาห์ ISO ที่กำหนด"""
     monday = date.fromisocalendar(iso_year, iso_week, 1)
@@ -306,6 +312,7 @@ def _ensure_central_fund_tables(cur):
             id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
             balance NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (balance >= 0),
             cash_float_balance NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (cash_float_balance >= 0),
+            opening_balance NUMERIC(12,2),
             shop_opened_at TIMESTAMPTZ,
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
@@ -333,6 +340,8 @@ def _ensure_central_fund_tables(cur):
                 ('income', 'expense', 'opening_float', 'closing_float', 'adjustment', 'fund_received'));
         ALTER TABLE central_fund
             ADD COLUMN IF NOT EXISTS shop_opened_at TIMESTAMPTZ;
+        ALTER TABLE central_fund
+            ADD COLUMN IF NOT EXISTS opening_balance NUMERIC(12,2);
         ALTER TABLE central_fund_transactions
             ADD COLUMN IF NOT EXISTS balance_before NUMERIC(12,2);
         CREATE UNIQUE INDEX IF NOT EXISTS uq_central_fund_transaction_finance
@@ -449,6 +458,7 @@ def _ensure_daily_cash_float(cur, force=False):
     cur.execute(
         """UPDATE central_fund
            SET balance = balance - %s, cash_float_balance = cash_float_balance + %s,
+               opening_balance = balance,
                shop_opened_at = CASE WHEN %s THEN NOW() ELSE shop_opened_at END, updated_at = NOW()
            WHERE id = 1;""",
         (cash_float_amount, cash_float_amount, force)
@@ -593,6 +603,9 @@ def manager_required(f):
 # ===================================================================
 # 🌐 4. ROUTES สำหรับแสดงผลหน้าเว็บ
 # ===================================================================
+from .auth import login_required, manager_required
+
+
 @app.route('/')
 @login_required
 def index():
@@ -1023,6 +1036,14 @@ def face_login(required_role=None):
                 # ถ้าวันนี้ยังไม่มีรายการ -> สร้างเช็กอิน
                 if not attendance:
                     check_in_time = datetime.now()
+                    earliest_scan = datetime.combine(
+                        check_in_time.date(), configured_attendance_start_time()
+                    ) - timedelta(hours=1)
+                    if check_in_time < earliest_scan:
+                        return jsonify({
+                            "status": "error",
+                            "message": f"สามารถสแกนเข้างานได้ตั้งแต่ {earliest_scan.strftime('%H:%M')} น."
+                        }), 400
 
                     status, late_minutes = calculate_attendance_status(
                         check_in_time
@@ -1262,7 +1283,20 @@ def get_orders():
             JOIN vehicles v ON o.vehicle_id = v.id
             JOIN customers c ON o.customer_id = c.id
         """
-        if status_filter and history_date:
+        # ``history`` is a display filter used by the vehicle-history page,
+        # not a value stored in service_orders.status. Include completed,
+        # picked-up, and cancelled orders; cancellation only changes status,
+        # so the original record remains visible and auditable.
+        if status_filter == 'history' and history_date:
+            cur.execute(
+                base_query + " WHERE o.status IN ('completed', 'picked_up', 'cancelled') AND DATE(o.updated_at) = %s ORDER BY o.updated_at DESC;",
+                (history_date,)
+            )
+        elif status_filter == 'history':
+            cur.execute(
+                base_query + " WHERE o.status IN ('completed', 'picked_up', 'cancelled') ORDER BY o.updated_at DESC;"
+            )
+        elif status_filter and history_date:
             cur.execute(base_query + " WHERE o.status = %s AND DATE(o.updated_at) = %s ORDER BY o.updated_at DESC;", (status_filter, history_date))
         elif status_filter:
             cur.execute(base_query + " WHERE o.status = %s ORDER BY o.created_at ASC;", (status_filter,))
@@ -3262,7 +3296,7 @@ def get_central_fund():
     cur = conn.cursor()
     try:
         _ensure_central_fund_tables(cur)
-        cur.execute("SELECT balance, cash_float_balance, updated_at FROM central_fund WHERE id = 1;")
+        cur.execute("SELECT balance, cash_float_balance, opening_balance, updated_at FROM central_fund WHERE id = 1;")
         fund = cur.fetchone()
         cur.execute(
             """SELECT COALESCE(SUM(CASE WHEN p.method = 'transfer' THEN p.amount ELSE 0 END), 0) AS transfer_received,
@@ -3616,7 +3650,7 @@ def manager_face_enroll():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     local_ip = get_local_network_ip()
-    warm_up_face_model()
+    warm_up_face_model(app.static_folder)
     start_auto_shop_open_scheduler()
     # Browsers only expose cameras to secure contexts.  Use an adhoc HTTPS
     # certificate by default so LAN clients can scan via the machine IP.
@@ -3633,5 +3667,6 @@ if __name__ == '__main__':
         host='0.0.0.0',
         port=port,
         ssl_context=ssl_context,
-        debug=os.environ.get('FLASK_DEBUG', '').lower() in {'1', 'true', 'yes'}
+        debug=os.environ.get('FLASK_DEBUG', '').lower() in {'1', 'true', 'yes'},
+        use_reloader=False,
     )
