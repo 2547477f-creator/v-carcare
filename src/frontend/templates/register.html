@@ -53,7 +53,7 @@
             <h5 class="form-section-title"><i class="bi bi-person-lines-fill"></i>ข้อมูลลูกค้า</h5>
             <div class="row g-3 mb-4">
                 <div class="col-md-6"><label class="form-label" for="phone">เบอร์โทรศัพท์<span class="required-mark">*</span></label><input id="phone" class="form-control" placeholder="เช่น 0812345678" required><small class="field-hint">ใช้สำหรับค้นหาลูกค้าและติดต่อกลับ</small></div>
-                <div class="col-md-6"><label class="form-label" for="lineId">ไอดีไลน์</label><input id="lineId" class="form-control" placeholder="ไม่บังคับ"></div>
+                <div class="col-md-6"><label class="form-label">LINE</label><div class="form-control bg-dark text-secondary">จะเชื่อมต่อด้วย QR หลังบันทึกข้อมูลรถ</div><small class="field-hint">ไม่ต้องกรอก LINE User ID</small></div>
             </div>
             <h5 class="form-section-title"><i class="bi bi-car-front-fill"></i>ข้อมูลรถ</h5>
             <div class="row g-3">
@@ -120,7 +120,6 @@
                 if (!res.ok) throw new Error(data.message || 'ไม่พบข้อมูลรถ');
                 const item = data.data;
                 phone.value = item.phone || '';
-                lineId.value = item.line_id || '';
                 licensePlate.value = item.license_plate || '';
                 province.value = item.province || '';
                 category.value = item.category || '';
@@ -133,7 +132,7 @@
 
         document.getElementById('registerForm').addEventListener('submit', async (event) => {
             event.preventDefault();
-            const payload = { phone: phone.value.trim(), line_id: lineId.value.trim(), license_plate: licensePlate.value.trim(), province: province.value.trim(), category: category.value, size: size.value };
+            const payload = { phone: phone.value.trim(), license_plate: licensePlate.value.trim(), province: province.value.trim(), category: category.value, size: size.value };
             const url = editVehicleId ? `/api/vehicles/${editVehicleId}` : '/api/registrations';
             const method = editVehicleId ? 'PUT' : 'POST';
             const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -142,9 +141,22 @@
             if (editVehicleId) {
                 alertBox('บันทึกการแก้ไขเรียบร้อยแล้ว <a class="alert-link" href="/pos">กลับไปเปิดคิวที่หน้า POS</a>', 'success');
             } else {
-                alertBox('ลงทะเบียนเรียบร้อยแล้ว สามารถไปเปิดคิวที่หน้า POS ได้', 'success'); event.target.reset(); setSizes();
+                alertBox('ลงทะเบียนเรียบร้อยแล้ว กำลังสร้าง QR สำหรับเชื่อม LINE...', 'success');
+                try {
+                    const linkRes = await fetch('/api/line/link/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({vehicle_id:data.vehicle_id})});
+                    const link = await linkRes.json();
+                    if (!linkRes.ok) throw new Error(link.message || 'สร้าง QR ไม่สำเร็จ');
+                    showLineQr(link.url, link.expires_at);
+                } catch (err) { alertBox(`ลงทะเบียนเรียบร้อยแล้ว แต่${err.message}`, 'warning'); }
+                event.target.reset(); setSizes();
             }
         });
+        function showLineQr(url, expiresAt) {
+            const popup = window.open('', '_blank', 'width=440,height=560');
+            if (!popup) return alertBox(`เปิด QR ไม่ได้ กรุณาอนุญาต popup แล้วเปิดลิงก์นี้: ${url}`, 'warning');
+            popup.document.write(`<title>เชื่อมต่อ LINE</title><style>body{font-family:sans-serif;text-align:center;padding:24px}#q{margin:24px auto;width:256px}</style><h2>เชื่อมต่อ LINE</h2><p>สแกน QR นี้ด้วยแอป LINE</p><div id="q"></div><small>หมดอายุ ${new Date(expiresAt).toLocaleString('th-TH')}</small><script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('q'),{text:${JSON.stringify(url)},width:256,height:256});<\/script>`);
+            popup.document.close();
+        }
         loadVehicleForEdit();
     </script>
 <script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>

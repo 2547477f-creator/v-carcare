@@ -472,6 +472,15 @@
         </div>
 
 
+        <div class="card-custom p-3 p-md-4 mb-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <div><h5 class="text-white mb-1"><i class="bi bi-award-fill text-warning me-2"></i>เบี้ยขยัน</h5><small class="text-secondary">ผู้จัดการกำหนดจำนวนเงิน ตรวจสอบผู้มีสิทธิ์ และบันทึกเป็นรายจ่ายได้</small></div>
+                <div class="d-flex gap-2 align-items-center"><input id="attendance-bonus-month" type="month" class="form-control form-control-custom"><input id="attendance-bonus-amount" type="number" min="1" step="0.01" class="form-control form-control-custom" style="width:120px"><button class="btn btn-outline-warning fw-bold" onclick="saveAttendanceBonusAmount()">บันทึกจำนวน</button><button class="btn bg-orange text-dark fw-bold" onclick="loadAttendanceBonus()">ตรวจสอบ</button></div>
+            </div>
+            <div class="small text-secondary mb-2">เงื่อนไข: ต้องมีการเข้างาน และไม่มีสถานะขาด ลา หรือสาย ในเดือนที่เลือก</div>
+            <div id="attendance-bonus-list" class="row g-2"><div class="text-secondary">กำลังโหลดข้อมูลเบี้ยขยัน...</div></div>
+        </div>
+
         <!-- =====================================================
              STAFF LIST
         ====================================================== -->
@@ -3178,6 +3187,51 @@ document
 // INITIAL LOAD
 // ================================================================
 
+function bonusMonthDefault() {
+    const value = new Date();
+    value.setMonth(value.getMonth() - 1);
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}`;
+}
+
+async function loadAttendanceBonus() {
+    const month = document.getElementById('attendance-bonus-month').value;
+    const container = document.getElementById('attendance-bonus-list');
+    container.innerHTML = '<div class="text-secondary">กำลังโหลดข้อมูล...</div>';
+    try {
+        const response = await fetch(`/api/staff/attendance-bonus?month=${encodeURIComponent(month)}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'โหลดข้อมูลไม่สำเร็จ');
+        document.getElementById('attendance-bonus-amount').value = Number(data.amount).toFixed(2);
+        container.innerHTML = data.staff.length ? data.staff.map(staff => {
+            const paid = Boolean(staff.payout_id), eligible = Boolean(staff.eligible);
+            const status = paid ? '<span class="badge bg-success">จ่ายแล้ว</span>' : eligible ? '<span class="badge bg-warning text-dark">มีสิทธิ์</span>' : '<span class="badge bg-secondary">ไม่เข้าเงื่อนไข</span>';
+            const button = paid ? '' : `<button class="btn btn-sm ${eligible ? 'bg-orange text-dark' : 'btn-outline-secondary'}" ${eligible ? '' : 'disabled'} onclick="payAttendanceBonus(${staff.id})">บันทึกจ่าย</button>`;
+            return `<div class="col-md-6"><div class="border border-secondary rounded p-2 d-flex justify-content-between align-items-center gap-2"><div><strong>${escapeHtml(staff.full_name)}</strong> ${status}<br><small class="text-secondary">มาทำงาน ${staff.attended_days} วัน · รายการที่ตัดสิทธิ์ ${staff.disqualifying_days} วัน${paid ? ` · จ่าย ${Number(staff.paid_amount).toLocaleString('th-TH')} บาท` : ''}</small></div>${button}</div></div>`;
+        }).join('') : '<div class="text-secondary">ไม่พบพนักงานในเดือนที่เลือก</div>';
+    } catch (error) { container.innerHTML = `<div class="text-danger">${escapeHtml(error.message)}</div>`; }
+}
+
+async function saveAttendanceBonusAmount() {
+    const amount = Number(document.getElementById('attendance-bonus-amount').value);
+    try {
+        const response = await fetch('/api/staff/attendance-bonus', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({amount})});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'บันทึกไม่สำเร็จ');
+        showAlert('บันทึกจำนวนเบี้ยขยันเรียบร้อย', 'success'); loadAttendanceBonus();
+    } catch (error) { showAlert(error.message, 'danger'); }
+}
+
+async function payAttendanceBonus(staffId) {
+    const month = document.getElementById('attendance-bonus-month').value;
+    if (!confirm('ยืนยันการจ่ายเบี้ยขยัน? ระบบจะบันทึกเป็นรายจ่ายทันที')) return;
+    try {
+        const response = await fetch(`/api/staff/attendance-bonus/${staffId}/pay`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({month})});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'บันทึกการจ่ายไม่สำเร็จ');
+        showAlert('บันทึกเบี้ยขยันเป็นรายจ่ายเรียบร้อย', 'success'); loadAttendanceBonus();
+    } catch (error) { showAlert(error.message, 'danger'); }
+}
+
 window.addEventListener(
     'DOMContentLoaded',
     () => {
@@ -3190,6 +3244,9 @@ window.addEventListener(
 
         dateInput.value =
             getTodayString();
+
+        document.getElementById('attendance-bonus-month').value = bonusMonthDefault();
+        loadAttendanceBonus();
 
 
         loadStaff();
