@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>เข้าสู่ระบบ - V CarCare</title>
 
+    <!-- Google Fonts: Kanit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
     <!-- Bootstrap 5 CSS & Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
@@ -13,227 +18,706 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
     <style>
+        :root {
+            --primary-orange: #FF6B00;
+            --primary-orange-hover: #e05e00;
+            --orange-glow: rgba(255, 107, 0, 0.22);
+            --bg-dark: #121212;
+            --card-bg: rgba(26, 26, 26, 0.92);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --input-bg: #222222;
+            --input-border: #333333;
+            --text-muted: #8E8E93;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Kanit', sans-serif, -apple-system, BlinkMacSystemFont;
+        }
+
         body {
-            background-color: #121212;
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(circle at 15% 20%, rgba(255, 107, 0, 0.09) 0%, transparent 45%),
+                radial-gradient(circle at 85% 80%, rgba(255, 107, 0, 0.06) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(18, 18, 18, 0.95) 0%, #0d0d0d 100%);
             color: #E0E0E0;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 15px;
+            padding: 20px 15px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Ambient Glow Behind Login Card */
+        .bg-glow-orb {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 0;
+            filter: blur(65px);
+            opacity: 0.85;
+        }
+        .orb-1 {
+            width: 380px;
+            height: 380px;
+            top: -90px;
+            left: -90px;
+            background: radial-gradient(circle, rgba(255, 107, 0, 0.18) 0%, rgba(255, 107, 0, 0) 70%);
+        }
+        .orb-2 {
+            width: 380px;
+            height: 380px;
+            bottom: -90px;
+            right: -90px;
+            background: radial-gradient(circle, rgba(255, 107, 0, 0.14) 0%, rgba(255, 107, 0, 0) 70%);
+        }
+        .orb-3 {
+            width: 300px;
+            height: 300px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle, rgba(255, 133, 51, 0.08) 0%, rgba(255, 133, 51, 0) 70%);
+        }
+
+        .login-wrapper {
+            width: 100%;
+            max-width: 460px;
+            position: relative;
+            z-index: 1;
+            transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Expand wrapper on desktop for spacious layout */
+        @media (min-width: 768px) {
+            .login-wrapper {
+                max-width: 580px;
+            }
+            .login-wrapper.staff-active-layout {
+                max-width: 680px;
+            }
         }
 
         .login-card {
-            background-color: #1A1A1A;
-            border: 1px solid #2A2A2A;
-            border-radius: 16px;
-            width: 100%;
-            max-width: 420px;
-            padding: 2rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            background: rgba(22, 22, 25, 0.85);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 22px;
+            padding: 2.25rem 2.25rem;
+            box-shadow: 
+                0 25px 60px -15px rgba(0, 0, 0, 0.85),
+                0 0 0 1px rgba(255, 255, 255, 0.05),
+                0 10px 40px rgba(255, 107, 0, 0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .text-orange {
-            color: #FF6B00 !important;
+        /* Brand Logo Badge with Glowing Border */
+        .brand-badge {
+            width: 76px;
+            height: 76px;
+            border-radius: 22px;
+            background: linear-gradient(145deg, rgba(255, 107, 0, 0.22) 0%, rgba(255, 107, 0, 0.04) 100%);
+            border: 2px solid rgba(255, 107, 0, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.15rem auto;
+            color: var(--primary-orange);
+            font-size: 2.45rem;
+            box-shadow: 0 0 30px rgba(255, 107, 0, 0.42), inset 0 0 18px rgba(255, 107, 0, 0.16), 0 10px 25px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .brand-badge:hover {
+            transform: scale(1.05) translateY(-2px);
+            box-shadow: 0 0 36px rgba(255, 107, 0, 0.58), inset 0 0 20px rgba(255, 107, 0, 0.25), 0 12px 30px rgba(0, 0, 0, 0.6);
+        }
+
+        .brand-badge i {
+            filter: drop-shadow(0 2px 8px rgba(255, 107, 0, 0.55));
+        }
+
+        .brand-title {
+            letter-spacing: 1.2px;
+            font-size: 1.85rem;
+            font-weight: 800;
+            color: #FF6B00;
+            text-shadow: 0 0 24px rgba(255, 107, 0, 0.35);
+        }
+
+        .brand-subtitle {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            letter-spacing: 0.2px;
+            font-weight: 400;
+        }
+
+        /* Role Switcher Pills */
+        .role-nav-container {
+            background-color: #171717;
+            padding: 4px;
+            border-radius: 14px;
+            border: 1px solid #2A2A2A;
+            display: flex;
+            gap: 4px;
+            margin-bottom: 1.75rem;
         }
 
         .role-tab-btn {
-            background-color: #242424;
-            color: #A0A0A0;
-            border: 1px solid #333;
+            background-color: transparent;
+            color: #9E9E9E;
+            border: none;
             border-radius: 10px;
-            padding: 10px;
+            padding: 10px 14px;
+            font-size: 0.92rem;
             font-weight: 600;
-            width: 50%;
-            transition: all 0.2s ease;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .role-tab-btn i {
+            font-size: 1.1rem;
+            transition: transform 0.2s ease;
+        }
+
+        .role-tab-btn:hover {
+            color: #FFF;
+            background-color: rgba(255, 255, 255, 0.04);
         }
 
         .role-tab-btn.active {
-            background-color: #FF6B00;
-            color: #121212;
-            border-color: #FF6B00;
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8533 100%);
+            color: #121212 !important;
+            box-shadow: 0 4px 14px rgba(255, 107, 0, 0.35);
+            font-weight: 700;
         }
 
-        .form-control-custom {
-            background-color: #242424;
-            border: 1px solid #333;
-            color: #FFF;
-            padding: 12px 15px;
-            border-radius: 10px;
+        .role-tab-btn.active i {
+            transform: scale(1.08);
         }
 
-        .form-control-custom:focus {
-            background-color: #2A2A2A;
-            border-color: #FF6B00;
-            color: #FFF;
-            box-shadow: 0 0 0 0.25rem rgba(255, 107, 0, 0.25);
+        /* Form Controls */
+        .custom-input-group {
+            position: relative;
+            margin-bottom: 1.25rem;
         }
 
-        .btn-orange {
-            background-color: #FF6B00;
-            color: #121212;
-            font-weight: bold;
-            padding: 12px;
-            border-radius: 10px;
+        .custom-input-group label {
+            display: block;
+            margin-bottom: 0.45rem;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: #CCCCCC;
+            letter-spacing: 0.3px;
+        }
+
+        .input-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-box i.input-icon {
+            position: absolute;
+            left: 14px;
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            pointer-events: none;
+            transition: color 0.2s ease;
+            z-index: 2;
+        }
+
+        .form-control-custom,
+        .form-select-custom {
+            background-color: var(--input-bg) !important;
+            border: 1px solid var(--input-border) !important;
+            color: #FFFFFF !important;
+            padding: 11px 14px 11px 42px !important;
+            border-radius: 12px !important;
+            font-size: 0.95rem;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .form-control-custom::placeholder {
+            color: #6E6E73 !important;
+        }
+
+        .input-box:focus-within i.input-icon {
+            color: var(--primary-orange);
+        }
+
+        .form-control-custom:focus,
+        .form-select-custom:focus {
+            background-color: #272727 !important;
+            border-color: var(--primary-orange) !important;
+            box-shadow: 0 0 0 3px var(--orange-glow) !important;
+            outline: none;
+        }
+
+        /* Toggle Password Button */
+        .toggle-password-btn {
+            position: absolute;
+            right: 12px;
+            background: none;
             border: none;
-            transition: all 0.2s;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            font-size: 1.1rem;
+            z-index: 2;
+            transition: color 0.2s ease;
         }
 
-        .btn-orange:hover {
-            background-color: #e05e00;
-            color: #FFF;
+        .toggle-password-btn:hover {
+            color: #FFFFFF;
         }
 
+        /* PIN Display Screen */
+        .pin-screen-box {
+            background-color: #171717;
+            border: 1px solid #333333;
+            border-radius: 14px;
+            padding: 10px 16px;
+            text-align: center;
+            margin-bottom: 1rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .pin-screen-box:focus-within {
+            border-color: var(--primary-orange);
+            box-shadow: 0 0 0 3px var(--orange-glow);
+        }
+
+        .pin-display-input {
+            background: transparent !important;
+            border: none !important;
+            color: #FFFFFF !important;
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 12px;
+            text-align: center;
+            outline: none;
+            width: 100%;
+            box-shadow: none !important;
+            caret-color: transparent;
+        }
+
+        /* PIN Keypad */
         .pin-keypad {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
-            margin-top: 15px;
+            margin-bottom: 1rem;
         }
 
         .pin-btn {
-            background-color: #242424;
-            border: 1px solid #333;
-            color: #FFF;
-            font-size: 1.4rem;
-            font-weight: bold;
-            padding: 14px;
-            border-radius: 10px;
-            transition: all 0.15s;
+            background-color: #222222;
+            border: 1px solid #2E2E2E;
+            color: #FFFFFF;
+            font-size: 1.35rem;
+            font-weight: 600;
+            padding: 12px 0;
+            border-radius: 12px;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pin-btn:hover {
+            background-color: #2D2D2D;
+            border-color: #404040;
+            transform: translateY(-1px);
         }
 
         .pin-btn:active {
-            background-color: #FF6B00;
+            background-color: var(--primary-orange);
+            color: #121212 !important;
+            border-color: var(--primary-orange);
+            transform: translateY(1px);
+        }
+
+        .pin-btn.action-btn {
+            font-size: 1.15rem;
+        }
+
+        .pin-btn.btn-clear {
+            color: #FF5A5A;
+        }
+        .pin-btn.btn-backspace {
+            color: #FFB300;
+        }
+
+        .pin-btn.action-btn:hover {
+            color: #FFFFFF;
+        }
+
+        /* Submit Button */
+        .btn-orange-gradient {
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8533 100%);
             color: #121212;
+            font-weight: 700;
+            font-size: 1rem;
+            padding: 12px 18px;
+            border-radius: 12px;
+            border: none;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 16px rgba(255, 107, 0, 0.35);
+            cursor: pointer;
+        }
+
+        .btn-orange-gradient:hover {
+            background: linear-gradient(135deg, #e56000 0%, #FF6B00 100%);
+            color: #000;
+            box-shadow: 0 6px 20px rgba(255, 107, 0, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .btn-orange-gradient:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 10px rgba(255, 107, 0, 0.25);
+        }
+
+        /* Password Reset Button */
+        .btn-reset-password {
+            background: rgba(255, 107, 0, 0.08);
+            border: 1px dashed rgba(255, 107, 0, 0.4);
+            color: #FF9E4D;
+            border-radius: 12px;
+            padding: 10px 16px;
+            font-size: 0.88rem;
+            font-weight: 500;
+            width: 100%;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .btn-reset-password:hover {
+            background: rgba(255, 107, 0, 0.16);
+            border-color: #FF6B00;
+            color: #FFFFFF;
+            transform: translateY(-1px);
+        }
+
+        /* Tip & Helper Box */
+        .helper-text-box {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-top: 14px;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #9E9E9E;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .helper-text-box code {
+            color: #FF9E4D;
+            background: rgba(255, 107, 0, 0.12);
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 0.82rem;
+        }
+
+        /* Flash Message Alert Styling */
+        .custom-alert {
+            background: rgba(220, 53, 69, 0.15);
+            border: 1px solid rgba(220, 53, 69, 0.4);
+            color: #FFA4A4;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 0.88rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .custom-alert.alert-success {
+            background: rgba(25, 135, 84, 0.15);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: #75B798;
+        }
+
+        /* Actions Row on Desktop */
+        .actions-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        @media (min-width: 768px) {
+            .actions-group-row {
+                display: flex;
+                flex-direction: row;
+                gap: 12px;
+                align-items: stretch;
+            }
+            .actions-group-row > button,
+            .actions-group-row > .btn-orange-gradient,
+            .actions-group-row > .btn-reset-password {
+                flex: 1;
+                margin-top: 0 !important;
+                height: 48px;
+            }
+            .btn-reset-password {
+                font-size: 0.9rem;
+            }
+
+            /* Staff Dual Column Layout */
+            .staff-desktop-layout {
+                display: grid;
+                grid-template-columns: 1fr 1.15fr;
+                gap: 20px;
+                align-items: start;
+            }
+            .staff-desktop-layout .staff-left-col {
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+                height: 100%;
+            }
+            .staff-desktop-layout .staff-right-col {
+                background: rgba(0, 0, 0, 0.25);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 16px;
+                padding: 14px;
+            }
+            .pin-keypad {
+                margin-bottom: 0;
+            }
+            .pin-btn {
+                padding: 14px 0;
+                font-size: 1.45rem;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .login-card {
+                padding: 1.75rem 1.25rem;
+                border-radius: 16px;
+            }
+            .pin-btn {
+                padding: 10px 0;
+                font-size: 1.25rem;
+            }
+            .brand-badge {
+                width: 56px;
+                height: 56px;
+                font-size: 1.75rem;
+            }
         }
     </style>
 </head>
 <body>
 
-    <div class="login-card">
-        <!-- Logo Header -->
-        <div class="text-center mb-4">
-            <h2 class="fw-bold text-orange m-0"><i class="bi bi-car-front-fill me-2"></i>V CARCARE</h2>
-            <small class="text-secondary">ระบบจัดการสถานีคาร์แคร์</small>
-        </div>
+    <!-- Background Atmospheric Glows -->
+    <div class="bg-glow-orb orb-1"></div>
+    <div class="bg-glow-orb orb-2"></div>
+    <div class="bg-glow-orb orb-3"></div>
 
-        <!-- แท็บสลับประเภทผู้ใช้ -->
-        <div class="d-flex gap-2 mb-4">
-            <button type="button" class="role-tab-btn active" id="tab-manager" onclick="switchTab('manager')">
-                <i class="bi bi-person-badge me-1"></i> ผู้จัดการ
-            </button>
-            <button type="button" class="role-tab-btn" id="tab-staff" onclick="switchTab('staff')">
-                <i class="bi bi-tools me-1"></i> พนักงาน
-            </button>
-        </div>
-
-        <!-- ข้อความแจ้งเตือนจาก Backend (Flask Flash Message) -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show text-center py-2 mb-3" role="alert">
-                        <small class="fw-bold">{{ message }}</small>
-                        <button type="button" class="btn-close py-2" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <!-- ฟอร์ม 1: ผู้จัดการ -->
-        <form id="form-manager" action="{{ url_for('login') }}" method="POST">
-            <input type="hidden" name="role_type" value="manager">
-            
-            <div class="mb-3">
-                <label class="form-label text-secondary small fw-bold">ชื่อผู้ใช้งาน (Username)</label>
-                <div class="input-group">
-                    <span class="input-group-text bg-dark text-secondary border-secondary"><i class="bi bi-person-fill"></i></span>
-                    <input type="text" name="username" class="form-control form-control-custom" placeholder="กรอก Username" required>
+    <div class="login-wrapper">
+        <main class="login-card">
+            <!-- Brand Logo Header -->
+            <div class="text-center mb-4">
+                <div class="brand-badge">
+                    <i class="bi bi-car-front-fill"></i>
                 </div>
+                <h1 class="brand-title text-orange m-0">V CARCARE</h1>
+                <p class="brand-subtitle mt-1 mb-0">ระบบบริหารจัดการสถานีคาร์แคร์</p>
             </div>
 
-            <div class="mb-4">
-                <label class="form-label text-secondary small fw-bold">รหัสผ่าน (Password)</label>
-                <div class="input-group">
-                    <span class="input-group-text bg-dark text-secondary border-secondary"><i class="bi bi-lock-fill"></i></span>
-                    <input type="password" name="password" class="form-control form-control-custom" placeholder="กรอก Password" required>
-                </div>
+            <!-- Role Switch Tabs -->
+            <div class="role-nav-container" role="tablist">
+                <button type="button" class="role-tab-btn active" id="tab-manager" onclick="switchTab('manager')" role="tab" aria-selected="true">
+                    <i class="bi bi-person-badge"></i>
+                    <span>ผู้จัดการ</span>
+                </button>
+                <button type="button" class="role-tab-btn" id="tab-staff" onclick="switchTab('staff')" role="tab" aria-selected="false">
+                    <i class="bi bi-tools"></i>
+                    <span>พนักงาน</span>
+                </button>
             </div>
 
-            <button type="submit" class="btn btn-orange w-100 shadow">
-                เข้าสู่ระบบผู้จัดการ <i class="bi bi-box-arrow-in-right ms-1"></i>
-            </button>
-            <p class="text-center text-secondary small mt-3 mb-0">
-                ครั้งแรกที่ใช้งาน? เปิด <code>/setup-admin</code> เพื่อสร้างบัญชี admin (admin / admin123)
-            </p>
-        </form>
-
-        <!-- ฟอร์ม 2: พนักงาน (ดึงรายชื่อจริงจากฐานข้อมูล) -->
-        <form id="form-staff" action="{{ url_for('login') }}" method="POST" style="display: none;">
-            <input type="hidden" name="role_type" value="staff">
-
-            <div class="mb-3">
-                <label class="form-label text-secondary small fw-bold">เลือกชื่อพนักงาน</label>
-                <select name="staff_id" class="form-select form-control-custom" required>
-                    <option value="" selected disabled>-- เลือกชื่อช่าง / พนักงาน --</option>
-                    {% for s in staff_list %}
-                    <option value="{{ s.id }}">{{ s.full_name }} ({{ s.position }})</option>
-                    {% else %}
-                    <option value="" disabled>ยังไม่มีพนักงานในระบบ</option>
+            <!-- Backend Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="custom-alert {{ 'alert-success' if category == 'success' else 'alert-danger' }} d-flex align-items-center justify-content-between" role="alert">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi {{ 'bi-check-circle-fill' if category == 'success' else 'bi-exclamation-triangle-fill' }}"></i>
+                                <span>{{ message }}</span>
+                            </div>
+                            <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="alert" aria-label="Close" style="font-size: 0.75rem;"></button>
+                        </div>
                     {% endfor %}
-                </select>
-            </div>
+                {% endif %}
+            {% endwith %}
 
-            <div class="mb-3">
-                <label class="form-label text-secondary small fw-bold">รหัส PIN (4 หลัก)</label>
-                <input type="password" id="staff-pin" name="pin_code" class="form-control form-control-custom text-center fs-4 letter-spacing-2" placeholder="••••" maxlength="4" readonly required>
-            </div>
+            <!-- Form 1: Manager Login -->
+            <form id="form-manager" action="{{ url_for('login') }}" method="POST">
+                <input type="hidden" name="role_type" value="manager">
+                
+                <div class="custom-input-group">
+                    <label for="mgr-username">ชื่อผู้ใช้งาน (Username)</label>
+                    <div class="input-box">
+                        <i class="bi bi-person-fill input-icon"></i>
+                        <input type="text" id="mgr-username" name="username" class="form-control-custom" placeholder="กรอก Username ผู้จัดการ" autocomplete="username" required>
+                    </div>
+                </div>
 
-            <div class="pin-keypad">
-                <button type="button" class="pin-btn" onclick="pressPin('1')">1</button>
-                <button type="button" class="pin-btn" onclick="pressPin('2')">2</button>
-                <button type="button" class="pin-btn" onclick="pressPin('3')">3</button>
-                <button type="button" class="pin-btn" onclick="pressPin('4')">4</button>
-                <button type="button" class="pin-btn" onclick="pressPin('5')">5</button>
-                <button type="button" class="pin-btn" onclick="pressPin('6')">6</button>
-                <button type="button" class="pin-btn" onclick="pressPin('7')">7</button>
-                <button type="button" class="pin-btn" onclick="pressPin('8')">8</button>
-                <button type="button" class="pin-btn" onclick="pressPin('9')">9</button>
-                <button type="button" class="pin-btn text-danger" onclick="clearPin()"><i class="bi bi-x-circle"></i></button>
-                <button type="button" class="pin-btn" onclick="pressPin('0')">0</button>
-                <button type="button" class="pin-btn text-warning" onclick="backspacePin()"><i class="bi bi-backspace"></i></button>
-            </div>
+                <div class="custom-input-group">
+                    <label for="mgr-password">รหัสผ่าน (Password)</label>
+                    <div class="input-box">
+                        <i class="bi bi-shield-lock-fill input-icon"></i>
+                        <input type="password" id="mgr-password" name="password" class="form-control-custom pe-5" placeholder="กรอกรหัสผ่าน" autocomplete="current-password" required>
+                        <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('mgr-password', this)" title="แสดง/ซ่อนรหัสผ่าน" aria-label="แสดงรหัสผ่าน">
+                            <i class="bi bi-eye-fill"></i>
+                        </button>
+                    </div>
+                </div>
 
-            <button type="submit" class="btn btn-orange w-100 mt-3 shadow">
-                เข้าใช้งานหน้าร้าน <i class="bi bi-box-arrow-in-right ms-1"></i>
-            </button>
-            <p class="text-center text-secondary small mt-3 mb-0">
-                พนักงานใหม่ยังไม่มีรหัส PIN? เปิด <code>/setup-staff-pins</code> เพื่อตั้งรหัสเริ่มต้น (1234)
-            </p>
-        </form>
+                <!-- Desktop / Mobile Action Buttons -->
+                <div class="actions-group actions-group-row mt-3">
+                    <button type="submit" class="btn-orange-gradient">
+                        <span>เข้าสู่ระบบผู้จัดการ</span>
+                        <i class="bi bi-arrow-right-short fs-4"></i>
+                    </button>
+                    <button type="button" class="btn-reset-password" onclick="startPasswordReset()">
+                        <i class="bi bi-camera-fill"></i>
+                        <span>สแกนหน้าเปลี่ยนรหัส</span>
+                    </button>
+                </div>
 
-        <div class="text-center mt-3">
-            <button type="button" class="btn btn-outline-warning w-100 py-2 fw-bold" onclick="startPasswordReset()"><i class="bi bi-key-fill me-2"></i>รีเซ็ตรหัสผ่าน</button>
-        </div>
+                <div class="helper-text-box mt-3">
+                    <span>ครั้งแรกที่ใช้งาน?</span> เปิด <code>/setup-admin</code> เพื่อสร้างบัญชีเริ่มต้น
+                </div>
+            </form>
 
+            <!-- Form 2: Staff Login (Dropdown + PIN Keypad) -->
+            <form id="form-staff" action="{{ url_for('login') }}" method="POST" style="display: none;">
+                <input type="hidden" name="role_type" value="staff">
+
+                <div class="staff-desktop-layout">
+                    <!-- Left Column: Staff Select & Display PIN & Info -->
+                    <div class="staff-left-col">
+                        <div class="custom-input-group">
+                            <label for="staff-id-select">เลือกชื่อพนักงาน</label>
+                            <div class="input-box">
+                                <i class="bi bi-person-circle input-icon"></i>
+                                <select id="staff-id-select" name="staff_id" class="form-select form-control-custom" required>
+                                    <option value="" selected disabled>-- เลือกชื่อช่าง / พนักงาน --</option>
+                                    {% for s in staff_list %}
+                                    <option value="{{ s.id }}">{{ s.full_name }} ({{ s.position }})</option>
+                                    {% else %}
+                                    <option value="" disabled>ยังไม่มีรายชื่อพนักงานในระบบ</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="custom-input-group mb-2">
+                            <label for="staff-pin">รหัส PIN (4 หลัก)</label>
+                            <div class="pin-screen-box">
+                                <input type="password" id="staff-pin" name="pin_code" class="pin-display-input" placeholder="••••" maxlength="4" readonly required>
+                            </div>
+                        </div>
+
+                        <div class="helper-text-box mt-auto d-none d-md-block">
+                            <span>ยังไม่มี PIN?</span> เปิด <code>/setup-staff-pins</code> (ค่าเริ่มต้น 1234)
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Touch & Click Keypad -->
+                    <div class="staff-right-col">
+                        <div class="pin-keypad" aria-label="แป้นกดรหัส PIN">
+                            <button type="button" class="pin-btn" onclick="pressPin('1')">1</button>
+                            <button type="button" class="pin-btn" onclick="pressPin('2')">2</button>
+                            <button type="button" class="pin-btn" onclick="pressPin('3')">3</button>
+                            <button type="button" class="pin-btn" onclick="pressPin('4')">4</button>
+                            <button type="button" class="pin-btn" onclick="pressPin('5')">5</button>
+                            <button type="button" class="pin-btn" onclick="pressPin('6')">6</button>
+                            <button type="button" class="pin-btn" onclick="pressPin('7')">7</button>
+                            <button type="button" class="pin-btn" onclick="pressPin('8')">8</button>
+                            <button type="button" class="pin-btn" onclick="pressPin('9')">9</button>
+                            <button type="button" class="pin-btn action-btn btn-clear" onclick="clearPin()" title="ล้างทั้งหมด" aria-label="ล้างทั้งหมด">
+                                <i class="bi bi-trash3-fill"></i>
+                            </button>
+                            <button type="button" class="pin-btn" onclick="pressPin('0')">0</button>
+                            <button type="button" class="pin-btn action-btn btn-backspace" onclick="backspacePin()" title="ลบตัวล่าสุด" aria-label="ลบตัวล่าสุด">
+                                <i class="bi bi-backspace-fill"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Desktop / Mobile Action Buttons -->
+                <div class="actions-group actions-group-row mt-3">
+                    <button type="submit" class="btn-orange-gradient">
+                        <span>เข้าใช้งานหน้าร้าน</span>
+                        <i class="bi bi-arrow-right-short fs-4"></i>
+                    </button>
+                    <button type="button" class="btn-reset-password" onclick="startPasswordReset()">
+                        <i class="bi bi-camera-fill"></i>
+                        <span>สแกนหน้าเปลี่ยนรหัส</span>
+                    </button>
+                </div>
+
+                <div class="helper-text-box mt-3 d-md-none">
+                    <span>พนักงานใหม่ยังไม่มี PIN?</span> เปิด <code>/setup-staff-pins</code> (ค่าเริ่มต้น 1234)
+                </div>
+            </form>
+
+        </main>
     </div>
 
+    <!-- Scripts -->
     <script>
         function switchTab(role) {
             const tabManager = document.getElementById('tab-manager');
             const tabStaff = document.getElementById('tab-staff');
             const formManager = document.getElementById('form-manager');
             const formStaff = document.getElementById('form-staff');
+            const wrapper = document.querySelector('.login-wrapper');
 
             if (role === 'manager') {
                 tabManager.classList.add('active');
+                tabManager.setAttribute('aria-selected', 'true');
                 tabStaff.classList.remove('active');
+                tabStaff.setAttribute('aria-selected', 'false');
                 formManager.style.display = 'block';
                 formStaff.style.display = 'none';
+                if (wrapper) wrapper.classList.remove('staff-active-layout');
             } else {
                 tabStaff.classList.add('active');
+                tabStaff.setAttribute('aria-selected', 'true');
                 tabManager.classList.remove('active');
+                tabManager.setAttribute('aria-selected', 'false');
                 formStaff.style.display = 'block';
                 formManager.style.display = 'none';
+                if (wrapper) wrapper.classList.add('staff-active-layout');
             }
         }
 
@@ -252,6 +736,43 @@
             const pinInput = document.getElementById('staff-pin');
             pinInput.value = pinInput.value.slice(0, -1);
         }
+
+        /* Keyboard support for computer users entering PIN */
+        document.addEventListener('keydown', function(event) {
+            const formStaff = document.getElementById('form-staff');
+            if (!formStaff || formStaff.style.display === 'none') return;
+
+            // Don't intercept if user is focusing another interactive element like select
+            if (event.target.tagName === 'SELECT' || event.target.tagName === 'INPUT' && event.target.id !== 'staff-pin') {
+                return;
+            }
+
+            if (/^[0-9]$/.test(event.key)) {
+                pressPin(event.key);
+                event.preventDefault();
+            } else if (event.key === 'Backspace') {
+                backspacePin();
+                event.preventDefault();
+            } else if (event.key === 'Escape' || event.key === 'Delete') {
+                clearPin();
+                event.preventDefault();
+            }
+        });
+
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'bi bi-eye-slash-fill';
+                btn.setAttribute('aria-label', 'ซ่อนรหัสผ่าน');
+            } else {
+                input.type = 'password';
+                icon.className = 'bi bi-eye-fill';
+                btn.setAttribute('aria-label', 'แสดงรหัสผ่าน');
+            }
+        }
+
         function startPasswordReset() {
             const role = document.getElementById('tab-manager').classList.contains('active') ? 'manager' : 'staff';
             location.href = `/face-checkin?mode=reset&role=${encodeURIComponent(role)}`;

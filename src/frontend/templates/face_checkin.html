@@ -1,26 +1,68 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>สแกนหน้าเช็คอิน - V CarCare</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+        <!-- Google Fonts: Kanit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        body { background: #121212; color: #fff; min-height: 100vh; }
-        .scan-card { max-width: 560px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 16px; }
-        .camera-frame { aspect-ratio: 4 / 3; background: #090909; border: 2px solid #ff6b00; border-radius: 14px; overflow: hidden; position: relative; }
-        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        .face-guide { position: absolute; inset: 12% 25%; border: 3px dashed rgba(255, 107, 0, .9); border-radius: 50%; pointer-events: none; }
+        body {
+            background: #121212;
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .scan-card {
+            max-width: 560px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 16px;
+        }
+
+        .camera-frame {
+            aspect-ratio: 4 / 3;
+            background: #090909;
+            border: 2px solid #ff6b00;
+            border-radius: 14px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        .face-guide {
+            position: absolute;
+            inset: 12% 25%;
+            border: 3px dashed rgba(255, 107, 0, .9);
+            border-radius: 50%;
+            pointer-events: none;
+        }
     </style>
 </head>
+
 <body class="d-flex align-items-center justify-content-center p-3">
     <main class="scan-card w-100 p-4 text-center shadow-lg">
+        <div class="brand-badge-glow mb-3 mx-auto">
+            <i class="bi bi-car-front-fill"></i>
+        </div>
         <h2 class="h4 fw-bold text-warning mb-2"><i class="bi bi-camera-fill me-2"></i>สแกนหน้าเช็คอิน</h2>
         <p class="text-secondary small mb-4">จัดใบหน้าให้อยู่ในกรอบ แล้วกดบันทึกการเช็คอิน</p>
 
-        {% if not scan_allowed and face_mode not in ('change-ip', 'enroll', 'verify-manager-change') %}<div class="alert alert-warning py-2 small">เครื่องนี้ไม่ใช่เครื่องหลักที่ตั้งค่าไว้ การสแกนจะไม่สามารถเข้าสู่ระบบได้</div>{% endif %}
+        {% if not scan_allowed and face_mode not in ('change-ip', 'enroll', 'verify-manager-change') %}<div
+            class="alert alert-warning py-2 small">เครื่องนี้ไม่ใช่เครื่องหลักที่ตั้งค่าไว้
+            การสแกนจะไม่สามารถเข้าสู่ระบบได้</div>{% endif %}
         <div class="camera-frame mb-3">
             <video id="camera-preview" autoplay playsinline muted></video>
             <div class="face-guide"></div>
@@ -29,31 +71,34 @@
 
         <div class="d-grid gap-2">
 
-    <button id="start-camera" class="btn btn-warning fw-bold" type="button">
-        <i class="bi bi-camera-video-fill me-2"></i>เปิดกล้อง
-    </button>
+            <button id="start-camera" class="btn btn-warning fw-bold" type="button">
+                <i class="bi bi-camera-video-fill me-2"></i>เปิดกล้อง
+            </button>
 
-    <!-- เพิ่มอันนี้ -->
-    <button id="scan-face" class="btn btn-success fw-bold" type="button" disabled>
-        <i class="bi bi-person-check-fill me-2"></i>สแกนใบหน้า
-    </button>
+            <!-- เพิ่มอันนี้ -->
+            <button id="scan-face" class="btn btn-success fw-bold" type="button" disabled>
+                <i class="bi bi-person-check-fill me-2"></i>สแกนใบหน้า
+            </button>
 
-    <button id="stop-camera" class="btn btn-outline-secondary" type="button" disabled>
-        <i class="bi bi-camera-video-off me-2"></i>ปิดกล้อง
-    </button>
+            <button id="stop-camera" class="btn btn-outline-secondary" type="button" disabled>
+                <i class="bi bi-camera-video-off me-2"></i>ปิดกล้อง
+            </button>
 
-    <button id="back-to-login" class="btn btn-outline-light" type="button">
-        <i class="bi bi-arrow-left me-2"></i>กลับหน้าล็อกอิน
-    </button>
+            <button id="back-to-login" class="btn btn-outline-light" type="button">
+                <i class="bi bi-arrow-left me-2"></i>กลับหน้าล็อกอิน
+            </button>
 
-</div>
+        </div>
         <form id="reset-password-form" class="d-none text-start mt-3 border-top border-secondary pt-3">
             <div class="small text-success mb-2">ยืนยันตัวตนแล้ว: <strong id="reset-display-name"></strong></div>
             <label for="new-password" class="form-label small">รหัสผ่านใหม่</label>
-            <input id="new-password" type="password" class="form-control mb-2" minlength="4" required autocomplete="new-password">
+            <input id="new-password" type="password" class="form-control mb-2" minlength="4" required
+                autocomplete="new-password">
             <label for="confirm-password" class="form-label small">ยืนยันรหัสผ่านใหม่</label>
-            <input id="confirm-password" type="password" class="form-control mb-3" minlength="4" required autocomplete="new-password">
-            <button class="btn btn-warning fw-bold w-100" type="submit"><i class="bi bi-key-fill me-2"></i>บันทึกรหัสผ่านใหม่</button>
+            <input id="confirm-password" type="password" class="form-control mb-3" minlength="4" required
+                autocomplete="new-password">
+            <button class="btn btn-warning fw-bold w-100" type="submit"><i
+                    class="bi bi-key-fill me-2"></i>บันทึกรหัสผ่านใหม่</button>
         </form>
     </main>
 
@@ -126,103 +171,103 @@
         }
         async function scanFace() {
 
-    // ตรวจว่ากล้องเปิดหรือยัง
-    if (!stream) {
-        status.textContent = "กรุณาเปิดกล้องก่อน";
-        status.className = "small text-danger mb-3";
-        return;
-    }
-
-    status.textContent = "กำลังตรวจสอบใบหน้า...";
-    status.className = "small text-warning mb-3";
-
-    // จับภาพจากกล้อง
-    const canvas = document.createElement("canvas");
-    // InsightFace detects at 320px, so a larger upload only slows remote scans.
-    // without improving face matching for this flow.
-    const maxEdge = 320;
-    const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-
-    const ctx = canvas.getContext("2d");
-
-    // กลับภาพให้ตรง เพราะ preview ใช้ scaleX(-1)
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // แปลงเป็น Base64
-    const image = canvas.toDataURL("image/jpeg", 0.65);
-
-    try {
-
-        const endpoint = mode === 'enroll' ? '/api/manager/face-enroll' : mode === 'verify-manager-change' ? '/api/security/verify-current-manager' : mode === 'change-ip' ? '/api/security/change-primary-face-ip' : mode === 'reset' ? '/api/password-reset/face/verify' : '/api/face-login';
-        const payload = mode === 'enroll' ? { face_images: [image] } : { face_image: image };
-        if (mode === 'login' && ['manager', 'staff'].includes(expectedRole)) payload.expected_role = expectedRole;
-        if (mode === 'reset') {
-            payload.role = resetRole;
-        }
-        const response = await fetch(endpoint, {
-
-            method: "POST",
-
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify(payload)
-
-        });
-
-        const responseText = await response.text();
-        let result;
-        try {
-            result = JSON.parse(responseText);
-        } catch {
-            throw new Error(`เซิร์ฟเวอร์ตอบกลับผิดพลาด (HTTP ${response.status})`);
-        }
-
-        if (!response.ok || result.status !== "success") {
-            throw new Error(result.message || `ไม่สามารถตรวจสอบใบหน้าได้ (HTTP ${response.status})`);
-        }
-
-        if (result.status === "success") {
-
-            status.textContent = "ยืนยันตัวตนสำเร็จ กำลังเข้าสู่ระบบ...";
-            status.className = "small text-success mb-3";
-
-            // Staff scans record attendance only; do not navigate away after
-            // success, which avoids turning a completed check-in into a 404.
-            if (mode === 'login' && expectedRole === 'staff') {
-                status.textContent = 'เช็กอินพนักงานสำเร็จแล้ว';
-                scanButton.disabled = true;
-                stopCamera();
+            // ตรวจว่ากล้องเปิดหรือยัง
+            if (!stream) {
+                status.textContent = "กรุณาเปิดกล้องก่อน";
+                status.className = "small text-danger mb-3";
                 return;
             }
 
-            if (mode === 'reset') {
-                stopCamera();
-                document.querySelector('.d-grid').classList.add('d-none');
-                document.getElementById('reset-display-name').textContent = result.display_name || '-';
-                resetPasswordForm.classList.remove('d-none');
-                status.textContent = 'ยืนยันใบหน้าสำเร็จ กรุณาตั้งรหัสผ่านใหม่';
-                return;
+            status.textContent = "กำลังตรวจสอบใบหน้า...";
+            status.className = "small text-warning mb-3";
+
+            // จับภาพจากกล้อง
+            const canvas = document.createElement("canvas");
+            // InsightFace detects at 320px, so a larger upload only slows remote scans.
+            // without improving face matching for this flow.
+            const maxEdge = 320;
+            const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
+
+            const ctx = canvas.getContext("2d");
+
+            // กลับภาพให้ตรง เพราะ preview ใช้ scaleX(-1)
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // แปลงเป็น Base64
+            const image = canvas.toDataURL("image/jpeg", 0.65);
+
+            try {
+
+                const endpoint = mode === 'enroll' ? '/api/manager/face-enroll' : mode === 'verify-manager-change' ? '/api/security/verify-current-manager' : mode === 'change-ip' ? '/api/security/change-primary-face-ip' : mode === 'reset' ? '/api/password-reset/face/verify' : '/api/face-login';
+                const payload = mode === 'enroll' ? { face_images: [image] } : { face_image: image };
+                if (mode === 'login' && ['manager', 'staff'].includes(expectedRole)) payload.expected_role = expectedRole;
+                if (mode === 'reset') {
+                    payload.role = resetRole;
+                }
+                const response = await fetch(endpoint, {
+
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify(payload)
+
+                });
+
+                const responseText = await response.text();
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch {
+                    throw new Error(`เซิร์ฟเวอร์ตอบกลับผิดพลาด (HTTP ${response.status})`);
+                }
+
+                if (!response.ok || result.status !== "success") {
+                    throw new Error(result.message || `ไม่สามารถตรวจสอบใบหน้าได้ (HTTP ${response.status})`);
+                }
+
+                if (result.status === "success") {
+
+                    status.textContent = "ยืนยันตัวตนสำเร็จ กำลังเข้าสู่ระบบ...";
+                    status.className = "small text-success mb-3";
+
+                    // Staff scans record attendance only; do not navigate away after
+                    // success, which avoids turning a completed check-in into a 404.
+                    if (mode === 'login' && expectedRole === 'staff') {
+                        status.textContent = 'เช็กอินพนักงานสำเร็จแล้ว';
+                        scanButton.disabled = true;
+                        stopCamera();
+                        return;
+                    }
+
+                    if (mode === 'reset') {
+                        stopCamera();
+                        document.querySelector('.d-grid').classList.add('d-none');
+                        document.getElementById('reset-display-name').textContent = result.display_name || '-';
+                        resetPasswordForm.classList.remove('d-none');
+                        status.textContent = 'ยืนยันใบหน้าสำเร็จ กรุณาตั้งรหัสผ่านใหม่';
+                        return;
+                    }
+                    setTimeout(() => { window.location.href = result.redirect || '/login'; }, 700);
+
+                }
+
+            } catch (err) {
+
+                console.error(err);
+
+                status.textContent = err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์";
+                status.className = "small text-danger mb-3";
+
             }
-            setTimeout(() => { window.location.href = result.redirect || '/login'; }, 700);
 
         }
-
-    } catch (err) {
-
-        console.error(err);
-
-        status.textContent = err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์";
-        status.className = "small text-danger mb-3";
-
-    }
-
-}
         startButton.addEventListener('click', startCamera);
         stopButton.addEventListener('click', stopCamera);
         scanButton.addEventListener('click', scanFace);
@@ -256,4 +301,5 @@
         window.addEventListener('beforeunload', stopCamera);
     </script>
 </body>
+
 </html>

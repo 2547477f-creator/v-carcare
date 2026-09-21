@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -11,289 +12,294 @@
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
 
-<div class="container-fluid p-3 client-container">
+    <div class="container-fluid p-3 client-container">
 
-    <div class="text-center my-4">
-        <h2 class="text-orange fw-bold m-0">V <span class="text-white fs-4">CARCARE</span></h2>
-        <small class="text-secondary">ระบบติดตามสถานะคิวรถอัตโนมัติ</small>
-    </div>
+        <div class="text-center my-4">
+            <h2 class="text-orange fw-bold m-0">V <span class="text-white fs-4">CARCARE</span></h2>
+            <small class="text-secondary">ระบบติดตามสถานะคิวรถอัตโนมัติ</small>
+        </div>
 
-    <div class="detail-wrap">
-        <!-- รายละเอียดคิวที่เลือก (แสดงเมื่อกดที่การ์ดในกระดาน/ประวัติ) -->
-        <div id="result-area">
-            <div class="card-custom p-4 text-center mb-4 border-top border-orange border-4">
-                <span class="badge bg-dark border border-secondary text-secondary mb-2 px-3 py-2 fs-6 rounded-pill">คิวของคุณ</span>
-                <h2 class="text-white fw-bold my-1" id="car-plate">-</h2>
-                <p class="text-secondary m-0" id="car-detail">-</p>
+        <div class="detail-wrap">
+            <!-- รายละเอียดคิวที่เลือก (แสดงเมื่อกดที่การ์ดในกระดาน/ประวัติ) -->
+            <div id="result-area">
+                <div class="card-custom p-4 text-center mb-4 border-top border-orange border-4">
+                    <span
+                        class="badge bg-dark border border-secondary text-secondary mb-2 px-3 py-2 fs-6 rounded-pill">คิวของคุณ</span>
+                    <h2 class="text-white fw-bold my-1" id="car-plate">-</h2>
+                    <p class="text-secondary m-0" id="car-detail">-</p>
 
-                <div class="mt-3 p-2 rounded bg-dark d-inline-block border border-secondary">
-                    <small class="text-secondary">บริการที่คุณเลือก:</small>
-                    <span class="text-warning fw-bold d-block" id="selected-services">-</span>
-                </div>
-            </div>
-
-            <div class="card-custom p-4 mb-4">
-                <h6 class="text-white fw-bold mb-4 text-center"><i class="bi bi-info-circle text-orange me-2"></i> สถานะการบริการปัจจุบัน</h6>
-
-                <div class="step-indicator">
-                    <div class="step-progress-line" id="progress-line"></div>
-
-                    <div class="step-item">
-                        <div class="step-node" id="node-1"><i class="bi bi-clock"></i></div>
-                        <div class="step-label" id="label-1">รอคิว</div>
-                    </div>
-                    <div class="step-item">
-                        <div class="step-node" id="node-2"><i class="bi bi-droplet-fill"></i></div>
-                        <div class="step-label" id="label-2">กำลังล้าง</div>
-                    </div>
-                    <div class="step-item">
-                        <div class="step-node" id="node-3"><i class="bi bi-stars"></i></div>
-                        <div class="step-label" id="label-3">เช็ดแห้ง/เคลือบ</div>
-                    </div>
-                    <div class="step-item">
-                        <div class="step-node" id="node-4"><i class="bi bi-check-lg"></i></div>
-                        <div class="step-label" id="label-4">พร้อมรับรถ</div>
+                    <div class="mt-3 p-2 rounded bg-dark d-inline-block border border-secondary">
+                        <small class="text-secondary">บริการที่คุณเลือก:</small>
+                        <span class="text-warning fw-bold d-block" id="selected-services">-</span>
                     </div>
                 </div>
 
-                <div class="p-3 text-center rounded-3" id="status-box">
-                    <h5 class="text-orange fw-bold mb-1" id="status-title">-</h5>
-                    <small class="text-secondary" id="status-desc">ระบบจะอัปเดตอัตโนมัติเมื่อพนักงานเปลี่ยนสถานะงาน</small>
+                <div class="card-custom p-4 mb-4">
+                    <h6 class="text-white fw-bold mb-4 text-center"><i class="bi bi-info-circle text-orange me-2"></i>
+                        สถานะการบริการปัจจุบัน</h6>
+
+                    <div class="step-indicator">
+                        <div class="step-progress-line" id="progress-line"></div>
+
+                        <div class="step-item">
+                            <div class="step-node" id="node-1"><i class="bi bi-clock"></i></div>
+                            <div class="step-label" id="label-1">รอคิว</div>
+                        </div>
+                        <div class="step-item">
+                            <div class="step-node" id="node-2"><i class="bi bi-droplet-fill"></i></div>
+                            <div class="step-label" id="label-2">กำลังล้าง</div>
+                        </div>
+                        <div class="step-item">
+                            <div class="step-node" id="node-3"><i class="bi bi-stars"></i></div>
+                            <div class="step-label" id="label-3">เช็ดแห้ง/เคลือบ</div>
+                        </div>
+                        <div class="step-item">
+                            <div class="step-node" id="node-4"><i class="bi bi-check-lg"></i></div>
+                            <div class="step-label" id="label-4">พร้อมรับรถ</div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 text-center rounded-3" id="status-box">
+                        <h5 class="text-orange fw-bold mb-1" id="status-title">-</h5>
+                        <small class="text-secondary"
+                            id="status-desc">ระบบจะอัปเดตอัตโนมัติเมื่อพนักงานเปลี่ยนสถานะงาน</small>
+                    </div>
+                </div>
+
+                <div class="card-custom p-3 text-center mb-4">
+                    <div class="small text-secondary mb-1">ยอดชำระโดยประมาณ</div>
+                    <h4 class="text-success fw-bold m-0" id="estimated-amount">-</h4>
+                    <hr class="border-secondary my-2">
+                    <p class="small text-muted m-0 pickup-note">*กรุณาแสดงหน้าจอนี้ให้พนักงานดูตอนรับรถคืน</p>
                 </div>
             </div>
 
-            <div class="card-custom p-3 text-center mb-4">
-                <div class="small text-secondary mb-1">ยอดชำระโดยประมาณ</div>
-                <h4 class="text-success fw-bold m-0" id="estimated-amount">-</h4>
-                <hr class="border-secondary my-2">
-                <p class="small text-muted m-0 pickup-note">*กรุณาแสดงหน้าจอนี้ให้พนักงานดูตอนรับรถคืน</p>
+            <div id="error-area" class="alert alert-danger text-center"></div>
+        </div>
+
+        <!-- ===================== กระดานสถานะคิว 3 ช่อง เรียงแถวเดียวกัน ===================== -->
+        <div class="board-title"><i class="bi bi-grid-3x3-gap-fill text-orange me-1"></i> สถานะคิวรถวันนี้
+            (แตะรถเพื่อดูรายละเอียด)</div>
+        <div class="board-row">
+            <div class="board-col pending">
+                <div class="board-col-header">
+                    <i class="bi bi-clock"></i>
+                    <span class="col-name">รอคิว</span>
+                    <span class="col-count" id="count-pending">0</span>
+                </div>
+                <div class="board-list" id="board-pending"></div>
+            </div>
+            <div class="board-col progress">
+                <div class="board-col-header">
+                    <i class="bi bi-arrow-repeat"></i>
+                    <span class="col-name">กำลังบริการ</span>
+                    <span class="col-count" id="count-progress">0</span>
+                </div>
+                <div class="board-list" id="board-progress"></div>
+            </div>
+            <div class="board-col done">
+                <div class="board-col-header">
+                    <i class="bi bi-check-circle"></i>
+                    <span class="col-name">เสร็จแล้ว รอรับ</span>
+                    <span class="col-count" id="count-done">0</span>
+                </div>
+                <div class="board-list" id="board-done"></div>
             </div>
         </div>
 
-        <div id="error-area" class="alert alert-danger text-center"></div>
+        <!-- ===================== ประวัติรับรถวันนี้ (อยู่ต่อท้ายในหน้าเดียวกัน) ===================== -->
+        <div class="board-title"><i class="bi bi-clock-history text-info me-1"></i> ประวัติรับรถวันนี้</div>
+        <div class="card-custom p-3 mb-3">
+            <div class="d-flex flex-column gap-2" id="history-results"></div>
+        </div>
+
     </div>
 
-    <!-- ===================== กระดานสถานะคิว 3 ช่อง เรียงแถวเดียวกัน ===================== -->
-    <div class="board-title"><i class="bi bi-grid-3x3-gap-fill text-orange me-1"></i> สถานะคิวรถวันนี้ (แตะรถเพื่อดูรายละเอียด)</div>
-    <div class="board-row">
-        <div class="board-col pending">
-            <div class="board-col-header">
-                <i class="bi bi-clock"></i>
-                <span class="col-name">รอคิว</span>
-                <span class="col-count" id="count-pending">0</span>
-            </div>
-            <div class="board-list" id="board-pending"></div>
-        </div>
-        <div class="board-col progress">
-            <div class="board-col-header">
-                <i class="bi bi-arrow-repeat"></i>
-                <span class="col-name">กำลังบริการ</span>
-                <span class="col-count" id="count-progress">0</span>
-            </div>
-            <div class="board-list" id="board-progress"></div>
-        </div>
-        <div class="board-col done">
-            <div class="board-col-header">
-                <i class="bi bi-check-circle"></i>
-                <span class="col-name">เสร็จแล้ว รอรับ</span>
-                <span class="col-count" id="count-done">0</span>
-            </div>
-            <div class="board-list" id="board-done"></div>
-        </div>
-    </div>
+    <script>
+        // แผนที่สถานะจากฐานข้อมูล -> ขั้นตอนที่แสดงผล (1-4)
+        const STATUS_TO_STEP = {
+            pending: 1,
+            in_progress: 2,
+            drying: 3,
+            ready: 4,
+            completed: 4,
+        };
 
-    <!-- ===================== ประวัติรับรถวันนี้ (อยู่ต่อท้ายในหน้าเดียวกัน) ===================== -->
-    <div class="board-title"><i class="bi bi-clock-history text-info me-1"></i> ประวัติรับรถวันนี้</div>
-    <div class="card-custom p-3 mb-3">
-        <div class="d-flex flex-column gap-2" id="history-results"></div>
-    </div>
-
-</div>
-
-<script>
-    // แผนที่สถานะจากฐานข้อมูล -> ขั้นตอนที่แสดงผล (1-4)
-    const STATUS_TO_STEP = {
-        pending: 1,
-        in_progress: 2,
-        drying: 3,
-        ready: 4,
-        completed: 4,
-    };
-
-    const statusConfig = {
-        1: {
-            title: "อยู่ระหว่างรอคิวเข้าล้าง",
-            desc: "รถของคุณถูกลงทะเบียนในระบบเรียบร้อยแล้ว กำลังรอพนักงานเข้าประจำสถานี",
-            boxBg: "rgba(142, 142, 147, 0.1)", boxBorder: "#8E8E93", titleColor: "#FFFFFF"
-        },
-        2: {
-            title: "กำลังล้างทำความสะอาดภายนอก",
-            desc: "พนักงานกำลังฉีดล้างคราบสกปรก และลงโฟมทำความสะอาดรอบคัน",
-            boxBg: "rgba(255, 107, 0, 0.08)", boxBorder: "#FF6B00", titleColor: "#FF6B00"
-        },
-        3: {
-            title: "กำลังเช็ดแห้ง / ดูดฝุ่น / เคลือบเงา",
-            desc: "รถออกจากช่องล้างแล้ว กำลังเป่าแห้ง ดูดฝุ่นภายใน และเคลือบเงายาง/สีรถ",
-            boxBg: "rgba(13, 202, 240, 0.08)", boxBorder: "#0dcaf0", titleColor: "#0dcaf0"
-        },
-        4: {
-            title: "🎉 บริการเสร็จสิ้น พร้อมรับรถคืน!",
-            desc: "ตรวจเช็กความเรียบร้อยเรียบร้อยแล้ว กรุณาติดต่อชำระเงิน/รับรถที่เคาน์เตอร์",
-            boxBg: "rgba(25, 135, 84, 0.15)", boxBorder: "#198754", titleColor: "#25c974"
-        }
-    };
-
-    let pollTimer = null;
-    let refreshTimer = null;
-
-    function esc(v) {
-        const n = document.createElement('span');
-        n.textContent = v === undefined || v === null || v === '' ? '-' : v;
-        return n.innerHTML;
-    }
-
-    function dt(v) {
-        return v ? new Date(v).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
-    }
-
-    function plateOnly(o) {
-        return (o.license_plate || '-') + (o.province ? ' ' + o.province : '');
-    }
-
-    /* ---------------- รายละเอียดคิวรายคัน ---------------- */
-
-    function renderStep(stepIndex) {
-        const progressLine = document.getElementById('progress-line');
-        const percentages = { 1: '0%', 2: '33.33%', 3: '66.66%', 4: '100%' };
-        progressLine.style.width = percentages[stepIndex];
-
-        for (let i = 1; i <= 4; i++) {
-            const node = document.getElementById(`node-${i}`);
-            const label = document.getElementById(`label-${i}`);
-            node.classList.remove('active', 'done');
-            label.classList.remove('active', 'done');
-
-            if (i < stepIndex) {
-                node.classList.add('done');
-                label.classList.add('done');
-                node.innerHTML = '<i class="bi bi-check-lg"></i>';
-            } else if (i === stepIndex) {
-                node.classList.add('active');
-                label.classList.add('active');
-                const icons = { 1: 'bi-clock', 2: 'bi-droplet-fill', 3: 'bi-stars', 4: 'bi-check-lg' };
-                node.innerHTML = `<i class="bi ${icons[i]}"></i>`;
-            } else {
-                node.innerHTML = i;
+        const statusConfig = {
+            1: {
+                title: "อยู่ระหว่างรอคิวเข้าล้าง",
+                desc: "รถของคุณถูกลงทะเบียนในระบบเรียบร้อยแล้ว กำลังรอพนักงานเข้าประจำสถานี",
+                boxBg: "rgba(142, 142, 147, 0.1)", boxBorder: "#8E8E93", titleColor: "#FFFFFF"
+            },
+            2: {
+                title: "กำลังล้างทำความสะอาดภายนอก",
+                desc: "พนักงานกำลังฉีดล้างคราบสกปรก และลงโฟมทำความสะอาดรอบคัน",
+                boxBg: "rgba(255, 107, 0, 0.08)", boxBorder: "#FF6B00", titleColor: "#FF6B00"
+            },
+            3: {
+                title: "กำลังเช็ดแห้ง / ดูดฝุ่น / เคลือบเงา",
+                desc: "รถออกจากช่องล้างแล้ว กำลังเป่าแห้ง ดูดฝุ่นภายใน และเคลือบเงายาง/สีรถ",
+                boxBg: "rgba(13, 202, 240, 0.08)", boxBorder: "#0dcaf0", titleColor: "#0dcaf0"
+            },
+            4: {
+                title: "🎉 บริการเสร็จสิ้น พร้อมรับรถคืน!",
+                desc: "ตรวจเช็กความเรียบร้อยเรียบร้อยแล้ว กรุณาติดต่อชำระเงิน/รับรถที่เคาน์เตอร์",
+                boxBg: "rgba(25, 135, 84, 0.15)", boxBorder: "#198754", titleColor: "#25c974"
             }
+        };
+
+        let pollTimer = null;
+        let refreshTimer = null;
+
+        function esc(v) {
+            const n = document.createElement('span');
+            n.textContent = v === undefined || v === null || v === '' ? '-' : v;
+            return n.innerHTML;
         }
 
-        const config = statusConfig[stepIndex];
-        const statusBox = document.getElementById('status-box');
-        statusBox.style.backgroundColor = config.boxBg;
-        statusBox.style.borderColor = config.boxBorder;
-        document.getElementById('status-title').style.color = config.titleColor;
-        document.getElementById('status-title').innerText = config.title;
-        document.getElementById('status-desc').innerText = config.desc;
-    }
+        function dt(v) {
+            return v ? new Date(v).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
+        }
 
-    function renderOrder(order) {
-        document.getElementById('result-area').style.display = 'block';
-        document.getElementById('error-area').style.display = 'none';
+        function plateOnly(o) {
+            return (o.license_plate || '-') + (o.province ? ' ' + o.province : '');
+        }
 
-        const plateLabelText = order.license_plate + (order.province ? ' ' + order.province : '');
-        const typeLabel = order.vehicle_category === 'bike' ? 'มอเตอร์ไซค์' : 'รถยนต์';
-        document.getElementById('car-plate').innerText = plateLabelText;
-        document.getElementById('car-detail').innerText = `${typeLabel} (${order.size_code})`;
+        /* ---------------- รายละเอียดคิวรายคัน ---------------- */
 
-        const serviceNames = (order.items || []).map(i => i.service_name).join(' + ');
-        document.getElementById('selected-services').innerText = serviceNames || '-';
-        document.getElementById('estimated-amount').innerText = Number(order.total_amount).toFixed(2) + ' บาท';
+        function renderStep(stepIndex) {
+            const progressLine = document.getElementById('progress-line');
+            const percentages = { 1: '0%', 2: '33.33%', 3: '66.66%', 4: '100%' };
+            progressLine.style.width = percentages[stepIndex];
 
-        const step = STATUS_TO_STEP[order.status] || 1;
-        renderStep(step);
+            for (let i = 1; i <= 4; i++) {
+                const node = document.getElementById(`node-${i}`);
+                const label = document.getElementById(`label-${i}`);
+                node.classList.remove('active', 'done');
+                label.classList.remove('active', 'done');
 
-        document.getElementById('result-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+                if (i < stepIndex) {
+                    node.classList.add('done');
+                    label.classList.add('done');
+                    node.innerHTML = '<i class="bi bi-check-lg"></i>';
+                } else if (i === stepIndex) {
+                    node.classList.add('active');
+                    label.classList.add('active');
+                    const icons = { 1: 'bi-clock', 2: 'bi-droplet-fill', 3: 'bi-stars', 4: 'bi-check-lg' };
+                    node.innerHTML = `<i class="bi ${icons[i]}"></i>`;
+                } else {
+                    node.innerHTML = i;
+                }
+            }
 
-    async function fetchStatus(queueNo) {
-        try {
-            const res = await fetch(`/api/track/${encodeURIComponent(queueNo)}`);
-            const data = await res.json();
-            if (!res.ok) {
-                document.getElementById('result-area').style.display = 'none';
+            const config = statusConfig[stepIndex];
+            const statusBox = document.getElementById('status-box');
+            statusBox.style.backgroundColor = config.boxBg;
+            statusBox.style.borderColor = config.boxBorder;
+            document.getElementById('status-title').style.color = config.titleColor;
+            document.getElementById('status-title').innerText = config.title;
+            document.getElementById('status-desc').innerText = config.desc;
+        }
+
+        function renderOrder(order) {
+            document.getElementById('result-area').style.display = 'block';
+            document.getElementById('error-area').style.display = 'none';
+
+            const plateLabelText = order.license_plate + (order.province ? ' ' + order.province : '');
+            const typeLabel = order.vehicle_category === 'bike' ? 'มอเตอร์ไซค์' : 'รถยนต์';
+            document.getElementById('car-plate').innerText = plateLabelText;
+            document.getElementById('car-detail').innerText = `${typeLabel} (${order.size_code})`;
+
+            const serviceNames = (order.items || []).map(i => i.service_name).join(' + ');
+            document.getElementById('selected-services').innerText = serviceNames || '-';
+            document.getElementById('estimated-amount').innerText = Number(order.total_amount).toFixed(2) + ' บาท';
+
+            const step = STATUS_TO_STEP[order.status] || 1;
+            renderStep(step);
+
+            document.getElementById('result-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        async function fetchStatus(queueNo) {
+            try {
+                const res = await fetch(`/api/track/${encodeURIComponent(queueNo)}`);
+                const data = await res.json();
+                if (!res.ok) {
+                    document.getElementById('result-area').style.display = 'none';
+                    document.getElementById('error-area').style.display = 'block';
+                    document.getElementById('error-area').innerText = data.message || 'ไม่พบหมายเลขคิวนี้';
+                    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+                    return;
+                }
+                renderOrder(data.data);
+            } catch (err) {
                 document.getElementById('error-area').style.display = 'block';
-                document.getElementById('error-area').innerText = data.message || 'ไม่พบหมายเลขคิวนี้';
-                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-                return;
+                document.getElementById('error-area').innerText = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
             }
-            renderOrder(data.data);
-        } catch (err) {
-            document.getElementById('error-area').style.display = 'block';
-            document.getElementById('error-area').innerText = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
         }
-    }
 
-    // เรียกเมื่อกดที่การ์ดในกระดาน/ประวัติ เพื่อเปิดดูรายละเอียดคันนั้น
-    function viewQueue(queueNo) {
-        if (pollTimer) clearInterval(pollTimer);
-        fetchStatus(queueNo);
-        pollTimer = setInterval(() => fetchStatus(queueNo), 6000);
+        // เรียกเมื่อกดที่การ์ดในกระดาน/ประวัติ เพื่อเปิดดูรายละเอียดคันนั้น
+        function viewQueue(queueNo) {
+            if (pollTimer) clearInterval(pollTimer);
+            fetchStatus(queueNo);
+            pollTimer = setInterval(() => fetchStatus(queueNo), 6000);
 
-        const url = new URL(window.location);
-        url.searchParams.set('q', queueNo);
-        window.history.replaceState({}, '', url);
-    }
+            const url = new URL(window.location);
+            url.searchParams.set('q', queueNo);
+            window.history.replaceState({}, '', url);
+        }
 
-    /* ---------------- กระดานสถานะคิว 3 ช่อง (ไม่โชว์ยอดเงิน) ---------------- */
+        /* ---------------- กระดานสถานะคิว 3 ช่อง (ไม่โชว์ยอดเงิน) ---------------- */
 
-    function boardCard(o) {
-        return `
+        function boardCard(o) {
+            return `
         <div class="board-card" onclick="viewQueue('${esc(o.queue_no)}')">
             <div class="plate">${esc(plateOnly(o))}</div>
             <div class="queue-no">${esc(o.queue_no)}</div>
             <span class="service-line d-none d-md-block">${esc(o.services_summary) || '-'}</span>
         </div>`;
-    }
-
-    function renderGroup(elId, list, emptyMsg) {
-        const el = document.getElementById(elId);
-        if (!list.length) {
-            el.innerHTML = `<p class="empty-hint">${emptyMsg}</p>`;
-            return;
         }
-        el.innerHTML = list.map(boardCard).join('');
-    }
 
-    async function loadBoard() {
-        try {
-            const res = await fetch('/api/orders');
-            if (!res.ok) throw new Error('load failed');
-            const orders = await res.json();
-
-            const pending = orders.filter(o => o.status === 'pending');
-            const progress = orders.filter(o => ['in_progress', 'drying', 'ready'].includes(o.status));
-            const done = orders.filter(o => o.status === 'completed');
-
-            renderGroup('board-pending', pending, 'ไม่มีรถ');
-            renderGroup('board-progress', progress, 'ไม่มีรถ');
-            renderGroup('board-done', done, 'ไม่มีรถ');
-
-            document.getElementById('count-pending').innerText = pending.length;
-            document.getElementById('count-progress').innerText = progress.length;
-            document.getElementById('count-done').innerText = done.length;
-        } catch (err) {
-            ['board-pending', 'board-progress', 'board-done'].forEach(id => {
-                document.getElementById(id).innerHTML = '<p class="empty-hint text-danger">โหลดไม่สำเร็จ</p>';
-            });
+        function renderGroup(elId, list, emptyMsg) {
+            const el = document.getElementById(elId);
+            if (!list.length) {
+                el.innerHTML = `<p class="empty-hint">${emptyMsg}</p>`;
+                return;
+            }
+            el.innerHTML = list.map(boardCard).join('');
         }
-    }
 
-    /* ---------------- ประวัติรับรถวันนี้ (ไม่โชว์ยอดเงิน แสดงแค่สถานะ) ---------------- */
+        async function loadBoard() {
+            try {
+                const res = await fetch('/api/orders');
+                if (!res.ok) throw new Error('load failed');
+                const orders = await res.json();
 
-    function historyCard(o) {
-        return `
+                const pending = orders.filter(o => o.status === 'pending');
+                const progress = orders.filter(o => ['in_progress', 'drying', 'ready'].includes(o.status));
+                const done = orders.filter(o => o.status === 'completed');
+
+                renderGroup('board-pending', pending, 'ไม่มีรถ');
+                renderGroup('board-progress', progress, 'ไม่มีรถ');
+                renderGroup('board-done', done, 'ไม่มีรถ');
+
+                document.getElementById('count-pending').innerText = pending.length;
+                document.getElementById('count-progress').innerText = progress.length;
+                document.getElementById('count-done').innerText = done.length;
+            } catch (err) {
+                ['board-pending', 'board-progress', 'board-done'].forEach(id => {
+                    document.getElementById(id).innerHTML = '<p class="empty-hint text-danger">โหลดไม่สำเร็จ</p>';
+                });
+            }
+        }
+
+        /* ---------------- ประวัติรับรถวันนี้ (ไม่โชว์ยอดเงิน แสดงแค่สถานะ) ---------------- */
+
+        function historyCard(o) {
+            return `
         <div class="history-card" onclick="viewQueue('${esc(o.queue_no)}')">
             <div class="d-flex justify-content-between align-items-center">
                 <span class="fw-bold text-white small">${esc(plateOnly(o))}</span>
@@ -302,38 +308,39 @@
             <div class="small text-secondary mt-1">${esc(o.services_summary) || '-'} · #${esc(o.queue_no)}</div>
             <div class="small text-secondary mt-1"><i class="bi bi-clock me-1"></i>${dt(o.picked_up_at)}</div>
         </div>`;
-    }
-
-    async function loadHistoryBoard() {
-        const el = document.getElementById('history-results');
-        try {
-            const today = new Date().toISOString().slice(0, 10);
-            const res = await fetch(`/api/orders?status=picked_up&date=${today}`);
-            if (!res.ok) throw new Error('load failed');
-            const orders = await res.json();
-            if (!orders.length) {
-                el.innerHTML = '<p class="empty-hint">ยังไม่มีรถที่รับไปวันนี้</p>';
-                return;
-            }
-            el.innerHTML = orders.map(historyCard).join('');
-        } catch (err) {
-            el.innerHTML = '<p class="empty-hint text-danger">โหลดประวัติไม่สำเร็จ</p>';
         }
-    }
 
-    async function refreshAll() {
-        await Promise.all([loadBoard(), loadHistoryBoard()]);
-    }
+        async function loadHistoryBoard() {
+            const el = document.getElementById('history-results');
+            try {
+                const today = new Date().toISOString().slice(0, 10);
+                const res = await fetch(`/api/orders?status=picked_up&date=${today}`);
+                if (!res.ok) throw new Error('load failed');
+                const orders = await res.json();
+                if (!orders.length) {
+                    el.innerHTML = '<p class="empty-hint">ยังไม่มีรถที่รับไปวันนี้</p>';
+                    return;
+                }
+                el.innerHTML = orders.map(historyCard).join('');
+            } catch (err) {
+                el.innerHTML = '<p class="empty-hint text-danger">โหลดประวัติไม่สำเร็จ</p>';
+            }
+        }
 
-    window.addEventListener('DOMContentLoaded', () => {
-        const params = new URLSearchParams(window.location.search);
-        const q = params.get('q');
-        if (q) viewQueue(q);
+        async function refreshAll() {
+            await Promise.all([loadBoard(), loadHistoryBoard()]);
+        }
 
-        refreshAll();
-        refreshTimer = setInterval(refreshAll, 8000); // อัปเดตอัตโนมัติทุก 8 วินาที
-    });
-</script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const q = params.get('q');
+            if (q) viewQueue(q);
+
+            refreshAll();
+            refreshTimer = setInterval(refreshAll, 8000); // อัปเดตอัตโนมัติทุก 8 วินาที
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>

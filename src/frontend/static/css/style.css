@@ -1,12 +1,62 @@
 /* ==========================================
-   V-CarCare Global Theme Style
+   V-CarCare Global Theme Style (Dark & Vibrant Orange)
    ========================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+
+*, *::before, *::after {
+    font-family: 'Kanit', sans-serif, -apple-system, BlinkMacSystemFont;
+}
 
 body { 
     background-color: #121212; 
+    background-image: 
+        radial-gradient(circle at 12% 18%, rgba(255, 107, 0, 0.05) 0%, transparent 45%),
+        radial-gradient(circle at 88% 82%, rgba(255, 107, 0, 0.04) 0%, transparent 42%),
+        linear-gradient(180deg, #151515 0%, #121212 100%);
+    background-attachment: fixed;
     color: #E0E0E0; 
     font-family: 'Kanit', sans-serif, -apple-system, BlinkMacSystemFont; 
+    min-height: 100vh;
 }
+
+button, input, select, textarea, .btn, .form-control, table, h1, h2, h3, h4, h5, h6 {
+    font-family: 'Kanit', sans-serif, -apple-system, BlinkMacSystemFont;
+}
+
+/* Brand Logo Badge Components */
+.brand-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 1.25rem;
+}
+
+.brand-badge-glow {
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.22) 0%, rgba(255, 107, 0, 0.04) 100%);
+    border: 1.5px solid rgba(255, 107, 0, 0.5);
+    box-shadow: 0 0 20px rgba(255, 107, 0, 0.35), inset 0 0 12px rgba(255, 107, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.4);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #FF6B00;
+    font-size: 1.6rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.brand-badge-glow:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 0 26px rgba(255, 107, 0, 0.55), inset 0 0 14px rgba(255, 107, 0, 0.2);
+}
+
+.brand-badge-glow i {
+    filter: drop-shadow(0 2px 6px rgba(255, 107, 0, 0.45));
+}
+
 
 /* Color Variables & Helpers */
 .text-orange { color: #FF6B00 !important; }

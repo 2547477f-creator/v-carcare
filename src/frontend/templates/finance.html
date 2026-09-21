@@ -1,46 +1,71 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>V CarCare - บัญชีการเงิน</title>
-    
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+        <!-- Google Fonts: Kanit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    
+
     <style>
-        .filter-btn { 
-            border: 1px solid #3A3A3A; 
-            background-color: #1A1A1A; 
-            color: #A0A0A0; 
-            padding: 10px 16px; 
-            font-weight: bold; 
-            transition: all 0.2s; 
+        .filter-btn {
+            border: 1px solid #3A3A3A;
+            background-color: #1A1A1A;
+            color: #A0A0A0;
+            padding: 10px 16px;
+            font-weight: bold;
+            transition: all 0.2s;
         }
-        .filter-btn:hover { color: #FFF; background-color: #2A2A2A; }
-        .filter-btn.active { background-color: #FF6B00; color: #121212; border-color: #FF6B00; }
-        
-        #custom-date-box { display: none; }
+
+        .filter-btn:hover {
+            color: #FFF;
+            background-color: #2A2A2A;
+        }
+
+        .filter-btn.active {
+            background-color: #FF6B00;
+            color: #121212;
+            border-color: #FF6B00;
+        }
+
+        #custom-date-box {
+            display: none;
+        }
     </style>
 </head>
+
 <body>
 
     <div class="wrapper">
         <div class="sidebar d-none d-md-block">
-            <h3 class="text-orange fw-bold text-center mb-4">V CARCARE</h3>
+            <div class="brand-header text-center mb-4">
+                <div class="brand-badge-glow mb-2">
+                    <i class="bi bi-car-front-fill"></i>
+                </div>
+                <h3 class="text-orange fw-bold m-0">V CARCARE</h3>
+            </div>
             <nav class="nav flex-column">
-                <a class="nav-link" href="/service-management"><i class="bi bi-tags me-2"></i>จัดการบริการและโปรโมชัน</a>
+                <a class="nav-link" href="/service-management"><i
+                        class="bi bi-tags me-2"></i>จัดการบริการและโปรโมชัน</a>
                 <a class="nav-link" href="/history"><i class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว</a>
-                <a class="nav-link logout-link text-danger" href="{{ url_for('logout') }}"><i class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
+                <a class="nav-link logout-link text-danger" href="{{ url_for('logout') }}"><i
+                        class="bi bi-box-arrow-right me-2"></i> ออกจากระบบ</a>
                 <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
                 <a class="nav-link" href="/pos"><i class="bi bi-cart-check me-2"></i> รับรถ POS</a>
                 <a class="nav-link" href="/register"><i class="bi bi-person-vcard me-2"></i> ลงทะเบียนลูกค้าและรถ</a>
                 <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
-                <a class="nav-link" href="/staff-advances"><i class="bi bi-cash-stack me-2"></i> จัดการการเบิกพนักงาน</a>
+                <a class="nav-link" href="/staff-advances"><i class="bi bi-cash-stack me-2"></i>
+                    จัดการการเบิกพนักงาน</a>
                 <a class="nav-link active" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
             </nav>
         </div>
@@ -54,7 +79,8 @@
             <a href="/staff-advances" class="fb-tab-item"><i class="bi bi-cash-stack"></i><span>เบิกเงิน</span></a>
             <a href="/finance" class="fb-tab-item active"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
             <a href="/service-management" class="fb-tab-item"><i class="bi bi-tags"></i><span>บริการ</span></a>
-            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i class="bi bi-box-arrow-right"></i><span>ออกจากระบบ</span></a>
+            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i
+                    class="bi bi-box-arrow-right"></i><span>ออกจากระบบ</span></a>
         </div>
 
         <div class="main-content w-100 p-3 p-md-4">
@@ -67,54 +93,94 @@
 
             <div class="card-custom p-3 p-md-4 mb-4 border-start border-warning border-5">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
-                    <div><h5 class="text-white fw-bold mb-1"><i class="bi bi-safe2 text-warning me-2"></i>เงินกองกลาง</h5><small class="text-secondary">รายจ่าย การเบิกพนักงาน เงินเดือน และค่าความเสียหาย จะตัดจากยอดนี้อัตโนมัติ</small></div>
-                    <div class="d-flex gap-2 flex-wrap"><button id="open-shop-btn" class="btn btn-primary fw-bold" onclick="openShop()"><i class="bi bi-shop me-1"></i>เปิดร้าน (นำเงินทอน 3,000 บาท)</button><button class="btn btn-success fw-bold" onclick="receiveCentralFund()"><i class="bi bi-plus-circle me-1"></i>ได้รับเงินกองกลางเพิ่ม</button><button class="btn btn-outline-warning" onclick="adjustCentralFund()"><i class="bi bi-pencil-square me-1"></i>แก้ไขยอด</button><button class="btn btn-warning fw-bold" onclick="closeCashFloat()"><i class="bi bi-box-arrow-in-down me-1"></i>ปิดร้าน / ฝากเงินทอน</button></div>
+                    <div>
+                        <h5 class="text-white fw-bold mb-1"><i class="bi bi-safe2 text-warning me-2"></i>เงินกองกลาง
+                        </h5><small class="text-secondary">รายจ่าย การเบิกพนักงาน เงินเดือน และค่าความเสียหาย
+                            จะตัดจากยอดนี้อัตโนมัติ</small>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap"><button id="open-shop-btn" class="btn btn-primary fw-bold"
+                            onclick="openShop()"><i class="bi bi-shop me-1"></i>เปิดร้าน (นำเงินทอน 3,000
+                            บาท)</button><button class="btn btn-success fw-bold" onclick="receiveCentralFund()"><i
+                                class="bi bi-plus-circle me-1"></i>ได้รับเงินกองกลางเพิ่ม</button><button
+                            class="btn btn-outline-warning" onclick="adjustCentralFund()"><i
+                                class="bi bi-pencil-square me-1"></i>แก้ไขยอด</button><button
+                            class="btn btn-warning fw-bold" onclick="closeCashFloat()"><i
+                                class="bi bi-box-arrow-in-down me-1"></i>ปิดร้าน / ฝากเงินทอน</button></div>
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 rounded bg-dark border border-secondary">
                     <div class="form-check form-switch m-0">
                         <input class="form-check-input" type="checkbox" role="switch" id="auto-open-enabled">
                         <label class="form-check-label text-white" for="auto-open-enabled">เปิดร้านอัตโนมัติ</label>
                     </div>
-                    <input id="auto-open-time" type="time" class="form-control form-control-custom" style="width: 130px; padding: 6px 10px;">
-                    <button class="btn btn-outline-info btn-sm" onclick="saveAutoOpen()"><i class="bi bi-clock me-1"></i>บันทึกเวลา</button>
+                    <input id="auto-open-time" type="time" class="form-control form-control-custom"
+                        style="width: 130px; padding: 6px 10px;">
+                    <button class="btn btn-outline-info btn-sm" onclick="saveAutoOpen()"><i
+                            class="bi bi-clock me-1"></i>บันทึกเวลา</button>
                     <small id="auto-open-hint" class="text-secondary">ระบบตรวจทุก 5 วินาทีขณะ server ทำงาน</small>
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-3 p-2 rounded bg-dark border border-secondary">
                     <label class="text-white small" for="cash-float-amount">เงินทอนต่อการเปิดร้าน</label>
-                    <input id="cash-float-amount" type="number" min="1" step="0.01" class="form-control form-control-custom" style="width: 140px; padding: 6px 10px;">
+                    <input id="cash-float-amount" type="number" min="1" step="0.01"
+                        class="form-control form-control-custom" style="width: 140px; padding: 6px 10px;">
                     <span class="text-secondary small">บาท</span>
-                    <button class="btn btn-outline-warning btn-sm" onclick="saveCashFloatAmount()">บันทึกยอดเงินทอน</button>
+                    <button class="btn btn-outline-warning btn-sm"
+                        onclick="saveCashFloatAmount()">บันทึกยอดเงินทอน</button>
                     <small class="text-secondary">มีผลกับการเปิดร้านครั้งถัดไป</small>
                 </div>
                 <div class="row g-3 align-items-center">
-                    <div class="col-md-3"><small class="text-secondary d-block">ยอดกองกลางปัจจุบัน</small><h2 id="central-fund-balance" class="text-warning fw-bold mb-1">0.00 บาท</h2><small class="text-secondary d-block">เงินยกยอด</small><small id="central-fund-opening-balance" class="text-warning">0.00 บาท</small></div>
-                    <div class="col-md-3"><small class="text-secondary d-block">เงินสดสำหรับทอน</small><h4 id="cash-float-balance" class="text-info fw-bold mb-0">0.00 บาท</h4></div>
-                    <div class="col-md-3"><small class="text-secondary d-block">รับเงินโอนวันนี้</small><h4 id="transfer-received" class="text-success fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">บวกเข้ากองกลางแล้ว</small></div>
-                    <div class="col-md-3"><small class="text-secondary d-block">รับเงินสดวันนี้</small><h4 id="cash-received" class="text-info fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">รวมอยู่ในเงินสดสำหรับทอน</small></div>
-                    <div class="col-md-3"><small class="text-secondary d-block">รายรับรวมวันนี้</small><h4 id="daily-income-total" class="text-success fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">ยอดสรุป ไม่เข้ากองกลางซ้ำ</small></div>
-                    <div class="col-md-3"><small class="text-secondary d-block">รายจ่ายวันนี้</small><h4 id="daily-expense-total" class="text-danger fw-bold mb-0">0.00 บาท</h4><small class="text-secondary">ตามรายการรายจ่ายของวันนี้</small></div>
-                    <div class="col-md-6" style="position: relative; height: 160px;"><canvas id="central-fund-chart"></canvas></div>
+                    <div class="col-md-3"><small class="text-secondary d-block">ยอดกองกลางปัจจุบัน</small>
+                        <h2 id="central-fund-balance" class="text-warning fw-bold mb-1">0.00 บาท</h2><small
+                            class="text-secondary d-block">เงินยกยอด</small><small id="central-fund-opening-balance"
+                            class="text-warning">0.00 บาท</small>
+                    </div>
+                    <div class="col-md-3"><small class="text-secondary d-block">เงินสดสำหรับทอน</small>
+                        <h4 id="cash-float-balance" class="text-info fw-bold mb-0">0.00 บาท</h4>
+                    </div>
+                    <div class="col-md-3"><small class="text-secondary d-block">รับเงินโอนวันนี้</small>
+                        <h4 id="transfer-received" class="text-success fw-bold mb-0">0.00 บาท</h4><small
+                            class="text-secondary">บวกเข้ากองกลางแล้ว</small>
+                    </div>
+                    <div class="col-md-3"><small class="text-secondary d-block">รับเงินสดวันนี้</small>
+                        <h4 id="cash-received" class="text-info fw-bold mb-0">0.00 บาท</h4><small
+                            class="text-secondary">รวมอยู่ในเงินสดสำหรับทอน</small>
+                    </div>
+                    <div class="col-md-3"><small class="text-secondary d-block">รายรับรวมวันนี้</small>
+                        <h4 id="daily-income-total" class="text-success fw-bold mb-0">0.00 บาท</h4><small
+                            class="text-secondary">ยอดสรุป ไม่เข้ากองกลางซ้ำ</small>
+                    </div>
+                    <div class="col-md-3"><small class="text-secondary d-block">รายจ่ายวันนี้</small>
+                        <h4 id="daily-expense-total" class="text-danger fw-bold mb-0">0.00 บาท</h4><small
+                            class="text-secondary">ตามรายการรายจ่ายของวันนี้</small>
+                    </div>
+                    <div class="col-md-6" style="position: relative; height: 160px;"><canvas
+                            id="central-fund-chart"></canvas></div>
                 </div>
             </div>
 
             <!-- ระบบตัวกรองเวลา -->
             <div class="card-custom p-3 mb-4">
-                <h6 class="text-secondary small fw-bold mb-2"><i class="bi bi-funnel-fill text-orange me-1"></i> เลือกช่วงเวลาเรียกดูรายงาน</h6>
+                <h6 class="text-secondary small fw-bold mb-2"><i class="bi bi-funnel-fill text-orange me-1"></i>
+                    เลือกช่วงเวลาเรียกดูรายงาน</h6>
                 <div class="d-flex flex-wrap gap-1 mb-3">
-                    <button class="btn filter-btn rounded-3 active" onclick="changePeriod('day', this)">รายวัน (วันนี้)</button>
-                    <button class="btn filter-btn rounded-3" onclick="changePeriod('month', this)">รายเดือน (เดือนนี้)</button>
+                    <button class="btn filter-btn rounded-3 active" onclick="changePeriod('day', this)">รายวัน
+                        (วันนี้)</button>
+                    <button class="btn filter-btn rounded-3" onclick="changePeriod('month', this)">รายเดือน
+                        (เดือนนี้)</button>
                     <button class="btn filter-btn rounded-3" onclick="changePeriod('year', this)">รายปี (ปีนี้)</button>
-                    <button class="btn filter-btn rounded-3" onclick="changePeriod('custom', this)"><i class="bi bi-calendar3 me-1"></i> กำหนดช่วงวันเอง</button>
+                    <button class="btn filter-btn rounded-3" onclick="changePeriod('custom', this)"><i
+                            class="bi bi-calendar3 me-1"></i> กำหนดช่วงวันเอง</button>
                 </div>
-                
+
                 <div class="row g-2" id="custom-date-box">
                     <div class="col-6 col-md-3">
                         <label class="text-secondary small form-label">วันที่เริ่มต้น</label>
-                        <input type="date" id="start-date" class="form-control form-control-custom" onchange="triggerCustomDate()">
+                        <input type="date" id="start-date" class="form-control form-control-custom"
+                            onchange="triggerCustomDate()">
                     </div>
                     <div class="col-6 col-md-3">
                         <label class="text-secondary small form-label">วันที่สิ้นสุด</label>
-                        <input type="date" id="end-date" class="form-control form-control-custom" onchange="triggerCustomDate()">
+                        <input type="date" id="end-date" class="form-control form-control-custom"
+                            onchange="triggerCustomDate()">
                     </div>
                 </div>
             </div>
@@ -123,13 +189,17 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-8">
                     <div class="card-custom p-3 p-md-4">
-                        <h5 class="text-white fw-bold mb-3">กราฟวิเคราะห์ยอด <span id="chart-title-label" class="text-orange">รายวัน</span></h5>
-                        <div class="d-block d-md-none" style="position: relative; height: 180px;"><canvas id="chart-mb"></canvas></div>
-                        <div class="d-none d-md-block" style="position: relative; height: 280px;"><canvas id="chart-pc"></canvas></div>
+                        <h5 class="text-white fw-bold mb-3">กราฟวิเคราะห์ยอด <span id="chart-title-label"
+                                class="text-orange">รายวัน</span></h5>
+                        <div class="d-block d-md-none" style="position: relative; height: 180px;"><canvas
+                                id="chart-mb"></canvas></div>
+                        <div class="d-none d-md-block" style="position: relative; height: 280px;"><canvas
+                                id="chart-pc"></canvas></div>
                     </div>
                 </div>
                 <div class="col-md-4">
-                    <div class="card-custom p-4 text-center h-100 d-flex flex-column justify-content-center border-start border-orange border-5">
+                    <div
+                        class="card-custom p-4 text-center h-100 d-flex flex-column justify-content-center border-start border-orange border-5">
                         <small class="text-secondary d-block fw-bold fs-6">สรุปกำไรสุทธิช่วงเวลาที่เลือก</small>
                         <h1 class="text-success fw-bold display-4 my-2" id="summary-profit-val">0.00</h1>
                         <span class="text-muted small">คำนวณจากรายรับ-รายจ่ายจริงในระบบ</span>
@@ -139,13 +209,17 @@
 
             <!-- ตารางรายการประวัติ รายรับ - รายจ่าย -->
             <div class="card-custom p-3 p-md-4">
-                <h5 class="text-white fw-bold mb-3"><i class="bi bi-journal-text text-orange me-2"></i> ประวัติรายการรับ-จ่ายเงินในระบบ</h5>
+                <h5 class="text-white fw-bold mb-3"><i class="bi bi-journal-text text-orange me-2"></i>
+                    ประวัติรายการรับ-จ่ายเงินในระบบ</h5>
                 <div class="row g-2 justify-content-end mb-3">
                     <div class="col-12 col-md-auto">
-                        <button type="button" class="btn btn-sm btn-outline-warning" onclick="loadCentralFundHistory()"><i class="bi bi-clock-history me-1"></i>ประวัติปรับยอด / เงินกองกลางเพิ่ม</button>
+                        <button type="button" class="btn btn-sm btn-outline-warning"
+                            onclick="loadCentralFundHistory()"><i class="bi bi-clock-history me-1"></i>ประวัติปรับยอด /
+                            เงินกองกลางเพิ่ม</button>
                     </div>
                     <div class="col-6 col-md-auto">
-                        <select id="history-period-filter" class="form-select form-select-sm form-control-custom" onchange="changeHistoryPeriod()">
+                        <select id="history-period-filter" class="form-select form-select-sm form-control-custom"
+                            onchange="changeHistoryPeriod()">
                             <option value="current">ตามช่วงสรุปด้านบน</option>
                             <option value="day">วันนี้</option>
                             <option value="month">เดือนนี้</option>
@@ -154,21 +228,27 @@
                         </select>
                     </div>
                     <div class="col-6 col-md-auto history-date-filter d-none">
-                        <input type="date" id="history-start-date" class="form-control form-control-sm form-control-custom" onchange="triggerHistoryCustomDate()">
+                        <input type="date" id="history-start-date"
+                            class="form-control form-control-sm form-control-custom"
+                            onchange="triggerHistoryCustomDate()">
                     </div>
                     <div class="col-6 col-md-auto history-date-filter d-none">
-                        <input type="date" id="history-end-date" class="form-control form-control-sm form-control-custom" onchange="triggerHistoryCustomDate()">
+                        <input type="date" id="history-end-date"
+                            class="form-control form-control-sm form-control-custom"
+                            onchange="triggerHistoryCustomDate()">
                     </div>
                     <div class="col-6 col-md-auto">
-                    <select id="transaction-type-filter" class="form-select form-select-sm form-control-custom" style="max-width: 190px;" onchange="changeTransactionType()">
-                        <option value="all">แสดงรายรับและรายจ่าย</option>
-                        <option value="income">เฉพาะรายรับ</option>
-                        <option value="central_fund">เฉพาะเงินกองกลางเพิ่ม</option>
-                        <option value="expense">เฉพาะรายจ่าย</option>
-                    </select>
+                        <select id="transaction-type-filter" class="form-select form-select-sm form-control-custom"
+                            style="max-width: 190px;" onchange="changeTransactionType()">
+                            <option value="all">แสดงรายรับและรายจ่าย</option>
+                            <option value="income">เฉพาะรายรับ</option>
+                            <option value="central_fund">เฉพาะเงินกองกลางเพิ่ม</option>
+                            <option value="expense">เฉพาะรายจ่าย</option>
+                        </select>
                     </div>
                     <div id="payment-method-filter-box" class="col-6 col-md-auto d-none">
-                        <select id="payment-method-filter" class="form-select form-select-sm form-control-custom" onchange="changePaymentMethod()">
+                        <select id="payment-method-filter" class="form-select form-select-sm form-control-custom"
+                            onchange="changePaymentMethod()">
                             <option value="all">ทุกช่องทางรับเงิน</option>
                             <option value="cash">เงินสด</option>
                             <option value="transfer">เงินโอน</option>
@@ -186,480 +266,484 @@
                             </tr>
                         </thead>
                         <tbody id="transaction-list">
-                            <tr><td colspan="4" class="text-secondary small">กำลังโหลดข้อมูล...</td></tr>
+                            <tr>
+                                <td colspan="4" class="text-secondary small">กำลังโหลดข้อมูล...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
-                <div id="transaction-pagination" class="d-flex justify-content-between align-items-center gap-2 mt-3"></div>
+                <div id="transaction-pagination" class="d-flex justify-content-between align-items-center gap-2 mt-3">
+                </div>
             </div>
 
         </div>
     </div>
 
-<script>
-    let currentMode = 'day';
-    let currentTransactions = [];
-    let currentPage = 1;
-    let currentTransactionType = 'all';
-    let currentPaymentMethod = 'all';
-    let historyPeriod = 'current';
-    let chartMbInstance = null;
-    let chartPcInstance = null;
-    let latestChartValues = { income: 0, expense: 0, profit: 0 };
-    let centralFundChartInstance = null;
-    let centralFundBalance = 0;
-    let resizeTimer = null;
+    <script>
+        let currentMode = 'day';
+        let currentTransactions = [];
+        let currentPage = 1;
+        let currentTransactionType = 'all';
+        let currentPaymentMethod = 'all';
+        let historyPeriod = 'current';
+        let chartMbInstance = null;
+        let chartPcInstance = null;
+        let latestChartValues = { income: 0, expense: 0, profit: 0 };
+        let centralFundChartInstance = null;
+        let centralFundBalance = 0;
+        let resizeTimer = null;
 
-    const PERIOD_TITLES = {
-        day: 'รายวัน (วันนี้)',
-        month: 'รายเดือน (เดือนนี้)',
-        year: 'รายปี (ปีนี้)',
-        custom: 'กำหนดช่วงวันเอง'
-    };
-
-    function formatDateTime(iso) {
-        const d = new Date(iso);
-        return d.toLocaleString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    }
-
-    function renderFinanceChart(income, expense, profit) {
-        latestChartValues = { income, expense, profit };
-        const isMobile = window.innerWidth < 768;
-        const targetCanvasId = isMobile ? 'chart-mb' : 'chart-pc';
-        const canvasEl = document.getElementById(targetCanvasId);
-        if (!canvasEl) return;
-
-        if (chartMbInstance) { chartMbInstance.destroy(); chartMbInstance = null; }
-        if (chartPcInstance) { chartPcInstance.destroy(); chartPcInstance = null; }
-
-        if (typeof Chart === 'undefined') {
-            canvasEl.parentElement.innerHTML = '<p class="text-secondary small text-center mb-0 pt-4">ไม่สามารถโหลดกราฟได้ในขณะนี้</p>';
-            return;
-        }
-
-        const chartConfig = {
-            type: 'bar',
-            data: {
-                labels: ['รายรับทั้งหมด', 'รายจ่ายในร้าน', 'กำไรสุทธิ'],
-                datasets: [{ 
-                    data: [income, expense, profit], 
-                    backgroundColor: ['#28a745', '#dc3545', '#FF6B00'], 
-                    borderRadius: 6,
-                    borderWidth: 0 
-                }]
-            },
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                plugins: { 
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: (ctx) => ` จำนวน: ${Number(ctx.raw || 0).toLocaleString()} บาท`
-                        }
-                    }
-                },
-                scales: {
-                    x: { ticks: { color: '#A0A0A0' }, grid: { display: false } },
-                    y: { ticks: { color: '#A0A0A0' }, grid: { color: '#2A2A2A' } }
-                }
-            }
+        const PERIOD_TITLES = {
+            day: 'รายวัน (วันนี้)',
+            month: 'รายเดือน (เดือนนี้)',
+            year: 'รายปี (ปีนี้)',
+            custom: 'กำหนดช่วงวันเอง'
         };
 
-        const ctx = canvasEl.getContext('2d');
-        if (isMobile) {
-            chartMbInstance = new Chart(ctx, chartConfig);
-        } else {
-            chartPcInstance = new Chart(ctx, chartConfig);
+        function formatDateTime(iso) {
+            const d = new Date(iso);
+            return d.toLocaleString('th-TH', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
-    }
 
-    async function loadFinance(period, start, end, page = 1) {
-        currentPage = page;
-        const summaryParams = new URLSearchParams({
-            period,
-            page,
-            page_size: 10,
-            transaction_type: currentTransactionType,
-            payment_method: currentPaymentMethod
-        });
-        if (period === 'custom' && start && end) {
-            summaryParams.set('start', start);
-            summaryParams.set('end', end);
-        }
-        const historyRange = getHistoryRange(period, start, end);
-        summaryParams.set('transaction_period', historyRange.period);
-        if (historyRange.period === 'custom' && historyRange.start && historyRange.end) {
-            summaryParams.set('transaction_start', historyRange.start);
-            summaryParams.set('transaction_end', historyRange.end);
-        }
-        let url = `/api/finance/summary?${summaryParams.toString()}`;
+        function renderFinanceChart(income, expense, profit) {
+            latestChartValues = { income, expense, profit };
+            const isMobile = window.innerWidth < 768;
+            const targetCanvasId = isMobile ? 'chart-mb' : 'chart-pc';
+            const canvasEl = document.getElementById(targetCanvasId);
+            if (!canvasEl) return;
 
-        const tbody = document.getElementById('transaction-list');
-        tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">กำลังโหลดข้อมูล...</td></tr>';
+            if (chartMbInstance) { chartMbInstance.destroy(); chartMbInstance = null; }
+            if (chartPcInstance) { chartPcInstance.destroy(); chartPcInstance = null; }
 
-        try {
-            const res = await fetch(url);
-            if (!res.ok) {
-                const error = await res.json().catch(() => ({}));
-                throw new Error(error.message || 'โหลดข้อมูลบัญชีไม่สำเร็จ');
-            }
-            const data = await res.json();
-
-            const income = Number(data.summary.total_income || 0);
-            const expense = Number(data.summary.total_expense || 0);
-            const profit = Number(data.summary.net_profit || 0);
-
-            document.getElementById('summary-profit-val').innerText = profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            renderFinanceChart(income, expense, profit);
-            loadCentralFund();
-
-            currentTransactions = data.transactions;
-            renderPagination(data.pagination);
-            tbody.innerHTML = '';
-
-            if (currentTransactions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">ไม่มีรายการในช่วงเวลานี้</td></tr>';
+            if (typeof Chart === 'undefined') {
+                canvasEl.parentElement.innerHTML = '<p class="text-secondary small text-center mb-0 pt-4">ไม่สามารถโหลดกราฟได้ในขณะนี้</p>';
                 return;
             }
 
-            currentTransactions.forEach(item => {
-                const isCentralFund = item.category === 'central_fund_deposit';
-                const isIncome = item.transaction_type === 'income';
-                const typeBadge = isCentralFund
-                    ? `<span class="badge bg-warning-subtle text-warning border border-warning">เงินกองกลางเพิ่ม</span>`
-                    : isIncome
-                    ? `<span class="badge bg-success-subtle text-success border border-success">รายรับ</span>`
-                    : `<span class="badge bg-danger-subtle text-danger border border-danger">รายจ่าย</span>`;
-                const paymentBadge = item.payment_method === 'cash'
-                    ? ' <span class="badge bg-info-subtle text-info border border-info">เงินสด</span>'
-                    : item.payment_method === 'transfer'
-                        ? ' <span class="badge bg-primary-subtle text-primary border border-primary">เงินโอน</span>'
-                        : '';
-                const amountClass = isIncome ? 'text-success fw-bold' : 'text-danger fw-bold';
-                const sign = isIncome ? '+' : '-';
+            const chartConfig = {
+                type: 'bar',
+                data: {
+                    labels: ['รายรับทั้งหมด', 'รายจ่ายในร้าน', 'กำไรสุทธิ'],
+                    datasets: [{
+                        data: [income, expense, profit],
+                        backgroundColor: ['#28a745', '#dc3545', '#FF6B00'],
+                        borderRadius: 6,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ` จำนวน: ${Number(ctx.raw || 0).toLocaleString()} บาท`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#A0A0A0' }, grid: { display: false } },
+                        y: { ticks: { color: '#A0A0A0' }, grid: { color: '#2A2A2A' } }
+                    }
+                }
+            };
 
-                const rowHtml = `
+            const ctx = canvasEl.getContext('2d');
+            if (isMobile) {
+                chartMbInstance = new Chart(ctx, chartConfig);
+            } else {
+                chartPcInstance = new Chart(ctx, chartConfig);
+            }
+        }
+
+        async function loadFinance(period, start, end, page = 1) {
+            currentPage = page;
+            const summaryParams = new URLSearchParams({
+                period,
+                page,
+                page_size: 10,
+                transaction_type: currentTransactionType,
+                payment_method: currentPaymentMethod
+            });
+            if (period === 'custom' && start && end) {
+                summaryParams.set('start', start);
+                summaryParams.set('end', end);
+            }
+            const historyRange = getHistoryRange(period, start, end);
+            summaryParams.set('transaction_period', historyRange.period);
+            if (historyRange.period === 'custom' && historyRange.start && historyRange.end) {
+                summaryParams.set('transaction_start', historyRange.start);
+                summaryParams.set('transaction_end', historyRange.end);
+            }
+            let url = `/api/finance/summary?${summaryParams.toString()}`;
+
+            const tbody = document.getElementById('transaction-list');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">กำลังโหลดข้อมูล...</td></tr>';
+
+            try {
+                const res = await fetch(url);
+                if (!res.ok) {
+                    const error = await res.json().catch(() => ({}));
+                    throw new Error(error.message || 'โหลดข้อมูลบัญชีไม่สำเร็จ');
+                }
+                const data = await res.json();
+
+                const income = Number(data.summary.total_income || 0);
+                const expense = Number(data.summary.total_expense || 0);
+                const profit = Number(data.summary.net_profit || 0);
+
+                document.getElementById('summary-profit-val').innerText = profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                renderFinanceChart(income, expense, profit);
+                loadCentralFund();
+
+                currentTransactions = data.transactions;
+                renderPagination(data.pagination);
+                tbody.innerHTML = '';
+
+                if (currentTransactions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">ไม่มีรายการในช่วงเวลานี้</td></tr>';
+                    return;
+                }
+
+                currentTransactions.forEach(item => {
+                    const isCentralFund = item.category === 'central_fund_deposit';
+                    const isIncome = item.transaction_type === 'income';
+                    const typeBadge = isCentralFund
+                        ? `<span class="badge bg-warning-subtle text-warning border border-warning">เงินกองกลางเพิ่ม</span>`
+                        : isIncome
+                            ? `<span class="badge bg-success-subtle text-success border border-success">รายรับ</span>`
+                            : `<span class="badge bg-danger-subtle text-danger border border-danger">รายจ่าย</span>`;
+                    const paymentBadge = item.payment_method === 'cash'
+                        ? ' <span class="badge bg-info-subtle text-info border border-info">เงินสด</span>'
+                        : item.payment_method === 'transfer'
+                            ? ' <span class="badge bg-primary-subtle text-primary border border-primary">เงินโอน</span>'
+                            : '';
+                    const amountClass = isIncome ? 'text-success fw-bold' : 'text-danger fw-bold';
+                    const sign = isIncome ? '+' : '-';
+
+                    const rowHtml = `
                     <tr class="border-secondary">
                         <td class="text-secondary small">${formatDateTime(item.occurred_at)}</td>
                         <td class="text-white fw-semibold">${item.description}</td>
                         <td>${typeBadge}${paymentBadge}</td>
                         <td class="text-end ${amountClass}">${sign}${Number(item.amount).toFixed(2)} บ.</td>
                     </tr>`;
-                tbody.insertAdjacentHTML('beforeend', rowHtml);
+                    tbody.insertAdjacentHTML('beforeend', rowHtml);
+                });
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`;
+            }
+        }
+
+        async function loadCentralFundHistory(activity = 'all') {
+            const tbody = document.getElementById('transaction-list');
+            const historyRange = getHistoryRange(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value);
+            const params = new URLSearchParams({ period: historyRange.period, activity });
+            if (historyRange.period === 'custom' && historyRange.start && historyRange.end) {
+                params.set('start', historyRange.start);
+                params.set('end', historyRange.end);
+            }
+            tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">กำลังโหลดประวัติเงินกองกลาง...</td></tr>';
+            try {
+                const res = await fetch(`/api/central-fund/history?${params.toString()}`);
+                if (!res.ok) throw new Error('โหลดประวัติเงินกองกลางไม่สำเร็จ');
+                const data = await res.json();
+                currentTransactions = data.transactions || [];
+                document.getElementById('transaction-pagination').innerHTML = '';
+                tbody.innerHTML = currentTransactions.length ? currentTransactions.map(item => {
+                    const received = item.movement_type === 'fund_received';
+                    const label = received ? 'เงินกองกลางเพิ่ม' : 'ปรับยอดกองกลาง';
+                    const amount = Number(item.amount || 0);
+                    return `<tr class="border-secondary"><td class="text-secondary small">${formatDateTime(item.occurred_at)}</td><td class="text-white fw-semibold">${item.description || '-'}</td><td><span class="badge ${received ? 'bg-warning-subtle text-warning border border-warning' : 'bg-info-subtle text-info border border-info'}">${label}</span></td><td class="text-end ${amount >= 0 ? 'text-success' : 'text-danger'} fw-bold">${amount >= 0 ? '+' : ''}${amount.toFixed(2)} บ.</td></tr>`;
+                }).join('') : '<tr><td colspan="4" class="text-secondary small">ไม่มีประวัติในช่วงเวลานี้</td></tr>';
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`;
+            }
+        }
+
+        function renderCentralFundChart(history) {
+            const canvas = document.getElementById('central-fund-chart');
+            if (!canvas || typeof Chart === 'undefined') return;
+            if (centralFundChartInstance) centralFundChartInstance.destroy();
+            const points = (history || []).slice().reverse();
+            centralFundChartInstance = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels: points.map(item => new Date(item.day).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })), datasets: [{ data: points.map(item => Number(item.balance_after || 0)), borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,.15)', fill: true, tension: .3, pointRadius: 3 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ยอดกองกลาง: ${Number(ctx.raw || 0).toLocaleString()} บาท` } } }, scales: { x: { ticks: { color: '#A0A0A0' }, grid: { display: false } }, y: { ticks: { color: '#A0A0A0' }, grid: { color: '#2A2A2A' } } } }
             });
-        } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`;
         }
-    }
 
-    async function loadCentralFundHistory(activity = 'all') {
-        const tbody = document.getElementById('transaction-list');
-        const historyRange = getHistoryRange(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value);
-        const params = new URLSearchParams({ period: historyRange.period, activity });
-        if (historyRange.period === 'custom' && historyRange.start && historyRange.end) {
-            params.set('start', historyRange.start);
-            params.set('end', historyRange.end);
+        async function loadCentralFund() {
+            try {
+                const res = await fetch('/api/central-fund');
+                if (!res.ok) throw new Error('โหลดเงินกองกลางไม่สำเร็จ');
+                const data = await res.json();
+                centralFundBalance = Number(data.fund.balance || 0);
+                document.getElementById('central-fund-balance').innerText = `${centralFundBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                const openingBalance = data.fund.opening_balance;
+                document.getElementById('central-fund-opening-balance').innerText = openingBalance === null || openingBalance === undefined
+                    ? '-'
+                    : `${Number(openingBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                document.getElementById('cash-float-balance').innerText = `${Number(data.fund.cash_float_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                document.getElementById('transfer-received').innerText = `${Number(data.daily_receipts?.transfer_received || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                document.getElementById('cash-received').innerText = `${Number(data.daily_receipts?.cash_received || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                const cashFloatAmount = Number(data.cash_float_amount || 3000);
+                document.getElementById('cash-float-amount').value = cashFloatAmount;
+                document.getElementById('daily-income-total').innerText = `${Number(data.daily_summary?.total_income || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                document.getElementById('daily-expense-total').innerText = `${Number(data.daily_summary?.total_expense || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+                const openButton = document.getElementById('open-shop-btn');
+                openButton.disabled = Boolean(data.is_open);
+                openButton.innerHTML = data.is_open ? '<i class="bi bi-check-circle me-1"></i>ร้านกำลังเปิดอยู่' : `<i class="bi bi-shop me-1"></i>เปิดร้าน (นำเงินทอน ${cashFloatAmount.toLocaleString()} บาท)`;
+                document.getElementById('auto-open-enabled').checked = Boolean(data.auto_open?.enabled);
+                document.getElementById('auto-open-time').value = data.auto_open?.time || '08:00';
+                renderCentralFundChart(data.history);
+            } catch (err) { console.error(err); }
         }
-        tbody.innerHTML = '<tr><td colspan="4" class="text-secondary small">กำลังโหลดประวัติเงินกองกลาง...</td></tr>';
-        try {
-            const res = await fetch(`/api/central-fund/history?${params.toString()}`);
-            if (!res.ok) throw new Error('โหลดประวัติเงินกองกลางไม่สำเร็จ');
-            const data = await res.json();
-            currentTransactions = data.transactions || [];
-            document.getElementById('transaction-pagination').innerHTML = '';
-            tbody.innerHTML = currentTransactions.length ? currentTransactions.map(item => {
-                const received = item.movement_type === 'fund_received';
-                const label = received ? 'เงินกองกลางเพิ่ม' : 'ปรับยอดกองกลาง';
-                const amount = Number(item.amount || 0);
-                return `<tr class="border-secondary"><td class="text-secondary small">${formatDateTime(item.occurred_at)}</td><td class="text-white fw-semibold">${item.description || '-'}</td><td><span class="badge ${received ? 'bg-warning-subtle text-warning border border-warning' : 'bg-info-subtle text-info border border-info'}">${label}</span></td><td class="text-end ${amount >= 0 ? 'text-success' : 'text-danger'} fw-bold">${amount >= 0 ? '+' : ''}${amount.toFixed(2)} บ.</td></tr>`;
-            }).join('') : '<tr><td colspan="4" class="text-secondary small">ไม่มีประวัติในช่วงเวลานี้</td></tr>';
-        } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-danger small">${err.message}</td></tr>`;
+
+        async function openShop() {
+            const amount = Number(document.getElementById('cash-float-amount').value || 3000);
+            if (!confirm(`ยืนยันเปิดร้านและหักเงิน ${amount.toLocaleString()} บาทจากกองกลางทันที?`)) return;
+            try {
+                const res = await fetch('/api/central-fund/open', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'เปิดร้านไม่สำเร็จ');
+                await loadCentralFund();
+            } catch (err) { alert(err.message); }
         }
-    }
 
-    function renderCentralFundChart(history) {
-        const canvas = document.getElementById('central-fund-chart');
-        if (!canvas || typeof Chart === 'undefined') return;
-        if (centralFundChartInstance) centralFundChartInstance.destroy();
-        const points = (history || []).slice().reverse();
-        centralFundChartInstance = new Chart(canvas.getContext('2d'), {
-            type: 'line',
-            data: { labels: points.map(item => new Date(item.day).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })), datasets: [{ data: points.map(item => Number(item.balance_after || 0)), borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,.15)', fill: true, tension: .3, pointRadius: 3 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ยอดกองกลาง: ${Number(ctx.raw || 0).toLocaleString()} บาท` } } }, scales: { x: { ticks: { color: '#A0A0A0' }, grid: { display: false } }, y: { ticks: { color: '#A0A0A0' }, grid: { color: '#2A2A2A' } } } }
-        });
-    }
-
-    async function loadCentralFund() {
-        try {
-            const res = await fetch('/api/central-fund');
-            if (!res.ok) throw new Error('โหลดเงินกองกลางไม่สำเร็จ');
-            const data = await res.json();
-            centralFundBalance = Number(data.fund.balance || 0);
-            document.getElementById('central-fund-balance').innerText = `${centralFundBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
-            const openingBalance = data.fund.opening_balance;
-            document.getElementById('central-fund-opening-balance').innerText = openingBalance === null || openingBalance === undefined
-                ? '-'
-                : `${Number(openingBalance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
-            document.getElementById('cash-float-balance').innerText = `${Number(data.fund.cash_float_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
-            document.getElementById('transfer-received').innerText = `${Number(data.daily_receipts?.transfer_received || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
-            document.getElementById('cash-received').innerText = `${Number(data.daily_receipts?.cash_received || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
-            const cashFloatAmount = Number(data.cash_float_amount || 3000);
-            document.getElementById('cash-float-amount').value = cashFloatAmount;
-            document.getElementById('daily-income-total').innerText = `${Number(data.daily_summary?.total_income || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
-            document.getElementById('daily-expense-total').innerText = `${Number(data.daily_summary?.total_expense || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
-            const openButton = document.getElementById('open-shop-btn');
-            openButton.disabled = Boolean(data.is_open);
-            openButton.innerHTML = data.is_open ? '<i class="bi bi-check-circle me-1"></i>ร้านกำลังเปิดอยู่' : `<i class="bi bi-shop me-1"></i>เปิดร้าน (นำเงินทอน ${cashFloatAmount.toLocaleString()} บาท)`;
-            document.getElementById('auto-open-enabled').checked = Boolean(data.auto_open?.enabled);
-            document.getElementById('auto-open-time').value = data.auto_open?.time || '08:00';
-            renderCentralFundChart(data.history);
-        } catch (err) { console.error(err); }
-    }
-
-    async function openShop() {
-        const amount = Number(document.getElementById('cash-float-amount').value || 3000);
-        if (!confirm(`ยืนยันเปิดร้านและหักเงิน ${amount.toLocaleString()} บาทจากกองกลางทันที?`)) return;
-        try {
-            const res = await fetch('/api/central-fund/open', { method: 'POST' });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'เปิดร้านไม่สำเร็จ');
-            await loadCentralFund();
-        } catch (err) { alert(err.message); }
-    }
-
-    async function saveCashFloatAmount() {
-        const amount = Number(document.getElementById('cash-float-amount').value);
-        if (!Number.isFinite(amount) || amount <= 0) return alert('กรุณาระบุยอดเงินทอนที่มากกว่า 0 บาท');
-        try {
-            const res = await fetch('/api/central-fund/cash-float-amount', {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'บันทึกยอดเงินทอนไม่สำเร็จ');
-            alert(data.message);
-            await loadCentralFund();
-        } catch (err) { alert(err.message); }
-    }
-
-    async function saveAutoOpen() {
-        const enabled = document.getElementById('auto-open-enabled').checked;
-        const time = document.getElementById('auto-open-time').value;
-        if (!time) return alert('กรุณาเลือกเวลาเปิดร้าน');
-        try {
-            const res = await fetch('/api/central-fund/auto-open', {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled, time })
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'บันทึกเวลาไม่สำเร็จ');
-            document.getElementById('auto-open-hint').innerText = data.opened_now
-                ? 'เปิดร้านอัตโนมัติแล้ว และนำเงินทอน 3,000 บาทออกเรียบร้อย'
-                : data.is_open ? 'ร้านเปิดอยู่แล้ว มีเงินทอน 3,000 บาท'
-                : enabled ? `ระบบจะเปิดร้านอัตโนมัติเวลา ${time}` : 'ปิดการเปิดร้านอัตโนมัติแล้ว';
-            await loadCentralFund();
-        } catch (err) { alert(err.message); }
-    }
-
-    async function adjustCentralFund() {
-        const value = prompt('ระบุยอดเงินกองกลางใหม่ (บาท)', centralFundBalance.toFixed(2));
-        if (value === null) return;
-        const balance = Number(value);
-        if (!Number.isFinite(balance) || balance < 0) return alert('กรุณาระบุยอดเงินที่ถูกต้อง');
-        const note = prompt('หมายเหตุการปรับยอด (ไม่บังคับ)', 'ปรับยอดเงินกองกลางโดยผู้จัดการ');
-        if (!confirm(`ยืนยันปรับยอดเงินกองกลางเป็น ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท?`)) return;
-        try {
-            const res = await fetch('/api/central-fund', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ balance, note }) });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'ปรับยอดไม่สำเร็จ');
-            await loadCentralFund();
-        } catch (err) { alert(err.message); }
-    }
-
-    async function receiveCentralFund() {
-        const value = prompt('จำนวนเงินที่ได้รับเข้ากองกลาง (บาท)');
-        if (value === null) return;
-        const amount = Number(value);
-        if (!Number.isFinite(amount) || amount <= 0) return alert('กรุณาระบุจำนวนเงินที่มากกว่า 0');
-        const description = prompt('ที่มาของเงิน/หมายเหตุ (ไม่บังคับ)', 'ได้รับเงินเพิ่มเข้ากองกลาง');
-        if (!confirm(`ยืนยันรับเงินเข้ากองกลางจำนวน ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท?`)) return;
-        try {
-            const res = await fetch('/api/central-fund/deposits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, description }) });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'บันทึกรับเงินไม่สำเร็จ');
-            await loadCentralFund();
-            loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
-        } catch (err) { alert(err.message); }
-    }
-
-    async function closeCashFloat() {
-        if (!confirm('ยืนยันนำเงินทอนทั้งหมดกลับเข้ากองกลางเมื่อปิดร้าน?')) return;
-        try {
-            const res = await fetch('/api/central-fund/close-cash-float', { method: 'POST' });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'ปิดร้านไม่สำเร็จ');
-            await loadCentralFund();
-        } catch (err) { alert(err.message); }
-    }
-
-    function renderPagination(pagination) {
-        const container = document.getElementById('transaction-pagination');
-        if (!pagination || pagination.total_pages <= 1) {
-            container.innerHTML = pagination ? `<small class="text-secondary">ทั้งหมด ${pagination.total} รายการ</small>` : '';
-            return;
+        async function saveCashFloatAmount() {
+            const amount = Number(document.getElementById('cash-float-amount').value);
+            if (!Number.isFinite(amount) || amount <= 0) return alert('กรุณาระบุยอดเงินทอนที่มากกว่า 0 บาท');
+            try {
+                const res = await fetch('/api/central-fund/cash-float-amount', {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'บันทึกยอดเงินทอนไม่สำเร็จ');
+                alert(data.message);
+                await loadCentralFund();
+            } catch (err) { alert(err.message); }
         }
-        const start = (pagination.page - 1) * pagination.page_size + 1;
-        const end = Math.min(pagination.page * pagination.page_size, pagination.total);
-        container.innerHTML = `<small class="text-secondary">แสดง ${start}-${end} จาก ${pagination.total} รายการ</small><div class="btn-group"><button class="btn btn-sm btn-outline-secondary" ${pagination.page === 1 ? 'disabled' : ''} onclick="goToPage(${pagination.page - 1})">ก่อนหน้า</button><button class="btn btn-sm btn-outline-secondary" ${pagination.page === pagination.total_pages ? 'disabled' : ''} onclick="goToPage(${pagination.page + 1})">ถัดไป</button></div>`;
-    }
 
-    function goToPage(page) {
-        loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, page);
-    }
-
-    function changeTransactionType() {
-        currentTransactionType = document.getElementById('transaction-type-filter').value;
-        const paymentBox = document.getElementById('payment-method-filter-box');
-        paymentBox.classList.toggle('d-none', currentTransactionType !== 'income');
-        if (currentTransactionType !== 'income') {
-            currentPaymentMethod = 'all';
-            document.getElementById('payment-method-filter').value = 'all';
+        async function saveAutoOpen() {
+            const enabled = document.getElementById('auto-open-enabled').checked;
+            const time = document.getElementById('auto-open-time').value;
+            if (!time) return alert('กรุณาเลือกเวลาเปิดร้าน');
+            try {
+                const res = await fetch('/api/central-fund/auto-open', {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled, time })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'บันทึกเวลาไม่สำเร็จ');
+                document.getElementById('auto-open-hint').innerText = data.opened_now
+                    ? 'เปิดร้านอัตโนมัติแล้ว และนำเงินทอน 3,000 บาทออกเรียบร้อย'
+                    : data.is_open ? 'ร้านเปิดอยู่แล้ว มีเงินทอน 3,000 บาท'
+                        : enabled ? `ระบบจะเปิดร้านอัตโนมัติเวลา ${time}` : 'ปิดการเปิดร้านอัตโนมัติแล้ว';
+                await loadCentralFund();
+            } catch (err) { alert(err.message); }
         }
-        loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
-    }
 
-    function changePaymentMethod() {
-        currentPaymentMethod = document.getElementById('payment-method-filter').value;
-        loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
-    }
-
-    function getHistoryRange(defaultPeriod, defaultStart, defaultEnd) {
-        if (historyPeriod === 'current') {
-            return { period: defaultPeriod, start: defaultStart, end: defaultEnd };
+        async function adjustCentralFund() {
+            const value = prompt('ระบุยอดเงินกองกลางใหม่ (บาท)', centralFundBalance.toFixed(2));
+            if (value === null) return;
+            const balance = Number(value);
+            if (!Number.isFinite(balance) || balance < 0) return alert('กรุณาระบุยอดเงินที่ถูกต้อง');
+            const note = prompt('หมายเหตุการปรับยอด (ไม่บังคับ)', 'ปรับยอดเงินกองกลางโดยผู้จัดการ');
+            if (!confirm(`ยืนยันปรับยอดเงินกองกลางเป็น ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท?`)) return;
+            try {
+                const res = await fetch('/api/central-fund', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ balance, note }) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'ปรับยอดไม่สำเร็จ');
+                await loadCentralFund();
+            } catch (err) { alert(err.message); }
         }
-        if (historyPeriod === 'custom') {
-            return {
-                period: 'custom',
-                start: document.getElementById('history-start-date').value,
-                end: document.getElementById('history-end-date').value
-            };
+
+        async function receiveCentralFund() {
+            const value = prompt('จำนวนเงินที่ได้รับเข้ากองกลาง (บาท)');
+            if (value === null) return;
+            const amount = Number(value);
+            if (!Number.isFinite(amount) || amount <= 0) return alert('กรุณาระบุจำนวนเงินที่มากกว่า 0');
+            const description = prompt('ที่มาของเงิน/หมายเหตุ (ไม่บังคับ)', 'ได้รับเงินเพิ่มเข้ากองกลาง');
+            if (!confirm(`ยืนยันรับเงินเข้ากองกลางจำนวน ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท?`)) return;
+            try {
+                const res = await fetch('/api/central-fund/deposits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, description }) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'บันทึกรับเงินไม่สำเร็จ');
+                await loadCentralFund();
+                loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
+            } catch (err) { alert(err.message); }
         }
-        return { period: historyPeriod, start: null, end: null };
-    }
 
-    function changeHistoryPeriod() {
-        historyPeriod = document.getElementById('history-period-filter').value;
-        document.querySelectorAll('.history-date-filter').forEach(el => {
-            el.classList.toggle('d-none', historyPeriod !== 'custom');
-        });
-        if (historyPeriod === 'custom') {
-            triggerHistoryCustomDate();
-            return;
+        async function closeCashFloat() {
+            if (!confirm('ยืนยันนำเงินทอนทั้งหมดกลับเข้ากองกลางเมื่อปิดร้าน?')) return;
+            try {
+                const res = await fetch('/api/central-fund/close-cash-float', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'ปิดร้านไม่สำเร็จ');
+                await loadCentralFund();
+            } catch (err) { alert(err.message); }
         }
-        loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
-    }
 
-    function triggerHistoryCustomDate() {
-        const start = document.getElementById('history-start-date').value;
-        const end = document.getElementById('history-end-date').value;
-        if (!start || !end) return;
-        if (start > end) {
-            alert('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด');
-            return;
-        }
-        loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
-    }
-
-    function changePeriod(mode, btnElement) {
-        currentMode = mode;
-        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-        btnElement.classList.add('active');
-
-        if (mode === 'custom') {
-            document.getElementById('custom-date-box').style.display = 'flex';
-        } else {
-            document.getElementById('custom-date-box').style.display = 'none';
-            document.getElementById('chart-title-label').innerText = PERIOD_TITLES[mode];
-            loadFinance(mode, null, null, 1);
-        }
-    }
-
-    function triggerCustomDate() {
-        let start = document.getElementById('start-date').value;
-        let end = document.getElementById('end-date').value;
-        if (start && end) {
-            if (start > end) {
-                alert('วันเริ่มต้นต้องไม่เกินวันสิ้นสุด');
+        function renderPagination(pagination) {
+            const container = document.getElementById('transaction-pagination');
+            if (!pagination || pagination.total_pages <= 1) {
+                container.innerHTML = pagination ? `<small class="text-secondary">ทั้งหมด ${pagination.total} รายการ</small>` : '';
                 return;
             }
-            document.getElementById('chart-title-label').innerText = `ช่วงวันที่ ${start} ถึง ${end}`;
-            loadFinance('custom', start, end, 1);
+            const start = (pagination.page - 1) * pagination.page_size + 1;
+            const end = Math.min(pagination.page * pagination.page_size, pagination.total);
+            container.innerHTML = `<small class="text-secondary">แสดง ${start}-${end} จาก ${pagination.total} รายการ</small><div class="btn-group"><button class="btn btn-sm btn-outline-secondary" ${pagination.page === 1 ? 'disabled' : ''} onclick="goToPage(${pagination.page - 1})">ก่อนหน้า</button><button class="btn btn-sm btn-outline-secondary" ${pagination.page === pagination.total_pages ? 'disabled' : ''} onclick="goToPage(${pagination.page + 1})">ถัดไป</button></div>`;
         }
-    }
 
-    async function exportExcel() {
-        const start = document.getElementById('start-date').value;
-        const end = document.getElementById('end-date').value;
-        const exportParams = new URLSearchParams({
-            period: currentMode,
-            page: 1,
-            page_size: 100,
-            transaction_type: currentTransactionType
+        function goToPage(page) {
+            loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, page);
+        }
+
+        function changeTransactionType() {
+            currentTransactionType = document.getElementById('transaction-type-filter').value;
+            const paymentBox = document.getElementById('payment-method-filter-box');
+            paymentBox.classList.toggle('d-none', currentTransactionType !== 'income');
+            if (currentTransactionType !== 'income') {
+                currentPaymentMethod = 'all';
+                document.getElementById('payment-method-filter').value = 'all';
+            }
+            loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
+        }
+
+        function changePaymentMethod() {
+            currentPaymentMethod = document.getElementById('payment-method-filter').value;
+            loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
+        }
+
+        function getHistoryRange(defaultPeriod, defaultStart, defaultEnd) {
+            if (historyPeriod === 'current') {
+                return { period: defaultPeriod, start: defaultStart, end: defaultEnd };
+            }
+            if (historyPeriod === 'custom') {
+                return {
+                    period: 'custom',
+                    start: document.getElementById('history-start-date').value,
+                    end: document.getElementById('history-end-date').value
+                };
+            }
+            return { period: historyPeriod, start: null, end: null };
+        }
+
+        function changeHistoryPeriod() {
+            historyPeriod = document.getElementById('history-period-filter').value;
+            document.querySelectorAll('.history-date-filter').forEach(el => {
+                el.classList.toggle('d-none', historyPeriod !== 'custom');
+            });
+            if (historyPeriod === 'custom') {
+                triggerHistoryCustomDate();
+                return;
+            }
+            loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
+        }
+
+        function triggerHistoryCustomDate() {
+            const start = document.getElementById('history-start-date').value;
+            const end = document.getElementById('history-end-date').value;
+            if (!start || !end) return;
+            if (start > end) {
+                alert('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด');
+                return;
+            }
+            loadFinance(currentMode, document.getElementById('start-date').value, document.getElementById('end-date').value, 1);
+        }
+
+        function changePeriod(mode, btnElement) {
+            currentMode = mode;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            if (mode === 'custom') {
+                document.getElementById('custom-date-box').style.display = 'flex';
+            } else {
+                document.getElementById('custom-date-box').style.display = 'none';
+                document.getElementById('chart-title-label').innerText = PERIOD_TITLES[mode];
+                loadFinance(mode, null, null, 1);
+            }
+        }
+
+        function triggerCustomDate() {
+            let start = document.getElementById('start-date').value;
+            let end = document.getElementById('end-date').value;
+            if (start && end) {
+                if (start > end) {
+                    alert('วันเริ่มต้นต้องไม่เกินวันสิ้นสุด');
+                    return;
+                }
+                document.getElementById('chart-title-label').innerText = `ช่วงวันที่ ${start} ถึง ${end}`;
+                loadFinance('custom', start, end, 1);
+            }
+        }
+
+        async function exportExcel() {
+            const start = document.getElementById('start-date').value;
+            const end = document.getElementById('end-date').value;
+            const exportParams = new URLSearchParams({
+                period: currentMode,
+                page: 1,
+                page_size: 100,
+                transaction_type: currentTransactionType
+            });
+            if (currentMode === 'custom' && start && end) {
+                exportParams.set('start', start);
+                exportParams.set('end', end);
+            }
+            const historyRange = getHistoryRange(currentMode, start, end);
+            exportParams.set('transaction_period', historyRange.period);
+            if (historyRange.period === 'custom' && historyRange.start && historyRange.end) {
+                exportParams.set('transaction_start', historyRange.start);
+                exportParams.set('transaction_end', historyRange.end);
+            }
+            let url = `/api/finance/summary?${exportParams.toString()}`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('ไม่สามารถเตรียมรายงานได้');
+                const data = await response.json();
+                currentTransactions = data.transactions || [];
+            } catch (error) {
+                alert(error.message);
+                return;
+            }
+
+            let rows = [["วัน-เวลา", "รายละเอียดรายการ", "ประเภท", "จำนวนเงิน (บาท)"]];
+
+            currentTransactions.forEach(item => {
+                rows.push([
+                    formatDateTime(item.occurred_at),
+                    item.description,
+                    item.transaction_type === 'income' ? 'รายรับ' : 'รายจ่าย',
+                    Number(item.amount)
+                ]);
+            });
+
+            let sheet = XLSX.utils.aoa_to_sheet(rows);
+            let book = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(book, sheet, "Report");
+            XLSX.writeFile(book, `v-carcare-finance-${currentMode}.xlsx`);
+        }
+
+        window.addEventListener('load', () => {
+            loadCentralFund();
+            loadFinance('day');
         });
-        if (currentMode === 'custom' && start && end) {
-            exportParams.set('start', start);
-            exportParams.set('end', end);
-        }
-        const historyRange = getHistoryRange(currentMode, start, end);
-        exportParams.set('transaction_period', historyRange.period);
-        if (historyRange.period === 'custom' && historyRange.start && historyRange.end) {
-            exportParams.set('transaction_start', historyRange.start);
-            exportParams.set('transaction_end', historyRange.end);
-        }
-        let url = `/api/finance/summary?${exportParams.toString()}`;
 
-        try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error('ไม่สามารถเตรียมรายงานได้');
-            const data = await response.json();
-            currentTransactions = data.transactions || [];
-        } catch (error) {
-            alert(error.message);
-            return;
-        }
-
-        let rows = [["วัน-เวลา", "รายละเอียดรายการ", "ประเภท", "จำนวนเงิน (บาท)"]];
-        
-        currentTransactions.forEach(item => {
-            rows.push([
-                formatDateTime(item.occurred_at),
-                item.description,
-                item.transaction_type === 'income' ? 'รายรับ' : 'รายจ่าย',
-                Number(item.amount)
-            ]);
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                renderFinanceChart(latestChartValues.income, latestChartValues.expense, latestChartValues.profit);
+            }, 150);
         });
-
-        let sheet = XLSX.utils.aoa_to_sheet(rows);
-        let book = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(book, sheet, "Report");
-        XLSX.writeFile(book, `v-carcare-finance-${currentMode}.xlsx`);
-    }
-
-    window.addEventListener('load', () => {
-        loadCentralFund();
-        loadFinance('day');
-    });
-
-    window.addEventListener('resize', () => {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(() => {
-            renderFinanceChart(latestChartValues.income, latestChartValues.expense, latestChartValues.profit);
-        }, 150);
-    });
-</script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-<script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>
 </body>
+
 </html>
