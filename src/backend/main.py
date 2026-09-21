@@ -49,6 +49,12 @@ app.secret_key = os.environ.get("SECRET_KEY")
 CORS(app, supports_credentials=True)
 
 
+@app.get('/health')
+def health_check():
+    """Lightweight readiness endpoint; it must not require a database query."""
+    return jsonify({'status': 'ok'}), 200
+
+
 @app.after_request
 def disable_browser_cache_for_face_updates(response):
     """Ensure scan terminals receive the current role-locking JavaScript."""

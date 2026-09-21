@@ -2,6 +2,7 @@
 
 import os
 from datetime import time
+from urllib.parse import unquote, urlparse
 
 from dotenv import load_dotenv
 
@@ -22,6 +23,20 @@ DB_CONFIG = {
     'password': os.environ.get('DB_PASSWORD'),
     'port': os.environ.get('DB_PORT', '5432'),
 }
+
+# Render PostgreSQL exposes a single DATABASE_URL. Individual DB_* variables
+# remain supported for local development and other providers.
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    parsed_database_url = urlparse(database_url)
+    DB_CONFIG = {
+        'host': parsed_database_url.hostname,
+        'database': parsed_database_url.path.lstrip('/'),
+        'user': unquote(parsed_database_url.username or ''),
+        'password': unquote(parsed_database_url.password or ''),
+        'port': parsed_database_url.port or 5432,
+        'sslmode': os.environ.get('DB_SSLMODE', 'require'),
+    }
 
 FACE_MATCH_DISTANCE_THRESHOLD = 0.42
 FACE_MODEL_NAME = 'InsightFace-buffalo_sc'

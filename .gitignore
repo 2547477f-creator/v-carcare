@@ -1,10 +1,20 @@
 __pycache__/
+**/__pycache__/
 *.pyc
 .env
+**/.env
 venv/
+.venv/
 .vscode/
 .DS_Store
+desktop.ini
+*.tmp
+*.log
 *.docx
 src/backend/certs/
 .certs/
 .models/
+*.pem
+# Face captures are runtime personal data. Existing tracked reference images are retained.
+src/frontend/static/faces/*
+!src/frontend/static/faces/.gitkeep
