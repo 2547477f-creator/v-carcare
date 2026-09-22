@@ -94,9 +94,11 @@ def register_order_routes(app, dependencies):
             conn.commit()
             if new_status in ('in_progress', 'ready', 'completed'):
                 try:
-                    cur.execute('''SELECT c.line_user_id, v.license_plate
+                    cur.execute('''SELECT l.line_user_id, v.license_plate
                                    FROM service_orders o JOIN vehicles v ON v.id=o.vehicle_id
-                                   JOIN customers c ON c.id=v.customer_id WHERE o.id=%s;''', (order_id,))
+                                   JOIN vehicle_line_links l ON l.vehicle_id=v.id
+                                   WHERE o.id=%s AND l.linked_at IS NOT NULL AND l.revoked_at IS NULL
+                                   ORDER BY l.linked_at DESC LIMIT 1;''', (order_id,))
                     recipient = cur.fetchone()
                     if recipient and recipient.get('line_user_id'):
                         status_text = {'in_progress': 'กำลังดำเนินการ', 'ready': 'พร้อมรับรถ', 'completed': 'เสร็จเรียบร้อยแล้ว'}[new_status]
