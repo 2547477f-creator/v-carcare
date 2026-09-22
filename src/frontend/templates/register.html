@@ -225,10 +225,26 @@
                         class="bi bi-save me-2"></i>{% if edit_vehicle_id %}บันทึกการแก้ไข{% else %}บันทึกการลงทะเบียน{%
                     endif %}</button>
             </form>
+            <section id="lineQrCard" class="card bg-black border-secondary mt-4 p-4 text-center d-none">
+                <h4 class="text-orange fw-bold mb-2"><i class="bi bi-qr-code me-2"></i>LINE</h4>
+                <p class="text-white mb-3">เชื่อมต่อ LINE กับรถคันนี้</p>
+                <div id="lineQrCode" class="d-flex justify-content-center mb-3" aria-label="QR Code สำหรับเชื่อมต่อ LINE"></div>
+                <p class="text-white mb-1">สแกน QR นี้ด้วยแอป LINE เพื่อเชื่อมต่อกับรถคันนี้</p>
+                <small id="lineQrExpiresAt" class="text-secondary d-block mb-3"></small>
+                <button id="renewLineQrBtn" class="btn btn-outline-warning mx-auto" type="button">
+                    <i class="bi bi-arrow-clockwise me-2"></i>สร้าง QR ใหม่
+                </button>
+            </section>
         </main>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
         const editVehicleId = {{ edit_vehicle_id| tojson }};
+        const lineQrCard = document.getElementById('lineQrCard');
+        const lineQrCode = document.getElementById('lineQrCode');
+        const lineQrExpiresAt = document.getElementById('lineQrExpiresAt');
+        const renewLineQrBtn = document.getElementById('renewLineQrBtn');
+        let linkedVehicleId = null;
         const thaiProvinces = [
             'กรุงเทพมหานคร', 'กระบี่', 'กาญจนบุรี', 'กาฬสินธุ์', 'กำแพงเพชร', 'ขอนแก่น', 'จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี', 'ชัยนาท', 'ชัยภูมิ', 'ชุมพร', 'เชียงราย', 'เชียงใหม่', 'ตรัง', 'ตราด', 'ตาก', 'นครนายก', 'นครปฐม', 'นครพนม', 'นครราชสีมา', 'นครศรีธรรมราช', 'นครสวรรค์', 'นนทบุรี', 'นราธิวาส', 'น่าน', 'บึงกาฬ', 'บุรีรัมย์', 'ปทุมธานี', 'ประจวบคีรีขันธ์', 'ปราจีนบุรี', 'ปัตตานี', 'พระนครศรีอยุธยา', 'พะเยา', 'พังงา', 'พัทลุง', 'พิจิตร', 'พิษณุโลก', 'เพชรบุรี', 'เพชรบูรณ์', 'แพร่', 'ภูเก็ต', 'มหาสารคาม', 'มุกดาหาร', 'แม่ฮ่องสอน', 'ยโสธร', 'ยะลา', 'ร้อยเอ็ด', 'ระนอง', 'ระยอง', 'ราชบุรี', 'ลพบุรี', 'ลำปาง', 'ลำพูน', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สงขลา', 'สตูล', 'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระแก้ว', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย', 'สุพรรณบุรี', 'สุราษฎร์ธานี', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อ่างทอง', 'อำนาจเจริญ', 'อุดรธานี', 'อุตรดิตถ์', 'อุทัยธานี', 'อุบลราชธานี'
         ];
@@ -307,17 +323,42 @@
                     const linkRes = await fetch('/api/line/link/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vehicle_id: data.vehicle_id }) });
                     const link = await linkRes.json();
                     if (!linkRes.ok) throw new Error(link.message || 'สร้าง QR ไม่สำเร็จ');
-                    showLineQr(link.url, link.expires_at);
+                    linkedVehicleId = data.vehicle_id;
+                    renderLineQr(link.url, link.expires_at);
                 } catch (err) { alertBox(`ลงทะเบียนเรียบร้อยแล้ว แต่${err.message}`, 'warning'); }
                 event.target.reset(); setSizes();
             }
         });
-        function showLineQr(url, expiresAt) {
-            const popup = window.open('', '_blank', 'width=440,height=560');
-            if (!popup) return alertBox(`เปิด QR ไม่ได้ กรุณาอนุญาต popup แล้วเปิดลิงก์นี้: ${url}`, 'warning');
-            popup.document.write(`<title>เชื่อมต่อ LINE</title><style>body{font-family:sans-serif;text-align:center;padding:24px}#q{margin:24px auto;width:256px}</style><h2>เชื่อมต่อ LINE</h2><p>สแกน QR นี้ด้วยแอป LINE</p><div id="q"></div><small>หมดอายุ ${new Date(expiresAt).toLocaleString('th-TH')}</small><script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('q'),{text:${JSON.stringify(url)},width:256,height:256});<\/script>`);
-            popup.document.close();
+        async function createLineQr(vehicleId) {
+            renewLineQrBtn.disabled = true;
+            try {
+                const response = await fetch('/api/line/link/start', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vehicle_id: vehicleId })
+                });
+                const link = await response.json();
+                if (!response.ok) throw new Error(link.message || 'ไม่สามารถสร้าง QR ได้');
+                linkedVehicleId = vehicleId;
+                renderLineQr(link.url, link.expires_at);
+            } catch (error) {
+                alertBox(error.message || 'ไม่สามารถสร้าง QR ได้', 'warning');
+            } finally {
+                renewLineQrBtn.disabled = false;
+            }
         }
+
+        function renderLineQr(url, expiresAt) {
+            lineQrCode.replaceChildren();
+            new QRCode(lineQrCode, { text: url, width: 256, height: 256 });
+            lineQrExpiresAt.textContent = `QR หมดอายุ: ${new Date(expiresAt).toLocaleString('th-TH')}`;
+            lineQrCard.classList.remove('d-none');
+            lineQrCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        renewLineQrBtn.addEventListener('click', () => {
+            if (linkedVehicleId) createLineQr(linkedVehicleId);
+        });
+
         loadVehicleForEdit();
     </script>
     <script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>
