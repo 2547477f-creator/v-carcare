@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from flask import jsonify, render_template, request
 
 from .auth import login_required, manager_required
+from .rate_limit import rate_limiter
 from .line_bot import (
     LINE_CHANNEL_SECRET, LINE_LIFF_ID, LINE_LIFF_URL,
     verify_liff_access_token, verify_liff_id_token,
@@ -28,6 +29,7 @@ def register_line_link_routes(app, get_db_connection):
         return cur.fetchone()
 
     @app.route('/api/liff/register', methods=['POST'])
+    @rate_limiter.limit(5, 60)
     def register_liff_vehicle():
         data = request.json or {}
         profile = verify_liff_id_token(data.get('id_token'))
@@ -146,6 +148,7 @@ def register_line_link_routes(app, get_db_connection):
             conn.close()
 
     @app.route('/api/line/link/confirm', methods=['POST'])
+    @rate_limiter.limit(10, 60)
     def confirm_line_link():
         data = request.json or {}
         token = data.get('token')

@@ -741,6 +741,8 @@ def pos():
 @app.route('/register')
 def register():
     staff_mode = bool(session.get('user_id'))
+    if not staff_mode and request.args.get('token'):
+        return render_template('line_link.html', liff_id=LINE_LIFF_ID)
     return render_template(
         'register.html', session_role=session.get('role'), session_name=session.get('display_name'),
         edit_vehicle_id=request.args.get('vehicle_id', type=int) if staff_mode else None,
