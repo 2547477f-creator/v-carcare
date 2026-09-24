@@ -35,7 +35,7 @@ from .database import (
     get_db_connection as _get_db_connection,
     get_local_network_ip as _get_local_network_ip,
 )
-from .line_bot import is_line_configured, send_line_notification
+from .line_bot import LINE_LIFF_ID, is_line_configured, send_line_notification
 from .line_link import register_line_link_routes
 
 # ===================================================================
@@ -739,11 +739,12 @@ def pos():
 
 
 @app.route('/register')
-@login_required
 def register():
+    staff_mode = bool(session.get('user_id'))
     return render_template(
         'register.html', session_role=session.get('role'), session_name=session.get('display_name'),
-        edit_vehicle_id=request.args.get('vehicle_id', type=int)
+        edit_vehicle_id=request.args.get('vehicle_id', type=int) if staff_mode else None,
+        registration_mode='staff' if staff_mode else 'liff', liff_id=LINE_LIFF_ID,
     )
 
 

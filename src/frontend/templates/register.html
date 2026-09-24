@@ -129,7 +129,7 @@
         }
     </style>
 </head>
-{% if session_role != 'manager' %}
+{% if registration_mode == 'staff' and session_role != 'manager' %}
 <style>
     .sidebar .nav-link[href="/staff"],
     .sidebar .nav-link[href="/staff-advances"],
@@ -141,7 +141,8 @@
 {% endif %}
 
 <body class="bg-dark text-white">
-    <div class="d-flex">
+    <div class="{% if registration_mode == 'staff' %}d-flex{% endif %}">
+        {% if registration_mode == 'staff' %}
         <aside class="sidebar flex-shrink-0">
             <div class="brand-header text-center mb-4">
             <div class="brand-badge-glow mb-2">
@@ -178,11 +179,14 @@
             <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i
                     class="bi bi-box-arrow-right"></i><span>ออก</span></a>
         </nav>
+        {% endif %}
         <main class="container py-4" style="max-width: 760px;">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="m-0 text-orange"><i class="bi bi-person-vcard me-2"></i>{% if edit_vehicle_id
+                <h2 class="m-0 text-orange"><i class="bi bi-person-vcard me-2"></i>{% if registration_mode == 'liff' %}ลงทะเบียนรถ{% elif edit_vehicle_id
                     %}แก้ไขข้อมูลลูกค้าและรถ{% else %}ลงทะเบียนลูกค้าและรถ{% endif %}</h2>
+                {% if registration_mode == 'staff' %}
                 <a class="btn btn-outline-light" href="/pos">ไปหน้ารับรถ</a>
+                {% endif %}
             </div>
             <div id="alertBox"></div>
             <form id="registerForm" class="card bg-black border-secondary p-4 register-card">
@@ -193,8 +197,13 @@
                             placeholder="เช่น 0812345678" required><small
                             class="field-hint">ใช้สำหรับค้นหาลูกค้าและติดต่อกลับ</small></div>
                     <div class="col-md-6"><label class="form-label">LINE</label>
+                        {% if registration_mode == 'staff' %}
                         <div class="form-control bg-dark text-secondary">จะเชื่อมต่อด้วย QR หลังบันทึกข้อมูลรถ</div>
                         <small class="field-hint">ไม่ต้องกรอก LINE User ID</small>
+                        {% else %}
+                        <div id="liffStatus" class="form-control bg-dark text-secondary">กำลังเชื่อมต่อ LINE...</div>
+                        <small class="field-hint">ระบบจะเชื่อมต่อ LINE อัตโนมัติหลังบันทึก</small>
+                        {% endif %}
                     </div>
                 </div>
                 <h5 class="form-section-title"><i class="bi bi-car-front-fill"></i>ข้อมูลรถ</h5>
@@ -204,7 +213,7 @@
                             placeholder="เช่น กข 1234" required></div>
                     <div class="col-md-6 position-relative"><label class="form-label"
                             for="province">จังหวัด</label><input id="province" class="form-control" type="text"
-                            autocomplete="off" placeholder="พิมพ์เพื่อค้นหาจังหวัด">
+                            autocomplete="off" placeholder="พิมพ์เพื่อค้นหาจังหวัด" required>
                         <div id="provinceOptions" class="province-options d-none" role="listbox"
                             aria-label="รายการจังหวัด"></div>
                     </div>
@@ -225,6 +234,10 @@
                         class="bi bi-save me-2"></i>{% if edit_vehicle_id %}บันทึกการแก้ไข{% else %}บันทึกการลงทะเบียน{%
                     endif %}</button>
             </form>
+            {% if registration_mode == 'liff' %}
+            <button id="closeLiffBtn" class="btn btn-outline-light mt-3 d-none" type="button">ปิดหน้าต่าง</button>
+            {% endif %}
+            {% if registration_mode == 'staff' %}
             <section id="lineQrCard" class="card bg-black border-secondary mt-4 p-4 text-center d-none">
                 <h4 class="text-orange fw-bold mb-2"><i class="bi bi-qr-code me-2"></i>LINE</h4>
                 <p class="text-white mb-3">เชื่อมต่อ LINE กับรถคันนี้</p>
@@ -235,11 +248,19 @@
                     <i class="bi bi-arrow-clockwise me-2"></i>สร้าง QR ใหม่
                 </button>
             </section>
+            {% endif %}
         </main>
     </div>
+    {% if registration_mode == 'staff' %}
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    {% else %}
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" onerror="window.liffSdkFailed=true"></script>
+    {% endif %}
     <script>
         const editVehicleId = {{ edit_vehicle_id| tojson }};
+        const registrationMode = {{ registration_mode|tojson }};
+        const liffId = {{ liff_id|default('', true)|tojson }};
+        let liffIdToken = null;
         const lineQrCard = document.getElementById('lineQrCard');
         const lineQrCode = document.getElementById('lineQrCode');
         const lineQrExpiresAt = document.getElementById('lineQrExpiresAt');
@@ -310,11 +331,23 @@
         document.getElementById('registerForm').addEventListener('submit', async (event) => {
             event.preventDefault();
             const payload = { phone: phone.value.trim(), license_plate: licensePlate.value.trim(), province: province.value.trim(), category: category.value, size: size.value };
-            const url = editVehicleId ? `/api/vehicles/${editVehicleId}` : '/api/registrations';
-            const method = editVehicleId ? 'PUT' : 'POST';
+            const isLiffRegistration = registrationMode === 'liff';
+            if (isLiffRegistration) {
+                if (!liffIdToken) return alertBox('ไม่สามารถยืนยันตัวตน LINE ได้ กรุณาเปิดหน้านี้ผ่าน LINE', 'danger');
+                payload.id_token = liffIdToken;
+            }
+            const url = isLiffRegistration ? '/api/liff/register' : (editVehicleId ? `/api/vehicles/${editVehicleId}` : '/api/registrations');
+            const method = isLiffRegistration ? 'POST' : (editVehicleId ? 'PUT' : 'POST');
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const data = await res.json();
             if (!res.ok) return alertBox(data.message || data.error || 'บันทึกไม่สำเร็จ', 'danger');
+            if (isLiffRegistration) {
+                alertBox(`ลงทะเบียนรถสำเร็จ: ${data.vehicle.license_plate} ${data.vehicle.province}<br>เชื่อมต่อ LINE สำเร็จแล้ว`, 'success');
+                event.target.reset(); setSizes();
+                const closeLiffBtn = document.getElementById('closeLiffBtn');
+                if (closeLiffBtn && window.liff && liff.isInClient()) closeLiffBtn.classList.remove('d-none');
+                return;
+            }
             if (editVehicleId) {
                 alertBox('บันทึกการแก้ไขเรียบร้อยแล้ว <a class="alert-link" href="/pos">กลับไปเปิดคิวที่หน้า POS</a>', 'success');
             } else {
@@ -355,11 +388,35 @@
             lineQrCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
-        renewLineQrBtn.addEventListener('click', () => {
-            if (linkedVehicleId) createLineQr(linkedVehicleId);
-        });
+        async function initializeLiffRegistration() {
+            const liffStatus = document.getElementById('liffStatus');
+            try {
+                if (window.liffSdkFailed || !window.liff || !liffId) throw new Error('ไม่สามารถโหลด LINE LIFF ได้');
+                await liff.init({ liffId });
+                if (!liff.isLoggedIn()) {
+                    liff.login({ redirectUri: window.location.href });
+                    return;
+                }
+                liffIdToken = liff.getIDToken();
+                if (!liffIdToken) throw new Error('ไม่พบข้อมูลยืนยันตัวตนจาก LINE');
+                liffStatus.textContent = 'เชื่อมต่อ LINE สำเร็จ';
+            } catch (error) {
+                liffStatus.textContent = error.message || 'ไม่สามารถเชื่อมต่อ LINE ได้';
+                alertBox(liffStatus.textContent, 'danger');
+                document.getElementById('saveRegistrationBtn').disabled = true;
+            }
+        }
 
-        loadVehicleForEdit();
+        if (registrationMode === 'staff') {
+            renewLineQrBtn.addEventListener('click', () => {
+                if (linkedVehicleId) createLineQr(linkedVehicleId);
+            });
+            loadVehicleForEdit();
+        } else {
+            const closeLiffBtn = document.getElementById('closeLiffBtn');
+            if (closeLiffBtn) closeLiffBtn.addEventListener('click', () => liff.closeWindow());
+            initializeLiffRegistration();
+        }
     </script>
     <script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>
 </body>

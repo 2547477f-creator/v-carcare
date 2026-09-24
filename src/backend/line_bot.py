@@ -3,9 +3,14 @@
 import os
 import json
 import logging
+from dotenv import load_dotenv
+from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+backend_env_path = os.path.join(project_root, 'src', 'backend', '.env')
+load_dotenv(backend_env_path, override=False)
 
 LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
@@ -43,6 +48,27 @@ def verify_liff_access_token(access_token):
         return profile if profile.get('userId') else None
     except (HTTPError, URLError, ValueError, OSError):
         logger.warning('LINE identity verification failed')
+        return None
+
+
+def verify_liff_id_token(id_token):
+    """ตรวจสอบ LINE ID token แล้วคืนข้อมูลผู้ใช้ที่ LINE ยืนยัน"""
+    if not id_token or not LINE_LOGIN_CHANNEL_ID:
+        return None
+    try:
+        payload = urlencode({
+            'id_token': id_token,
+            'client_id': LINE_LOGIN_CHANNEL_ID,
+        }).encode('utf-8')
+        verify_request = Request(
+            'https://api.line.me/oauth2/v2.1/verify', data=payload, method='POST',
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        )
+        with urlopen(verify_request, timeout=10) as response:
+            verified = json.load(response)
+        return verified if verified.get('sub') else None
+    except (HTTPError, URLError, ValueError, OSError):
+        logger.warning('LINE ID token verification failed')
         return None
 
 

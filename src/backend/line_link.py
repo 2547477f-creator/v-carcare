@@ -11,7 +11,10 @@ from datetime import datetime, timedelta, timezone
 from flask import jsonify, render_template, request
 
 from .auth import login_required, manager_required
-from .line_bot import LINE_CHANNEL_SECRET, LINE_LIFF_ID, LINE_LIFF_URL, verify_liff_access_token
+from .line_bot import (
+    LINE_CHANNEL_SECRET, LINE_LIFF_ID, LINE_LIFF_URL,
+    verify_liff_access_token, verify_liff_id_token,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,78 @@ def register_line_link_routes(app, get_db_connection):
                        FROM vehicle_line_links l JOIN vehicles v ON v.id=l.vehicle_id
                        WHERE l.link_token=%s FOR UPDATE;''', (token,))
         return cur.fetchone()
+
+    @app.route('/api/liff/register', methods=['POST'])
+    def register_liff_vehicle():
+        data = request.json or {}
+        profile = verify_liff_id_token(data.get('id_token'))
+        if not profile:
+            return jsonify({'status': 'error', 'message': 'ไม่สามารถยืนยันตัวตน LINE ได้ กรุณาเปิดหน้านี้ผ่าน LINE'}), 401
+
+        phone = (data.get('phone') or '').strip()
+        license_plate = (data.get('license_plate') or '').strip()
+        province = (data.get('province') or '').strip()
+        category = (data.get('category') or '').strip()
+        size_code = (data.get('size') or '').strip()
+        if not all((phone, license_plate, province, category, size_code)) or category not in ('car', 'bike'):
+            return jsonify({'status': 'error', 'message': 'กรุณากรอกข้อมูลลูกค้าและรถให้ครบถ้วน'}), 400
+
+        line_user_id = profile['sub']
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute('SELECT id FROM customers WHERE phone=%s FOR UPDATE;', (phone,))
+            customer = cur.fetchone()
+            if customer:
+                customer_id = customer['id']
+            else:
+                cur.execute('''INSERT INTO customers (phone, line_id)
+                               VALUES (%s, %s) RETURNING id;''', (phone, line_user_id))
+                customer_id = cur.fetchone()['id']
+
+            cur.execute('''SELECT id, customer_id FROM vehicles
+                           WHERE license_plate=%s AND province=%s FOR UPDATE;''',
+                        (license_plate, province))
+            vehicle = cur.fetchone()
+            if vehicle and vehicle['customer_id'] != customer_id:
+                conn.rollback()
+                return jsonify({'status': 'error', 'message': 'ทะเบียนรถนี้มีข้อมูลเจ้าของรายอื่นอยู่แล้ว'}), 409
+            if vehicle:
+                vehicle_id = vehicle['id']
+            else:
+                cur.execute('''INSERT INTO vehicles
+                               (customer_id, license_plate, province, category, size_code)
+                               VALUES (%s, %s, %s, %s, %s) RETURNING id;''',
+                            (customer_id, license_plate, province, category, size_code))
+                vehicle_id = cur.fetchone()['id']
+
+            cur.execute('''SELECT id, line_user_id FROM vehicle_line_links
+                           WHERE vehicle_id=%s AND linked_at IS NOT NULL AND revoked_at IS NULL
+                           FOR UPDATE;''', (vehicle_id,))
+            active_link = cur.fetchone()
+            if active_link and active_link['line_user_id'] != line_user_id:
+                conn.rollback()
+                return jsonify({'status': 'error', 'message': 'ทะเบียนรถนี้ถูกเชื่อมต่อกับบัญชี LINE อื่นแล้ว'}), 409
+            if not active_link:
+                cur.execute('''INSERT INTO vehicle_line_links
+                               (vehicle_id, customer_id, line_user_id, link_token, linked_at, expires_at)
+                               VALUES (%s, %s, %s, %s, NOW(), NOW());''',
+                            (vehicle_id, customer_id, line_user_id, secrets.token_urlsafe(32)))
+            conn.commit()
+            return jsonify({
+                'status': 'success',
+                'vehicle_id': vehicle_id,
+                'vehicle': {'license_plate': license_plate, 'province': province},
+                'line_linked': True,
+                'message': 'ลงทะเบียนรถสำเร็จ',
+            }), 201
+        except Exception:
+            conn.rollback()
+            logger.exception('LIFF registration failed')
+            return jsonify({'status': 'error', 'message': 'ไม่สามารถลงทะเบียนรถได้ กรุณาลองใหม่อีกครั้ง'}), 500
+        finally:
+            cur.close()
+            conn.close()
 
     @app.route('/api/line/link/start', methods=['POST'])
     @login_required
