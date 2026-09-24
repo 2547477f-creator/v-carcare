@@ -554,6 +554,13 @@ def register_order_routes(app, dependencies):
         conn = get_db_connection()
         cur = conn.cursor()
         try:
+            cur.execute("""SELECT id FROM vehicles
+                           WHERE license_plate = %s AND province IS NOT DISTINCT FROM %s
+                           FOR UPDATE;""", (license_plate, province))
+            if cur.fetchone():
+                conn.rollback()
+                return jsonify({"status": "error", "message": "ทะเบียนรถและจังหวัดนี้ลงทะเบียนไว้แล้ว"}), 409
+
             cur.execute("SELECT id FROM customers WHERE phone = %s;", (phone,))
             customer = cur.fetchone()
             if customer:
@@ -563,14 +570,8 @@ def register_order_routes(app, dependencies):
                 cur.execute("INSERT INTO customers (phone, line_id) VALUES (%s, %s) RETURNING id;", (phone, line_id))
                 customer_id = cur.fetchone()['id']
     
-            cur.execute("SELECT id FROM vehicles WHERE license_plate = %s AND province IS NOT DISTINCT FROM %s;", (license_plate, province))
-            vehicle = cur.fetchone()
-            if vehicle:
-                cur.execute("UPDATE vehicles SET customer_id = %s, category = %s, size_code = %s WHERE id = %s;", (customer_id, category, size_code, vehicle['id']))
-                vehicle_id = vehicle['id']
-            else:
-                cur.execute("INSERT INTO vehicles (customer_id, license_plate, province, category, size_code) VALUES (%s, %s, %s, %s, %s) RETURNING id;", (customer_id, license_plate, province, category, size_code))
-                vehicle_id = cur.fetchone()['id']
+            cur.execute("INSERT INTO vehicles (customer_id, license_plate, province, category, size_code) VALUES (%s, %s, %s, %s, %s) RETURNING id;", (customer_id, license_plate, province, category, size_code))
+            vehicle_id = cur.fetchone()['id']
     
             conn.commit()
             return jsonify({"status": "success", "vehicle_id": vehicle_id, "message": "ลงทะเบียนรถเรียบร้อยแล้ว"}), 201
