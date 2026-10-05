@@ -72,6 +72,28 @@ def verify_liff_id_token(id_token):
         return None
 
 
+def send_line_reply(reply_token, message):
+    """ตอบข้อความจาก webhook ด้วย reply token"""
+    if not reply_token or not LINE_CHANNEL_ACCESS_TOKEN:
+        logger.info('LINE reply skipped: LINE is not configured')
+        return False
+    payload = json.dumps({
+        'replyToken': reply_token,
+        'messages': [{'type': 'text', 'text': message[:5000]}],
+    }).encode('utf-8')
+    try:
+        reply_request = Request(
+            'https://api.line.me/v2/bot/message/reply', data=payload, method='POST',
+            headers={'Authorization': f'Bearer {LINE_CHANNEL_ACCESS_TOKEN}', 'Content-Type': 'application/json'},
+        )
+        with urlopen(reply_request, timeout=10):
+            pass
+        return True
+    except (HTTPError, URLError, OSError):
+        logger.warning('LINE reply failed')
+        return False
+
+
 def send_line_notification(line_user_id, message):
     """ส่งข้อความแบบ push; ข้อผิดพลาดของ LINE ต้องไม่ทำให้ธุรกรรมหลักล้มเหลว"""
     if not line_user_id or not LINE_CHANNEL_ACCESS_TOKEN:

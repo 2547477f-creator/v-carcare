@@ -14,7 +14,7 @@ from .auth import login_required, manager_required
 from .rate_limit import rate_limiter
 from .line_bot import (
     LINE_CHANNEL_SECRET, LINE_LIFF_ID, LINE_LIFF_URL,
-    verify_liff_access_token, verify_liff_id_token,
+    send_line_reply, verify_liff_access_token, verify_liff_id_token,
 )
 
 logger = logging.getLogger(__name__)
@@ -214,6 +214,127 @@ def register_line_link_routes(app, get_db_connection):
     def line_link_page():
         return render_template('line_link.html', liff_id=LINE_LIFF_ID)
 
+    def link_line_user_to_vehicle(cur, line_user_id, vehicle):
+        cur.execute('''SELECT line_user_id FROM vehicle_line_links
+                       WHERE vehicle_id=%s AND linked_at IS NOT NULL AND revoked_at IS NULL
+                       FOR UPDATE;''', (vehicle['vehicle_id'],))
+        active_link = cur.fetchone()
+        if active_link and active_link['line_user_id'] != line_user_id:
+            return 'ทะเบียนรถนี้เชื่อมต่อกับบัญชี LINE อื่นแล้ว'
+        if not active_link:
+            cur.execute('''INSERT INTO vehicle_line_links
+                           (vehicle_id, customer_id, line_user_id, link_token, linked_at, expires_at)
+                           VALUES (%s, %s, %s, %s, NOW(), NOW());''',
+                        (vehicle['vehicle_id'], vehicle['customer_id'], line_user_id,
+                         secrets.token_urlsafe(32)))
+        return None
+
+    def handle_line_registration_message(event):
+        source = event.get('source') or {}
+        message = event.get('message') or {}
+        line_user_id = source.get('userId')
+        reply_token = event.get('replyToken')
+        if not line_user_id or not reply_token:
+            return
+
+        if event.get('type') == 'follow':
+            conn = get_db_connection()
+            cur = conn.cursor()
+            try:
+                cur.execute('''INSERT INTO line_registration_sessions (line_user_id, step)
+                               VALUES (%s, 'waiting_plate')
+                               ON CONFLICT (line_user_id) DO UPDATE
+                               SET step='waiting_plate', license_plate=NULL, phone=NULL, province=NULL,
+                                   updated_at=NOW();''', (line_user_id,))
+                conn.commit()
+                send_line_reply(reply_token, 'ยินดีต้อนรับ V CARCARE\nกรุณาพิมพ์ทะเบียนรถเพื่อเริ่มเชื่อมต่อ LINE')
+            except Exception:
+                conn.rollback()
+                logger.exception('LINE registration session start failed')
+            finally:
+                cur.close()
+                conn.close()
+            return
+
+        if event.get('type') != 'message' or message.get('type') != 'text':
+            return
+        text = (message.get('text') or '').strip()
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute('''SELECT step, license_plate, phone FROM line_registration_sessions
+                           WHERE line_user_id=%s FOR UPDATE;''', (line_user_id,))
+            registration = cur.fetchone()
+            if not registration:
+                if text != 'ลงทะเบียนรถ':
+                    send_line_reply(reply_token, 'กรุณาพิมพ์คำว่า ลงทะเบียนรถ เพื่อเริ่มต้น')
+                    return
+                cur.execute('''INSERT INTO line_registration_sessions (line_user_id, step)
+                               VALUES (%s, 'waiting_plate');''', (line_user_id,))
+                conn.commit()
+                send_line_reply(reply_token, 'กรุณาพิมพ์ทะเบียนรถ เช่น กข 1234')
+                return
+
+            if registration['step'] == 'waiting_plate':
+                if not text:
+                    send_line_reply(reply_token, 'กรุณาพิมพ์ทะเบียนรถ')
+                    return
+                cur.execute('''UPDATE line_registration_sessions
+                               SET license_plate=%s, step='waiting_phone', updated_at=NOW()
+                               WHERE line_user_id=%s;''', (text, line_user_id))
+                conn.commit()
+                send_line_reply(reply_token, 'กรุณาพิมพ์เบอร์โทรศัพท์ที่ใช้ลงทะเบียนรถ')
+                return
+
+            if registration['step'] == 'waiting_phone':
+                cur.execute('''SELECT v.id AS vehicle_id, v.customer_id, v.license_plate, v.province
+                               FROM vehicles v JOIN customers c ON c.id=v.customer_id
+                               WHERE UPPER(REPLACE(v.license_plate, ' ', '')) = UPPER(REPLACE(%s, ' ', ''))
+                                 AND c.phone=%s
+                               ORDER BY v.id DESC LIMIT 2;''', (registration['license_plate'], text))
+                vehicles = cur.fetchall()
+                if not vehicles:
+                    cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
+                    conn.commit()
+                    send_line_reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถและเบอร์โทรศัพท์ที่ตรงกัน กรุณาติดต่อพนักงาน')
+                    return
+                if len(vehicles) > 1:
+                    cur.execute('''UPDATE line_registration_sessions
+                                   SET phone=%s, step='waiting_province', updated_at=NOW()
+                                   WHERE line_user_id=%s;''', (text, line_user_id))
+                    conn.commit()
+                    send_line_reply(reply_token, 'พบทะเบียนซ้ำหลายจังหวัด กรุณาพิมพ์จังหวัด')
+                    return
+                error_message = link_line_user_to_vehicle(cur, line_user_id, vehicles[0])
+                cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
+                conn.commit()
+                send_line_reply(reply_token, error_message or 'เชื่อมต่อ LINE กับทะเบียนรถสำเร็จแล้ว')
+                return
+
+            if registration['step'] == 'waiting_province':
+                cur.execute('''SELECT v.id AS vehicle_id, v.customer_id, v.license_plate, v.province
+                               FROM vehicles v JOIN customers c ON c.id=v.customer_id
+                               WHERE UPPER(REPLACE(v.license_plate, ' ', '')) = UPPER(REPLACE(%s, ' ', ''))
+                                 AND c.phone=%s AND UPPER(COALESCE(v.province, ''))=UPPER(%s)
+                               FOR UPDATE;''', (registration['license_plate'], registration['phone'], text))
+                vehicle = cur.fetchone()
+                if not vehicle:
+                    cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
+                    conn.commit()
+                    send_line_reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถ เบอร์โทรศัพท์ และจังหวัดที่ตรงกัน กรุณาติดต่อพนักงาน')
+                    return
+                error_message = link_line_user_to_vehicle(cur, line_user_id, vehicle)
+                cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
+                conn.commit()
+                send_line_reply(reply_token, error_message or 'เชื่อมต่อ LINE กับทะเบียนรถสำเร็จแล้ว')
+        except Exception:
+            conn.rollback()
+            logger.exception('LINE registration message failed')
+            send_line_reply(reply_token, 'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง')
+        finally:
+            cur.close()
+            conn.close()
+
     @app.route('/callback', methods=['POST'])
     def line_callback():
         body = request.get_data()
@@ -231,6 +352,5 @@ def register_line_link_routes(app, get_db_connection):
         except (UnicodeDecodeError, json.JSONDecodeError):
             return 'Invalid payload', 400
         for event in events:
-            if (event.get('source') or {}).get('userId'):
-                logger.info('LINE webhook received from a user')
+            handle_line_registration_message(event)
         return 'OK', 200
