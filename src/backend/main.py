@@ -395,7 +395,11 @@ def _ensure_finance_payment_method_column(cur):
 
 
 def _client_ip():
-    """Return the direct client IP; do not trust forwarded headers unless a proxy is configured."""
+    """คืนค่า IP เครื่องผู้ใช้โดยรองรับ reverse proxy ของ Render"""
+    if os.environ.get('RENDER'):
+        forwarded_for = request.headers.get('X-Forwarded-For', '')
+        if forwarded_for:
+            return forwarded_for.split(',')[0].strip()
     return request.remote_addr or ''
 
 
