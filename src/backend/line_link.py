@@ -6,28 +6,19 @@ import hmac
 import json
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
 
-from flask import jsonify, render_template, request
+from flask import jsonify, request
 
-from .auth import login_required, manager_required
+from .auth import manager_required
 from .rate_limit import rate_limiter
 from .line_bot import (
-    LINE_CHANNEL_SECRET, LINE_LIFF_ID, LINE_LIFF_URL,
-    send_line_reply, verify_liff_access_token, verify_liff_id_token,
+    LINE_CHANNEL_SECRET, LINE_LIFF_ID, send_line_reply, verify_liff_id_token,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def register_line_link_routes(app, get_db_connection):
-    def get_link(cur, token):
-        cur.execute('''SELECT l.id, l.vehicle_id, l.customer_id, l.line_user_id, l.expires_at, l.linked_at,
-                              l.revoked_at, v.license_plate, v.province
-                       FROM vehicle_line_links l JOIN vehicles v ON v.id=l.vehicle_id
-                       WHERE l.link_token=%s FOR UPDATE;''', (token,))
-        return cur.fetchone()
-
     @app.route('/api/liff/register', methods=['POST'])
     @rate_limiter.limit(5, 60)
     def register_liff_vehicle():
@@ -98,92 +89,6 @@ def register_line_link_routes(app, get_db_connection):
             cur.close()
             conn.close()
 
-    @app.route('/api/line/link/start', methods=['POST'])
-    @login_required
-    def start_line_link():
-        try:
-            vehicle_id = int((request.json or {}).get('vehicle_id'))
-        except (TypeError, ValueError):
-            return jsonify({'status': 'error', 'message': 'vehicle_id ไม่ถูกต้อง'}), 400
-        base_url = LINE_LIFF_URL or (f'https://liff.line.me/{LINE_LIFF_ID}' if LINE_LIFF_ID else None)
-        if not base_url:
-            return jsonify({'status': 'error', 'message': 'ยังไม่ได้ตั้งค่า LINE_LIFF_URL หรือ LINE_LIFF_ID'}), 503
-        conn = get_db_connection()
-        cur = conn.cursor()
-        try:
-            cur.execute('SELECT id, customer_id, license_plate, province FROM vehicles WHERE id=%s;', (vehicle_id,))
-            vehicle = cur.fetchone()
-            if not vehicle:
-                return jsonify({'status': 'error', 'message': 'ไม่พบรถ'}), 404
-            cur.execute('''SELECT 1 FROM vehicle_line_links
-                           WHERE vehicle_id=%s AND linked_at IS NOT NULL AND revoked_at IS NULL
-                           FOR UPDATE;''', (vehicle_id,))
-            if cur.fetchone():
-                return jsonify({'status': 'error', 'message': 'รถคันนี้เชื่อมต่อ LINE อยู่แล้ว'}), 409
-            cur.execute('''UPDATE vehicle_line_links SET revoked_at=NOW()
-                           WHERE vehicle_id=%s AND linked_at IS NULL AND revoked_at IS NULL;''', (vehicle_id,))
-            token = secrets.token_urlsafe(32)
-            expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
-            cur.execute('''INSERT INTO vehicle_line_links (vehicle_id, customer_id, link_token, expires_at)
-                           VALUES (%s, %s, %s, %s);''', (vehicle_id, vehicle['customer_id'], token, expires_at))
-            conn.commit()
-            separator = '&' if '?' in base_url else '?'
-            return jsonify({'status': 'success', 'expires_at': expires_at.isoformat(),
-                            'url': f'{base_url}{separator}token={token}', 'vehicle': vehicle}), 201
-        except Exception:
-            conn.rollback()
-            logger.exception('LINE link start failed')
-            return jsonify({'status': 'error', 'message': 'ไม่สามารถสร้าง QR ได้'}), 500
-        finally:
-            cur.close()
-            conn.close()
-
-    @app.route('/api/line/link/<string:token>', methods=['GET'])
-    def line_link_details(token):
-        conn = get_db_connection()
-        cur = conn.cursor()
-        try:
-            link = get_link(cur, token)
-            if not link or link['revoked_at'] or link['linked_at'] or link['expires_at'] <= datetime.now(timezone.utc):
-                return jsonify({'status': 'error', 'message': 'ลิงก์ไม่ถูกต้องหรือหมดอายุ'}), 404
-            return jsonify({'status': 'success', 'vehicle': {'license_plate': link['license_plate'], 'province': link['province']}})
-        finally:
-            conn.rollback()
-            cur.close()
-            conn.close()
-
-    @app.route('/api/line/link/confirm', methods=['POST'])
-    @rate_limiter.limit(10, 60)
-    def confirm_line_link():
-        data = request.json or {}
-        token = data.get('token')
-        profile = verify_liff_access_token(data.get('access_token'))
-        if not profile:
-            return jsonify({'status': 'error', 'message': 'ไม่สามารถยืนยันบัญชี LINE ได้'}), 401
-        conn = get_db_connection()
-        cur = conn.cursor()
-        try:
-            link = get_link(cur, token)
-            if not link or link['revoked_at'] or link['linked_at'] or link['expires_at'] <= datetime.now(timezone.utc):
-                return jsonify({'status': 'error', 'message': 'ลิงก์ไม่ถูกต้องหรือหมดอายุ'}), 400
-            cur.execute('''SELECT line_user_id FROM vehicle_line_links
-                           WHERE vehicle_id=%s AND linked_at IS NOT NULL AND revoked_at IS NULL
-                           FOR UPDATE;''', (link['vehicle_id'],))
-            if cur.fetchone():
-                return jsonify({'status': 'error', 'message': 'รถคันนี้เชื่อมต่อกับบัญชี LINE อื่นอยู่แล้ว'}), 409
-            cur.execute('''UPDATE vehicle_line_links SET line_user_id=%s, linked_at=NOW(), expires_at=NOW()
-                           WHERE id=%s;''', (profile['userId'], link['id']))
-            conn.commit()
-            logger.info('LINE link success for vehicle %s', link['vehicle_id'])
-            return jsonify({'status': 'success', 'display_name': profile.get('displayName')})
-        except Exception:
-            conn.rollback()
-            logger.exception('LINE link confirm failed')
-            return jsonify({'status': 'error', 'message': 'ไม่สามารถเชื่อม LINE ได้'}), 500
-        finally:
-            cur.close()
-            conn.close()
-
     @app.route('/api/line/link/unlink', methods=['POST'])
     @manager_required
     def unlink_line():
@@ -214,10 +119,6 @@ def register_line_link_routes(app, get_db_connection):
         finally:
             cur.close()
             conn.close()
-
-    @app.route('/line/link')
-    def line_link_page():
-        return render_template('line_link.html', liff_id=LINE_LIFF_ID)
 
     def link_line_user_to_vehicle(cur, line_user_id, vehicle):
         cur.execute('''SELECT line_user_id FROM vehicle_line_links
@@ -271,41 +172,28 @@ def register_line_link_routes(app, get_db_connection):
                            WHERE line_user_id=%s FOR UPDATE;''', (line_user_id,))
             registration = cur.fetchone()
             if not registration:
-                if text != 'ลงทะเบียนรถ':
-                    send_line_reply(reply_token, 'กรุณาพิมพ์คำว่า ลงทะเบียนรถ เพื่อเริ่มต้น')
-                    return
                 cur.execute('''INSERT INTO line_registration_sessions (line_user_id, step)
                                VALUES (%s, 'waiting_plate');''', (line_user_id,))
                 conn.commit()
-                send_line_reply(reply_token, 'กรุณาพิมพ์ทะเบียนรถ เช่น กข 1234')
-                return
+                registration = {'step': 'waiting_plate'}
 
             if registration['step'] == 'waiting_plate':
                 if not text:
                     send_line_reply(reply_token, 'กรุณาพิมพ์ทะเบียนรถ')
                     return
-                cur.execute('''UPDATE line_registration_sessions
-                               SET license_plate=%s, step='waiting_phone', updated_at=NOW()
-                               WHERE line_user_id=%s;''', (text, line_user_id))
-                conn.commit()
-                send_line_reply(reply_token, 'กรุณาพิมพ์เบอร์โทรศัพท์ที่ใช้ลงทะเบียนรถ')
-                return
-
-            if registration['step'] == 'waiting_phone':
                 cur.execute('''SELECT v.id AS vehicle_id, v.customer_id, v.license_plate, v.province
-                               FROM vehicles v JOIN customers c ON c.id=v.customer_id
+                               FROM vehicles v
                                WHERE UPPER(REPLACE(v.license_plate, ' ', '')) = UPPER(REPLACE(%s, ' ', ''))
-                                 AND c.phone=%s
-                               ORDER BY v.id DESC LIMIT 2;''', (registration['license_plate'], text))
+                               ORDER BY v.id DESC LIMIT 2;''', (text,))
                 vehicles = cur.fetchall()
                 if not vehicles:
                     cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
                     conn.commit()
-                    send_line_reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถและเบอร์โทรศัพท์ที่ตรงกัน กรุณาติดต่อพนักงาน')
+                    send_line_reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถ กรุณาติดต่อพนักงาน')
                     return
                 if len(vehicles) > 1:
                     cur.execute('''UPDATE line_registration_sessions
-                                   SET phone=%s, step='waiting_province', updated_at=NOW()
+                                   SET license_plate=%s, phone=NULL, step='waiting_province', updated_at=NOW()
                                    WHERE line_user_id=%s;''', (text, line_user_id))
                     conn.commit()
                     send_line_reply(reply_token, 'พบทะเบียนซ้ำหลายจังหวัด กรุณาพิมพ์จังหวัด')
@@ -318,15 +206,15 @@ def register_line_link_routes(app, get_db_connection):
 
             if registration['step'] == 'waiting_province':
                 cur.execute('''SELECT v.id AS vehicle_id, v.customer_id, v.license_plate, v.province
-                               FROM vehicles v JOIN customers c ON c.id=v.customer_id
+                               FROM vehicles v
                                WHERE UPPER(REPLACE(v.license_plate, ' ', '')) = UPPER(REPLACE(%s, ' ', ''))
-                                 AND c.phone=%s AND UPPER(COALESCE(v.province, ''))=UPPER(%s)
-                               FOR UPDATE;''', (registration['license_plate'], registration['phone'], text))
+                                 AND UPPER(COALESCE(v.province, ''))=UPPER(%s)
+                               FOR UPDATE;''', (registration['license_plate'], text))
                 vehicle = cur.fetchone()
                 if not vehicle:
                     cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
                     conn.commit()
-                    send_line_reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถ เบอร์โทรศัพท์ และจังหวัดที่ตรงกัน กรุณาติดต่อพนักงาน')
+                    send_line_reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถและจังหวัดที่ตรงกัน กรุณาติดต่อพนักงาน')
                     return
                 error_message = link_line_user_to_vehicle(cur, line_user_id, vehicle)
                 cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
