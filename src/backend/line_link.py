@@ -115,6 +115,11 @@ def register_line_link_routes(app, get_db_connection):
             vehicle = cur.fetchone()
             if not vehicle:
                 return jsonify({'status': 'error', 'message': 'ไม่พบรถ'}), 404
+            cur.execute('''SELECT 1 FROM vehicle_line_links
+                           WHERE vehicle_id=%s AND linked_at IS NOT NULL AND revoked_at IS NULL
+                           FOR UPDATE;''', (vehicle_id,))
+            if cur.fetchone():
+                return jsonify({'status': 'error', 'message': 'รถคันนี้เชื่อมต่อ LINE อยู่แล้ว'}), 409
             cur.execute('''UPDATE vehicle_line_links SET revoked_at=NOW()
                            WHERE vehicle_id=%s AND linked_at IS NULL AND revoked_at IS NULL;''', (vehicle_id,))
             token = secrets.token_urlsafe(32)

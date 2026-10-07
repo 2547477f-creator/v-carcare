@@ -18,3 +18,5 @@ src/backend/certs/
 # Face captures are runtime personal data. Existing tracked reference images are retained.
 src/frontend/static/faces/*
 !src/frontend/static/faces/.gitkeep
+
+*.wps

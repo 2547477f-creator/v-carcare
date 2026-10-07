@@ -350,6 +350,8 @@
             }
             if (editVehicleId) {
                 alertBox('บันทึกการแก้ไขเรียบร้อยแล้ว <a class="alert-link" href="/pos">กลับไปเปิดคิวที่หน้า POS</a>', 'success');
+                linkedVehicleId = editVehicleId;
+                await createLineQr(editVehicleId);
             } else {
                 alertBox('ลงทะเบียนเรียบร้อยแล้ว กำลังสร้าง QR สำหรับเชื่อม LINE...', 'success');
                 try {
