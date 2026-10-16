@@ -1,4 +1,4 @@
-"""จำกัดจำนวนคำขอของ API สาธารณะตามหมายเลขไอพี"""
+"""In-memory request limiter for public, abuse-prone endpoints."""
 
 import time
 from collections import defaultdict, deque
@@ -9,8 +9,6 @@ from flask import jsonify, request
 
 
 class RateLimiter:
-    """เก็บช่วงเวลาคำขอในหน่วยความจำสำหรับเว็บเซิร์ฟเวอร์หนึ่งตัว"""
-
     def __init__(self):
         self.requests = defaultdict(deque)
         self.lock = Lock()

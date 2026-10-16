@@ -70,6 +70,94 @@ button, input, select, textarea, .btn, .form-control, table, h1, h2, h3, h4, h5,
     border-radius: 12px; 
 }
 
+/* ==========================================
+   Interactive Buttons & Animations (Hover & Active Click)
+   ========================================== */
+button,
+.btn,
+.btn-close,
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+    position: relative;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: center center;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Hover State - Subtle Lift & Glow */
+button:not(:disabled):hover,
+.btn:not(.disabled):not(:disabled):hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    filter: brightness(1.08);
+}
+
+/* Specific glows based on button colors */
+.btn-primary:not(:disabled):hover {
+    box-shadow: 0 6px 18px rgba(13, 110, 253, 0.4);
+}
+.btn-success:not(:disabled):hover {
+    box-shadow: 0 6px 18px rgba(25, 135, 84, 0.4);
+}
+.btn-danger:not(:disabled):hover {
+    box-shadow: 0 6px 18px rgba(220, 53, 69, 0.4);
+}
+.btn-warning:not(:disabled):hover,
+.bg-orange:hover {
+    box-shadow: 0 6px 20px rgba(255, 107, 0, 0.45);
+}
+.btn-info:not(:disabled):hover {
+    box-shadow: 0 6px 18px rgba(13, 202, 240, 0.4);
+}
+.btn-outline-light:not(:disabled):hover,
+.btn-outline-secondary:not(:disabled):hover,
+.btn-outline-info:not(:disabled):hover,
+.btn-outline-warning:not(:disabled):hover,
+.btn-outline-danger:not(:disabled):hover {
+    transform: translateY(-2px) scale(1.02);
+}
+
+/* Active / Pressed State - Tactile bounce / Press down */
+button:not(:disabled):active,
+.btn:not(.disabled):not(:disabled):active,
+input[type="button"]:not(:disabled):active,
+input[type="submit"]:not(:disabled):active {
+    transform: translateY(1px) scale(0.96) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25) !important;
+    filter: brightness(0.95);
+    transition: transform 0.08s ease-in-out, box-shadow 0.08s ease-in-out !important;
+}
+
+/* Close Button Animation */
+.btn-close {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+}
+.btn-close:hover {
+    transform: scale(1.15) rotate(90deg);
+    opacity: 1;
+}
+.btn-close:active {
+    transform: scale(0.9) rotate(90deg);
+}
+
+/* Icon wiggle/scale when hovering button */
+.btn:hover i,
+button:hover i {
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+.btn:hover i.bi-search,
+.btn:hover i.bi-arrow-clockwise,
+.btn:hover i.bi-plus-lg,
+.btn:hover i.bi-printer,
+.btn:hover i.bi-wallet2,
+.btn:hover i.bi-cart-check {
+    transform: scale(1.15);
+}
+
+
 /* Custom Form Controls */
 .form-control-custom,
 .form-select-custom { 
@@ -340,50 +428,97 @@ input::-ms-input-placeholder, textarea::-ms-input-placeholder { color: #A0A0A0 !
         transform: translateX(4px) scale(1.15);
     }
 
-    .sidebar .management-menu { order: 5; margin-bottom: 6px; }
+    .sidebar .management-menu { 
+        order: 5; 
+        margin-bottom: 8px; 
+    }
     .sidebar .management-menu summary { 
-        color: #8E8E93; 
+        color: #D1D1D6; 
         padding: 12px 16px; 
         border-radius: 10px; 
-        font-weight: 500; 
+        font-weight: 600; 
         cursor: pointer; 
         list-style: none; 
         display: flex; 
         align-items: center; 
-        border: 1px solid transparent;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        background-color: rgba(255, 255, 255, 0.03);
         transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .sidebar .management-menu summary::-webkit-details-marker { display: none; }
     .sidebar .management-menu summary:hover { 
         color: #fff; 
-        background: linear-gradient(90deg, rgba(255, 107, 0, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
-        border-color: rgba(255, 107, 0, 0.25);
-        transform: translateX(6px);
+        background: linear-gradient(90deg, rgba(255, 107, 0, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%);
+        border-color: rgba(255, 107, 0, 0.35);
+        transform: translateX(4px);
     }
-    .sidebar .menu-chevron { margin-left: auto; transition: transform .25s ease; }
-    .sidebar .management-menu[open] .menu-chevron { transform: rotate(180deg); color: #FF6B00; }
-    .sidebar .management-submenu { padding: 4px 0 4px 16px; }
+    .sidebar .menu-chevron { 
+        margin-left: auto; 
+        transition: transform .25s ease, color .25s ease; 
+        color: #8E8E93;
+    }
+    .sidebar .management-menu[open] summary {
+        background: rgba(255, 107, 0, 0.12);
+        border-color: rgba(255, 107, 0, 0.3);
+        color: #FF8800;
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+    .sidebar .management-menu[open] .menu-chevron { 
+        transform: rotate(180deg); 
+        color: #FF6B00; 
+    }
+    /* Submenu Box with strong contrast and indented card look */
+    .sidebar .management-submenu { 
+        background: #141417;
+        border: 1px solid rgba(255, 107, 0, 0.25);
+        border-top: none;
+        border-bottom-left-radius: 12px;
+        border-bottom-right-radius: 12px;
+        padding: 8px 10px 8px 12px; 
+        margin-bottom: 6px;
+        box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6), 0 6px 16px rgba(0, 0, 0, 0.4);
+        border-left: 3px solid #FF6B00;
+    }
     .sidebar .management-submenu a { 
-        color: #8E8E93; 
-        display: block; 
+        color: #B0B0B8; 
+        display: flex;
+        align-items: center; 
         padding: 9px 12px; 
-        margin-bottom: 3px; 
+        margin-bottom: 4px; 
         border-radius: 8px; 
         font-size: .92rem; 
+        font-weight: 500;
         text-decoration: none; 
-        border: 1px solid transparent;
+        background-color: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.04);
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
+    .sidebar .management-submenu a:last-child {
+        margin-bottom: 0;
+    }
+    .sidebar .management-submenu a i {
+        color: #FF8533;
+        transition: transform 0.2s ease;
+    }
     .sidebar .management-submenu a:hover { 
-        color: #fff; 
-        background-color: rgba(255, 255, 255, 0.06); 
-        border-color: rgba(255, 107, 0, 0.2);
+        color: #ffffff; 
+        background-color: rgba(255, 107, 0, 0.16); 
+        border-color: rgba(255, 107, 0, 0.45);
         transform: translateX(4px);
+    }
+    .sidebar .management-submenu a:hover i {
+        transform: scale(1.15);
     }
     .sidebar .management-submenu a.active { 
         background: linear-gradient(135deg, #FF6B00 0%, #FF8800 100%); 
-        color: #121212; 
-        font-weight: bold; 
+        color: #121212 !important; 
+        font-weight: 700; 
+        box-shadow: 0 4px 12px rgba(255, 107, 0, 0.35);
+        border-color: #FF6B00;
+    }
+    .sidebar .management-submenu a.active i {
+        color: #121212 !important;
     }
 
     /* Keep the navigation order identical across all desktop pages. */
@@ -595,8 +730,8 @@ input::-ms-input-placeholder, textarea::-ms-input-placeholder { color: #A0A0A0 !
         }
         .board-col.pending .board-col-header i,
         .board-col.pending .col-count { color: #8E8E93; }
-        .board-col.progress .board-col-header i,
-        .board-col.progress .col-count { color: #FFC107; }
+        .board-col.in-service .board-col-header i,
+        .board-col.in-service .col-count { color: #FFC107; }
         .board-col.done .board-col-header i,
         .board-col.done .col-count { color: #198754; }
 

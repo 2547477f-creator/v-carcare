@@ -208,14 +208,52 @@ def register_order_routes(app, dependencies):
                        ) AS items
                 FROM service_orders o
                 JOIN vehicles v ON o.vehicle_id = v.id
-                WHERE o.queue_no = %s;
+                WHERE o.queue_no = %s
+                  AND DATE(o.created_at) = CURRENT_DATE;
                 """,
                 (queue_no,)
             )
             order = cur.fetchone()
             if order:
-                return jsonify({"status": "success", "data": order}), 200
+                response = jsonify({"status": "success", "data": order})
+                response.headers['Cache-Control'] = 'no-store, max-age=0, must-revalidate'
+                return response, 200
             return jsonify({"status": "error", "message": "ไม่พบหมายเลขคิวนี้ กรุณาตรวจสอบอีกครั้ง"}), 404
+        finally:
+            cur.close()
+            conn.close()
+
+
+    @app.route('/api/track/orders', methods=['GET'])
+    def get_today_track_orders():
+        """Public queue board: expose only non-financial data for today's orders."""
+        query = (request.args.get('q') or '').strip()
+        conn = get_db_connection()
+        cur = conn.cursor()
+        try:
+            filters = ["DATE(o.created_at) = CURRENT_DATE", "o.status != 'cancelled'"]
+            params = []
+            if query:
+                filters.append("(o.queue_no ILIKE %s OR v.license_plate ILIKE %s OR COALESCE(v.province, '') ILIKE %s)")
+                term = f"%{query}%"
+                params.extend([term, term, term])
+            cur.execute(
+                """
+                SELECT o.queue_no, o.status, o.created_at, o.updated_at AS picked_up_at,
+                       v.license_plate, v.province,
+                       COALESCE(
+                         (SELECT string_agg(soi.service_name, ' + ' ORDER BY soi.id)
+                          FROM service_order_items soi WHERE soi.order_id = o.id),
+                         ''
+                       ) AS services_summary
+                FROM service_orders o
+                JOIN vehicles v ON o.vehicle_id = v.id
+                WHERE """ + " AND ".join(filters) + " ORDER BY o.created_at ASC;",
+                params,
+            )
+            response = jsonify(cur.fetchall())
+            response.headers['Cache-Control'] = 'no-store, max-age=0, must-revalidate'
+            return response, 200
         finally:
             cur.close()
             conn.close()

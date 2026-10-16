@@ -35,8 +35,6 @@
                     <div class="management-submenu">
                         <a href="/staff"><i class="bi bi-people-fill me-2"></i>จัดการพนักงาน</a>
                         <a href="/staff-advances"><i class="bi bi-cash-stack me-2"></i>จัดการเบิก</a>
-                        <a class="{{ 'active' if transaction_type == 'income' else '' }}" href="/income-management"><i
-                                class="bi bi-graph-up-arrow me-2"></i>จัดการรายรับ</a>
                         <a class="{{ 'active' if transaction_type == 'expense' else '' }}" href="/expense-management"><i
                                 class="bi bi-receipt-cutoff me-2"></i>จัดการรายจ่าย</a>
                         <a href="/service-management"><i class="bi bi-tags me-2"></i>จัดการบริการและโปรโมชัน</a>
@@ -54,8 +52,6 @@
             <a href="/history" class="fb-tab-item"><i class="bi bi-clock-history"></i><span>ประวัติ</span></a>
             <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
             <a href="/staff-advances" class="fb-tab-item"><i class="bi bi-cash-stack"></i><span>เบิกเงิน</span></a>
-            <a href="/income-management" class="fb-tab-item {{ 'active' if transaction_type == 'income' else '' }}"><i
-                    class="bi bi-graph-up-arrow"></i><span>รายรับ</span></a>
             <a href="/expense-management" class="fb-tab-item {{ 'active' if transaction_type == 'expense' else '' }}"><i
                     class="bi bi-receipt-cutoff"></i><span>รายจ่าย</span></a>
             <a href="/finance" class="fb-tab-item"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>

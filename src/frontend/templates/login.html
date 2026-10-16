@@ -157,6 +157,56 @@
             font-weight: 400;
         }
 
+        /* Top-Right Quick Track Button */
+        .top-track-corner {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+
+        .track-link-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 14px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #ffb885;
+            text-decoration: none;
+            background: rgba(26, 26, 26, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 107, 0, 0.35);
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4), 0 0 10px rgba(255, 107, 0, 0.15);
+            transition: all 0.25s ease;
+        }
+
+        .track-link-badge:hover {
+            color: #ffffff;
+            background: rgba(255, 107, 0, 0.22);
+            border-color: var(--primary-orange);
+            box-shadow: 0 6px 20px rgba(255, 107, 0, 0.35);
+            transform: translateY(-2px);
+        }
+
+        .track-link-badge i {
+            font-size: 1rem;
+            color: var(--primary-orange);
+        }
+
+        @media (max-width: 480px) {
+            .top-track-corner {
+                top: 14px;
+                right: 14px;
+            }
+            .track-link-badge {
+                padding: 6px 11px;
+                font-size: 0.8rem;
+            }
+        }
+
         /* Role Switcher Pills */
         .role-nav-container {
             background-color: #171717;
@@ -238,7 +288,8 @@
         }
 
         .form-control-custom,
-        .form-select-custom {
+        .form-select-custom,
+        select.form-control-custom {
             background-color: var(--input-bg) !important;
             border: 1px solid var(--input-border) !important;
             color: #FFFFFF !important;
@@ -247,6 +298,39 @@
             font-size: 0.95rem;
             width: 100%;
             transition: all 0.2s ease;
+        }
+
+        /* Distinct styling for Select Dropdown & Options menu */
+        select.form-control-custom {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23FF8533' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.5' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+            background-repeat: no-repeat !important;
+            background-position: right 14px center !important;
+            background-size: 16px 12px !important;
+            padding-right: 42px !important;
+            cursor: pointer;
+        }
+
+        /* High contrast options in dropdown popup */
+        select.form-control-custom option {
+            background-color: #1e1e24 !important;
+            color: #f5f5f5 !important;
+            padding: 12px 14px !important;
+            font-size: 0.95rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        select.form-control-custom option:hover,
+        select.form-control-custom option:checked,
+        select.form-control-custom option:focus {
+            background-color: #FF6B00 !important;
+            color: #121212 !important;
+            font-weight: 600;
+        }
+
+        select.form-control-custom option[disabled] {
+            color: #7a7a85 !important;
+            background-color: #16161a !important;
+            font-style: italic;
         }
 
         .form-control-custom::placeholder {
@@ -258,10 +342,11 @@
         }
 
         .form-control-custom:focus,
-        .form-select-custom:focus {
-            background-color: #272727 !important;
+        .form-select-custom:focus,
+        select.form-control-custom:focus {
+            background-color: #26262b !important;
             border-color: var(--primary-orange) !important;
-            box-shadow: 0 0 0 3px var(--orange-glow) !important;
+            box-shadow: 0 0 0 3px var(--orange-glow), 0 4px 18px rgba(0, 0, 0, 0.5) !important;
             outline: none;
         }
 
@@ -538,6 +623,14 @@
     <div class="bg-glow-orb orb-2"></div>
     <div class="bg-glow-orb orb-3"></div>
 
+    <!-- Top Right Queue Tracking Button -->
+    <aside class="top-track-corner">
+        <a class="track-link-badge" href="{{ url_for('track') }}" title="ดูคิวรถและค้นหารถวันนี้">
+            <i class="bi bi-clock-history"></i>
+            <span>ดูคิวรถ</span>
+        </a>
+    </aside>
+
     <div class="login-wrapper">
         <main class="login-card">
             <!-- Brand Logo Header -->
@@ -777,6 +870,7 @@
             const role = document.getElementById('tab-manager').classList.contains('active') ? 'manager' : 'staff';
             location.href = `/face-checkin?mode=reset&role=${encodeURIComponent(role)}`;
         }
+
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -10,7 +10,7 @@ import secrets
 from flask import jsonify, request
 
 from .auth import manager_required
-from .rate_limit import rate_limiter
+from .security.rate_limit import rate_limiter
 from .line_bot import (
     LINE_CHANNEL_SECRET, LINE_LIFF_ID, send_line_reply, verify_liff_id_token,
 )

@@ -36,38 +36,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         faceLink.innerHTML = '<i class="bi bi-camera-fill me-2"></i> สแกนหน้าเช็กอิน';
         nav.insertBefore(faceLink, logout);
     }
-    if (canEnrollManagerFace && logout && !nav.querySelector('.manager-face-enroll-link')) {
-        const enrollLink = document.createElement('a');
-        enrollLink.href = '/face-checkin?mode=enroll';
-        enrollLink.className = 'nav-link manager-face-enroll-link text-info';
-        enrollLink.innerHTML = '<i class="bi bi-person-bounding-box me-2"></i> ลงทะเบียนใบหน้าผู้จัดการ';
-        nav.insertBefore(enrollLink, logout);
-    }
-    if (canEnrollManagerFace && logout && !nav.querySelector('.manager-change-link')) {
-        const changeLink = document.createElement('a');
-        changeLink.href = '/face-checkin?mode=verify-manager-change';
-        changeLink.className = 'nav-link manager-change-link text-warning';
-        changeLink.innerHTML = '<i class="bi bi-person-gear me-2"></i> เปลี่ยนผู้จัดการ';
-        nav.insertBefore(changeLink, logout);
-    }
-    if (canEnrollManagerFace && logout && !nav.querySelector('.change-ip-link')) {
-        const ipLink = document.createElement('a');
-        ipLink.href = '/face-checkin?mode=change-ip';
-        ipLink.className = 'nav-link change-ip-link text-info';
-        ipLink.innerHTML = '<i class="bi bi-router-fill me-2"></i> ตั้งค่า IP เครื่องหลัก';
-        nav.insertBefore(ipLink, logout);
+    if (canEnrollManagerFace && logout && !nav.querySelector('.manager-settings-menu')) {
+        const managerSettings = document.createElement('details');
+        managerSettings.className = 'management-menu manager-settings-menu';
+        managerSettings.innerHTML = `
+            <summary><i class="bi bi-person-gear me-2"></i>ตั้งค่าผู้จัดการ <i class="bi bi-chevron-down menu-chevron"></i></summary>
+            <div class="management-submenu">
+                <a href="/face-checkin?mode=enroll"><i class="bi bi-person-bounding-box me-2"></i>ลงทะเบียนใบหน้าผู้จัดการ</a>
+                <a href="/face-checkin?mode=verify-manager-change"><i class="bi bi-arrow-repeat me-2"></i>เปลี่ยนผู้จัดการ</a>
+                <a href="/face-checkin?mode=change-ip"><i class="bi bi-router-fill me-2"></i>ตั้งค่า IP เครื่องหลัก</a>
+            </div>`;
+        nav.insertBefore(managerSettings, logout);
     }
     // เมนูมือถือเป็นแถบล่างคนละชุดกับ Sidebar จึงต้องเพิ่มปุ่มแยกต่างหาก
     if (canEnrollManagerFace) {
         document.querySelectorAll('.fb-nav-tabs').forEach(mobileNav => {
-            if (mobileNav.querySelector('.change-ip-link')) return;
+            if (mobileNav.querySelector('.manager-settings-link')) return;
             const mobileLogout = mobileNav.querySelector('.logout-link');
             if (!mobileLogout) return;
-            const ipLink = document.createElement('a');
-            ipLink.href = '/face-checkin?mode=change-ip';
-            ipLink.className = 'fb-tab-item change-ip-link text-info';
-            ipLink.innerHTML = '<i class="bi bi-router-fill"></i><span>ตั้งค่า IP</span>';
-            mobileNav.insertBefore(ipLink, mobileLogout);
+            const settingsLink = document.createElement('a');
+            settingsLink.href = '/face-checkin?mode=enroll';
+            settingsLink.className = 'fb-tab-item manager-settings-link text-info';
+            settingsLink.innerHTML = '<i class="bi bi-person-gear"></i><span>ตั้งค่าผู้จัดการ</span>';
+            mobileNav.insertBefore(settingsLink, mobileLogout);
         });
     }
     // ปุ่มสแกนหน้าบนมือถือจะแสดงได้เฉพาะอุปกรณ์ที่เป็นเครื่องหลักเท่านั้น
@@ -90,7 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         faceLink.innerHTML = '<i class="bi bi-camera-fill"></i><span>สแกนหน้า</span>';
         serviceMobileNav.insertBefore(faceLink, serviceMobileNav.querySelector('.logout-link'));
     }
-    if (nav.querySelector('.management-menu')) return;
+    if (nav.querySelector('.management-menu:not(.manager-settings-menu)')) return;
     const staff = nav.querySelector('a[href="/staff"]');
     const advances = nav.querySelector('a[href="/staff-advances"]');
     const services = nav.querySelector('a[href="/service-management"]');
@@ -99,8 +90,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const activePath = window.location.pathname;
     const menu = document.createElement('details');
     menu.className = 'management-menu';
-    menu.open = ['/staff', '/staff-advances', '/expense-management', '/income-management', '/service-management'].includes(activePath);
-    menu.innerHTML = `<summary><i class="bi bi-gear-fill me-2"></i>การจัดการ <i class="bi bi-chevron-down menu-chevron"></i></summary><div class="management-submenu"><a href="/staff" class="${activePath === '/staff' ? 'active' : ''}"><i class="bi bi-people-fill me-2"></i>จัดการพนักงาน</a><a href="/staff-advances" class="${activePath === '/staff-advances' ? 'active' : ''}"><i class="bi bi-cash-stack me-2"></i>จัดการเบิก</a><a href="/income-management" class="${activePath === '/income-management' ? 'active' : ''}"><i class="bi bi-graph-up-arrow me-2"></i>จัดการรายรับ</a><a href="/expense-management" class="${activePath === '/expense-management' ? 'active' : ''}"><i class="bi bi-receipt-cutoff me-2"></i>จัดการรายจ่าย</a><a href="/service-management" class="${activePath === '/service-management' ? 'active' : ''}"><i class="bi bi-tags me-2"></i>จัดการบริการและโปรโมชัน</a></div>`;
+    menu.open = ['/staff', '/staff-advances', '/expense-management', '/service-management'].includes(activePath);
+    menu.innerHTML = `<summary><i class="bi bi-shop me-2"></i>จัดการภายในร้าน <i class="bi bi-chevron-down menu-chevron"></i></summary><div class="management-submenu"><a href="/staff" class="${activePath === '/staff' ? 'active' : ''}"><i class="bi bi-people-fill me-2"></i>จัดการพนักงาน</a><a href="/staff-advances" class="${activePath === '/staff-advances' ? 'active' : ''}"><i class="bi bi-cash-stack me-2"></i>จัดการการเบิก</a><a href="/service-management" class="${activePath === '/service-management' ? 'active' : ''}"><i class="bi bi-tags me-2"></i>จัดการโปรโมชั่น</a><a href="/expense-management" class="${activePath === '/expense-management' ? 'active' : ''}"><i class="bi bi-receipt-cutoff me-2"></i>จัดการรายจ่าย</a></div>`;
     staff.remove(); advances.remove(); services.remove();
     nav.insertBefore(menu, nav.querySelector('a[href="/finance"]') || nav.lastElementChild);
 

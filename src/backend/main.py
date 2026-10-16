@@ -46,6 +46,11 @@ from .line_link import register_line_link_routes
 # ===================================================================
 app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 app.secret_key = os.environ.get("SECRET_KEY")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('RENDER') == 'true',
+)
 CORS(app, supports_credentials=True)
 
 
@@ -62,6 +67,9 @@ def disable_browser_cache_for_face_updates(response):
         response.headers['Cache-Control'] = 'no-store, max-age=0, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'same-origin'
     return response
 
 # ===================================================================
@@ -582,6 +590,15 @@ def ensure_auto_shop_open_scheduler():
     start_auto_shop_open_scheduler()
 
 
+from .security.access_control import require_authenticated_routes
+
+
+@app.before_request
+def enforce_authenticated_routes():
+    """Default-deny protection for internal pages and APIs."""
+    return require_authenticated_routes()
+
+
 # ===================================================================
 # 🔐 3. ระบบยืนยันตัวตน (Session-based Auth)
 # ===================================================================
@@ -831,18 +848,6 @@ def expense_management():
         'transaction_management.html',
         transaction_type='expense',
         page_title='จัดการรายจ่าย',
-        session_role=session.get("role"),
-        session_name=session.get("display_name"),
-    )
-
-
-@app.route('/income-management')
-@manager_required
-def income_management():
-    return render_template(
-        'transaction_management.html',
-        transaction_type='income',
-        page_title='จัดการรายรับ',
         session_role=session.get("role"),
         session_name=session.get("display_name"),
     )
@@ -1213,6 +1218,7 @@ def staff_face_checkout():
 
 
 @app.route('/setup-admin')
+@manager_required
 def setup_admin():
     conn = get_db_connection()
     cur = conn.cursor()
@@ -1246,6 +1252,7 @@ def setup_admin():
 
 
 @app.route('/setup-staff-pins')
+@manager_required
 def setup_staff_pins():
     conn = get_db_connection()
     cur = conn.cursor()
