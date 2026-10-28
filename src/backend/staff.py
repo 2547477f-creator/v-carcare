@@ -8,7 +8,25 @@ from flask import jsonify, request, session
 from .auth import manager_required
 
 
+class AttendanceBonusApplication:
+    """Registers attendance-bonus routes with explicit infrastructure dependencies."""
+
+    def __init__(self, connection_factory, fund_movement_recorder):
+        self._connection_factory = connection_factory
+        self._fund_movement_recorder = fund_movement_recorder
+
+    def register_routes(self, app):
+        _register_attendance_bonus_routes(
+            app, self._connection_factory, self._fund_movement_recorder
+        )
+
+
 def register_attendance_bonus_routes(app, get_db_connection, record_fund_movement):
+    """Compatibility facade for ``AttendanceBonusApplication``."""
+    AttendanceBonusApplication(get_db_connection, record_fund_movement).register_routes(app)
+
+
+def _register_attendance_bonus_routes(app, get_db_connection, record_fund_movement):
     """ลงทะเบียน API เบี้ยขยันโดยไม่ให้โมดูลพนักงาน import main กลับ"""
 
     def ensure_attendance_bonus_tables(cur):

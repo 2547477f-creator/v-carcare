@@ -1,14 +1,80 @@
 """API การเงินและเงินกองกลาง"""
 
-from datetime import date, datetime, timedelta
-import psycopg2
+from collections.abc import Callable, Mapping
+from datetime import datetime
+from typing import Any
+
 from flask import jsonify, request, session
 from .auth import manager_required
 
 
+class FinanceWorkflow:
+    """Validation and normalization rules for finance requests."""
+
+    TRANSACTION_TYPES = frozenset({'all', 'income', 'expense', 'central_fund'})
+    PAYMENT_METHODS = frozenset({'all', 'cash', 'transfer'})
+    FUND_ACTIVITIES = frozenset({'all', 'adjustment', 'fund_received'})
+
+    @classmethod
+    def normalize_transaction_type(cls, value):
+        return value if value in cls.TRANSACTION_TYPES else 'all'
+
+    @classmethod
+    def normalize_payment_method(cls, value):
+        return value if value in cls.PAYMENT_METHODS else 'all'
+
+    @classmethod
+    def normalize_fund_activity(cls, value):
+        return value if value in cls.FUND_ACTIVITIES else 'all'
+
+    @staticmethod
+    def pagination(page_value, page_size_value):
+        try:
+            return max(int(page_value or 1), 1), min(max(int(page_size_value or 25), 1), 100)
+        except (TypeError, ValueError):
+            return 1, 25
+
+
+class FinanceApplication:
+    """Composition root for finance routes and their external collaborators."""
+
+    REQUIRED_DEPENDENCIES = frozenset({
+        'get_db_connection', '_ensure_finance_payment_method_column', '_period_to_range',
+        '_record_central_fund_movement', '_ensure_central_fund_tables',
+        '_get_auto_open_settings', '_get_cash_float_amount', '_ensure_daily_cash_float',
+        '_ensure_security_settings', '_central_fund_has_active_cash_float',
+        '_run_scheduled_shop_open',
+    })
+
+    def __init__(self, dependencies: Mapping[str, Callable[..., Any]]):
+        missing = self.REQUIRED_DEPENDENCIES.difference(dependencies)
+        if missing:
+            raise ValueError(f"Missing finance dependencies: {', '.join(sorted(missing))}")
+        self._dependencies = dict(dependencies)
+
+    def register_routes(self, app):
+        _register_finance_routes(app, self._dependencies)
+
+
 def register_finance_routes(app, dependencies):
+    """Compatibility facade for the object-oriented finance application."""
+    FinanceApplication(dependencies).register_routes(app)
+
+
+def _register_finance_routes(app, dependencies):
     """ลงทะเบียน API โดยรับ dependency จากตัวประกอบระบบเพื่อเลี่ยง circular import"""
-    globals().update(dependencies)
+    # Bind collaborators in this closure so IDEs can resolve their names.
+    get_db_connection: Callable[[], Any] = dependencies['get_db_connection']
+    _ensure_finance_payment_method_column: Callable[..., Any] = dependencies['_ensure_finance_payment_method_column']
+    _period_to_range: Callable[..., Any] = dependencies['_period_to_range']
+    _record_central_fund_movement: Callable[..., Any] = dependencies['_record_central_fund_movement']
+    _ensure_central_fund_tables: Callable[..., Any] = dependencies['_ensure_central_fund_tables']
+    _get_auto_open_settings: Callable[..., Any] = dependencies['_get_auto_open_settings']
+    _get_cash_float_amount: Callable[..., Any] = dependencies['_get_cash_float_amount']
+    _ensure_daily_cash_float: Callable[..., Any] = dependencies['_ensure_daily_cash_float']
+    _ensure_security_settings: Callable[..., Any] = dependencies['_ensure_security_settings']
+    _central_fund_has_active_cash_float: Callable[..., Any] = dependencies['_central_fund_has_active_cash_float']
+    _run_scheduled_shop_open: Callable[..., Any] = dependencies['_run_scheduled_shop_open']
 
     @app.route('/api/finance/summary', methods=['GET'])
     @manager_required
@@ -19,17 +85,15 @@ def register_finance_routes(app, dependencies):
         transaction_period = request.args.get('transaction_period', period)
         transaction_start_str = request.args.get('transaction_start', start_str)
         transaction_end_str = request.args.get('transaction_end', end_str)
-        transaction_type = request.args.get('transaction_type', 'all')
-        if transaction_type not in ('all', 'income', 'expense', 'central_fund'):
-            transaction_type = 'all'
-        payment_method = request.args.get('payment_method', 'all')
-        if payment_method not in ('all', 'cash', 'transfer'):
-            payment_method = 'all'
-        try:
-            page = max(int(request.args.get('page', 1)), 1)
-            page_size = min(max(int(request.args.get('page_size', 25)), 1), 100)
-        except (TypeError, ValueError):
-            page, page_size = 1, 25
+        transaction_type = FinanceWorkflow.normalize_transaction_type(
+            request.args.get('transaction_type', 'all')
+        )
+        payment_method = FinanceWorkflow.normalize_payment_method(
+            request.args.get('payment_method', 'all')
+        )
+        page, page_size = FinanceWorkflow.pagination(
+            request.args.get('page'), request.args.get('page_size')
+        )
         start_date, end_date = _period_to_range(period, start_str, end_str)
         transaction_start_date, transaction_end_date = _period_to_range(
             transaction_period, transaction_start_str, transaction_end_str
@@ -288,9 +352,7 @@ def register_finance_routes(app, dependencies):
         period = request.args.get('period', 'day')
         start_str = request.args.get('start')
         end_str = request.args.get('end')
-        activity = request.args.get('activity', 'all')
-        if activity not in ('all', 'adjustment', 'fund_received'):
-            activity = 'all'
+        activity = FinanceWorkflow.normalize_fund_activity(request.args.get('activity', 'all'))
         start_date, end_date = _period_to_range(period, start_str, end_str)
     
         conn = get_db_connection()

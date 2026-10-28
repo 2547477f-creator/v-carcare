@@ -1,447 +1,641 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="th">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>V CarCare - จัดการการเบิกเงินพนักงาน</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-        <!-- Google Fonts: Kanit -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <!-- Google Fonts: Kanit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
     <style>
-        .status-badge {
-            font-size: .78rem;
-            padding: .35em .65em;
-        }
+      .status-badge {
+        font-size: 0.78rem;
+        padding: 0.35em 0.65em;
+      }
     </style>
-</head>
+  </head>
 
-<body class="staff-advances-page">
+  <body class="staff-advances-page">
     <div class="app-shell">
-        <aside class="sidebar d-none d-md-block">
-            <div class="brand-header text-center mb-3">
-                <div class="brand-badge-glow mb-2">
-                    <i class="bi bi-car-front-fill"></i>
-                </div>
-                <h3 class="text-orange fw-bold m-0">V CARCARE</h3>
-            </div>
-            <p class="text-center text-secondary small mb-4">{{ session_name }} ({{ session_role }})</p>
-            <nav class="nav flex-column">
-                <a class="nav-link" href="/service-management"><i
-                        class="bi bi-tags me-2"></i>จัดการบริการและโปรโมชัน</a>
-                <a class="nav-link" href="/history"><i class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว</a>
-                <a class="nav-link" href="/"><i class="bi bi-speedometer2 me-2"></i>ภาพรวมระบบ</a>
-                <a class="nav-link" href="/pos"><i class="bi bi-cart-check me-2"></i>รับรถ POS</a>
-                <a class="nav-link" href="/register"><i class="bi bi-person-vcard me-2"></i>ลงทะเบียนลูกค้าและรถ</a>
-                <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i>จัดการพนักงาน</a>
-                <a class="nav-link active" href="/staff-advances"><i
-                        class="bi bi-cash-stack me-2"></i>จัดการการเบิกพนักงาน</a>
-                <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i>สรุปบัญชีรายรับ</a>
-                <a class="nav-link logout-link text-danger mt-2" href="{{ url_for('logout') }}"><i
-                        class="bi bi-box-arrow-right me-2"></i>ออกจากระบบ</a>
-            </nav>
-        </aside>
-
-        <nav class="fb-nav-tabs d-flex d-md-none">
-            <a href="/" class="fb-tab-item"><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a>
-            <a href="/pos" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i><span>รับรถ</span></a>
-            <a href="/register" class="fb-tab-item"><i class="bi bi-person-vcard"></i><span>ลงทะเบียน</span></a>
-            <a href="/history" class="fb-tab-item"><i class="bi bi-clock-history"></i><span>ประวัติ</span></a>
-            <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i><span>พนักงาน</span></a>
-            <a href="/staff-advances" class="fb-tab-item active"><i
-                    class="bi bi-cash-stack"></i><span>เบิกเงิน</span></a>
-            <a href="/finance" class="fb-tab-item"><i class="bi bi-wallet2"></i><span>บัญชี</span></a>
-            <a href="/service-management" class="fb-tab-item"><i class="bi bi-tags"></i><span>บริการ</span></a>
-            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger"><i
-                    class="bi bi-box-arrow-right"></i><span>ออก</span></a>
+      <aside class="sidebar d-none d-md-block">
+        <div class="brand-header text-center mb-3">
+          <div class="brand-badge-glow mb-2">
+            <i class="bi bi-car-front-fill"></i>
+          </div>
+          <h3 class="text-orange fw-bold m-0">V CARCARE</h3>
+        </div>
+        <p class="text-center text-secondary small mb-4">
+          {{ session_name }} ({{ session_role }})
+        </p>
+        <nav class="nav flex-column">
+          <a class="nav-link" href="/service-management"
+            ><i class="bi bi-tags me-2"></i>จัดการบริการและโปรโมชัน</a
+          >
+          <a class="nav-link" href="/history"
+            ><i class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว</a
+          >
+          <a class="nav-link" href="/"
+            ><i class="bi bi-speedometer2 me-2"></i>ภาพรวมระบบ</a
+          >
+          <a class="nav-link" href="/pos"
+            ><i class="bi bi-cart-check me-2"></i>รับรถ POS</a
+          >
+          <a class="nav-link" href="/register"
+            ><i class="bi bi-person-vcard me-2"></i>ลงทะเบียนลูกค้าและรถ</a
+          >
+          <a class="nav-link" href="/staff"
+            ><i class="bi bi-people-fill me-2"></i>จัดการพนักงาน</a
+          >
+          <a class="nav-link active" href="/staff-advances"
+            ><i class="bi bi-cash-stack me-2"></i>จัดการการเบิกพนักงาน</a
+          >
+          <a class="nav-link" href="/finance"
+            ><i class="bi bi-wallet2 me-2"></i>สรุปบัญชีรายรับ</a
+          >
+          <a
+            class="nav-link logout-link text-danger mt-2"
+            href="{{ url_for('logout') }}"
+            ><i class="bi bi-box-arrow-right me-2"></i>ออกจากระบบ</a
+          >
         </nav>
+      </aside>
 
-        <main class="main-content flex-grow-1 p-3 p-md-4">
-            <div class="container-fluid">
-                <div class="d-flex justify-content-between align-items-center mb-4 no-print">
-                    <h2><i class="bi bi-wallet2 text-warning me-2"></i> จัดการการเบิกเงินพนักงาน</h2>
-                    <div>
-                        <a href="/" class="btn btn-outline-light btn-sm me-2"><i class="bi bi-arrow-left"></i>
-                            กลับหน้าหลัก</a>
-                        <button class="btn btn-primary btn-sm" onclick="window.print()"><i class="bi bi-printer"></i>
-                            พิมพ์รายงาน</button>
-                    </div>
-                </div>
+      <nav class="fb-nav-tabs d-flex d-md-none">
+        <a href="/" class="fb-tab-item"
+          ><i class="bi bi-speedometer2"></i><span>ภาพรวม</span></a
+        >
+        <a href="/pos" class="fb-tab-item"
+          ><i class="bi bi-plus-circle-fill"></i><span>รับรถ</span></a
+        >
+        <a href="/register" class="fb-tab-item"
+          ><i class="bi bi-person-vcard"></i><span>ลงทะเบียน</span></a
+        >
+        <a href="/history" class="fb-tab-item"
+          ><i class="bi bi-clock-history"></i><span>ประวัติ</span></a
+        >
+        <a href="/staff" class="fb-tab-item"
+          ><i class="bi bi-people-fill"></i><span>พนักงาน</span></a
+        >
+        <a href="/staff-advances" class="fb-tab-item active"
+          ><i class="bi bi-cash-stack"></i><span>เบิกเงิน</span></a
+        >
+        <a href="/finance" class="fb-tab-item"
+          ><i class="bi bi-wallet2"></i><span>บัญชี</span></a
+        >
+        <a href="/service-management" class="fb-tab-item"
+          ><i class="bi bi-tags"></i><span>บริการ</span></a
+        >
+        <a
+          href="{{ url_for('logout') }}"
+          class="fb-tab-item logout-link text-danger"
+          ><i class="bi bi-box-arrow-right"></i><span>ออก</span></a
+        >
+      </nav>
 
-                <div id="alert-box"></div>
-
-                <!-- ฟอร์มกรองรายคน/สถานะ และ ปุ่มเพิ่มการเบิก -->
-                <div class="row g-3 mb-4 no-print">
-                    <div class="col-md-4">
-                        <label class="form-label text-secondary">เลือกพนักงานรายคน</label>
-                        <select id="filter-staff" class="form-select bg-dark text-white border-secondary"
-                            onchange="loadWithdrawals()">
-                            <option value="">-- แสดงทุกคน --</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label text-secondary">สถานะ</label>
-                        <select id="filter-status" class="form-select bg-dark text-white border-secondary"
-                            onchange="loadWithdrawals()">
-                            <option value="">-- ทุกสถานะ --</option>
-                            <option value="pending">รอจ่ายเงิน</option>
-                            <option value="paid">จ่ายเงินแล้ว</option>
-                            <option value="rejected">ปฏิเสธ</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 d-flex align-items-end justify-content-end gap-2">
-                        <button class="btn btn-outline-info" type="button" onclick="editWithdrawalRequestLimit()"
-                            title="ตั้งค่าจำนวนครั้งที่พนักงานเบิกได้ต่อสัปดาห์">
-                            <i class="bi bi-sliders"></i> ตั้งค่าจำนวนครั้ง
-                        </button>
-                        <button class="btn btn-warning fw-bold w-100" data-bs-toggle="modal"
-                            data-bs-target="#addWithdrawalModal">
-                            <i class="bi bi-plus-circle me-1"></i> สร้างคำขอเบิกเงินใหม่
-                        </button>
-                    </div>
-                </div>
-
-                <!-- ตารางแสดงรายการเบิกเงิน -->
-                <div class="card card-custom p-3">
-                    <h5 class="mb-3">ประวัติคำขอเบิกเงิน</h5>
-                    <div class="table-responsive">
-                        <table class="table table-dark table-hover align-middle">
-                            <thead>
-                                <tr>
-                                    <th>วันที่ขอ</th>
-                                    <th>รหัสพนักงาน</th>
-                                    <th>ชื่อ-นามสกุล</th>
-                                    <th>เหตุผล/รายการเบิก</th>
-                                    <th class="text-end">จำนวนที่ขอ</th>
-                                    <th class="text-center">สถานะ</th>
-                                    <th class="text-center no-print">การดำเนินการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="withdrawal-table-body">
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted">กำลังโหลดข้อมูล...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+      <main class="main-content flex-grow-1 p-3 p-md-4">
+        <div class="container-fluid">
+          <div
+            class="d-flex justify-content-between align-items-center mb-4 no-print"
+          >
+            <h2>
+              <i class="bi bi-wallet2 text-warning me-2"></i>
+              จัดการการเบิกเงินพนักงาน
+            </h2>
+            <div>
+              <a href="/" class="btn btn-outline-light btn-sm me-2"
+                ><i class="bi bi-arrow-left"></i> กลับหน้าหลัก</a
+              >
+              <button class="btn btn-primary btn-sm" onclick="window.print()">
+                <i class="bi bi-printer"></i> พิมพ์รายงาน
+              </button>
             </div>
-        </main>
+          </div>
+
+          <div id="alert-box"></div>
+
+          <!-- ฟอร์มกรองรายคน/สถานะ และ ปุ่มเพิ่มการเบิก -->
+          <div class="row g-3 mb-4 no-print">
+            <div class="col-md-4">
+              <label class="form-label text-secondary">เลือกพนักงานรายคน</label>
+              <select
+                id="filter-staff"
+                class="form-select bg-dark text-white border-secondary"
+                onchange="loadWithdrawals()"
+              >
+                <option value="">-- แสดงทุกคน --</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-secondary">สถานะ</label>
+              <select
+                id="filter-status"
+                class="form-select bg-dark text-white border-secondary"
+                onchange="loadWithdrawals()"
+              >
+                <option value="">-- ทุกสถานะ --</option>
+                <option value="pending">รอจ่ายเงิน</option>
+                <option value="paid">จ่ายเงินแล้ว</option>
+                <option value="rejected">ปฏิเสธ</option>
+              </select>
+            </div>
+            <div
+              class="col-md-4 d-flex align-items-end justify-content-end gap-2"
+            >
+              <button
+                class="btn btn-outline-info"
+                type="button"
+                onclick="editWithdrawalRequestLimit()"
+                title="ตั้งค่าจำนวนครั้งที่พนักงานเบิกได้ต่อสัปดาห์"
+              >
+                <i class="bi bi-sliders"></i> ตั้งค่าจำนวนครั้ง
+              </button>
+              <button
+                class="btn btn-warning fw-bold w-100"
+                data-bs-toggle="modal"
+                data-bs-target="#addWithdrawalModal"
+              >
+                <i class="bi bi-plus-circle me-1"></i> สร้างคำขอเบิกเงินใหม่
+              </button>
+            </div>
+          </div>
+
+          <!-- ตารางแสดงรายการเบิกเงิน -->
+          <div class="card card-custom p-3">
+            <h5 class="mb-3">ประวัติคำขอเบิกเงิน</h5>
+            <div class="table-responsive">
+              <table class="table table-dark table-hover align-middle">
+                <thead>
+                  <tr>
+                    <th>วันที่ขอ</th>
+                    <th>รหัสพนักงาน</th>
+                    <th>ชื่อ-นามสกุล</th>
+                    <th>เหตุผล/รายการเบิก</th>
+                    <th class="text-end">จำนวนที่ขอ</th>
+                    <th class="text-center">สถานะ</th>
+                    <th class="text-center no-print">การดำเนินการ</th>
+                  </tr>
+                </thead>
+                <tbody id="withdrawal-table-body">
+                  <tr>
+                    <td colspan="7" class="text-center text-muted">
+                      กำลังโหลดข้อมูล...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
 
     <!-- Modal: สร้างคำขอเบิกเงิน -->
     <div class="modal fade" id="addWithdrawalModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white border-secondary">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title">สร้างคำขอเบิกเงินพนักงาน</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-secondary small">
-                        ขอเบิกได้สูงสุด <strong>3,000 บาท/ครั้ง</strong> และไม่เกิน <strong>3 ครั้ง/สัปดาห์</strong>
-                        โดยยอดรวมต้องไม่เกินรายได้สะสมของสัปดาห์นั้น หลังสร้างรายการ สถานะจะเป็นรอจ่ายเงิน
-                    </p>
-                    <form id="withdrawalForm">
-                        <div class="mb-3">
-                            <label class="form-label">พนักงาน</label>
-                            <select id="modal-staff-id" class="form-select bg-dark text-white border-secondary" required
-                                onchange="loadEligibility()">
-                                <option value="">-- เลือกพนักงาน --</option>
-                            </select>
-                        </div>
+      <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title">สร้างคำขอเบิกเงินพนักงาน</h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-secondary small">
+              ขอเบิกได้สูงสุด <strong>3,000 บาท/ครั้ง</strong> และไม่เกิน
+              <strong>3 ครั้ง/สัปดาห์</strong>
+              โดยยอดรวมต้องไม่เกินรายได้สะสมของสัปดาห์นั้น หลังสร้างรายการ
+              สถานะจะเป็นรอจ่ายเงิน
+            </p>
+            <form id="withdrawalForm">
+              <div class="mb-3">
+                <label class="form-label">พนักงาน</label>
+                <select
+                  id="modal-staff-id"
+                  class="form-select bg-dark text-white border-secondary"
+                  required
+                  onchange="loadEligibility()"
+                >
+                  <option value="">-- เลือกพนักงาน --</option>
+                </select>
+              </div>
 
-                        <div id="eligibility-box" class="d-none alert alert-secondary py-2 px-3 mb-3 small">
-                            <div class="d-flex justify-content-between"><span>วันที่เช็คอินสัปดาห์นี้</span><strong
-                                    id="elig-work-days">-</strong></div>
-                            <div class="d-flex justify-content-between"><span>รายได้สะสมสัปดาห์นี้</span><strong
-                                    id="elig-earned">-</strong></div>
-                            <div class="d-flex justify-content-between"><span>เบิกไปแล้วสัปดาห์นี้</span><strong
-                                    id="elig-used">-</strong></div>
-                            <div class="d-flex justify-content-between"><span>เหลือเบิกได้อีก</span><strong
-                                    id="elig-remaining" class="text-warning">-</strong></div>
-                            <div class="d-flex justify-content-between"><span>จำนวนครั้งที่เหลือ</span><strong
-                                    id="elig-requests-left">-</strong></div>
-                        </div>
-                        <div id="eligibility-loading" class="d-none text-secondary small mb-3">
-                            <span class="spinner-border spinner-border-sm me-1"></span>กำลังเช็ควงเงิน...
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">จำนวนเงินที่ขอเบิก (บาท)</label>
-                            <input type="number" step="0.01" id="modal-amount"
-                                class="form-control bg-dark text-white border-secondary" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">เหตุผล / รายละเอียดการเบิก</label>
-                            <textarea id="modal-reason" class="form-control bg-dark text-white border-secondary"
-                                rows="2"></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-warning w-100 fw-bold" id="btn-submit-withdrawal">
-                            <i class="bi bi-send-check me-1"></i> ส่งคำขอเบิกเงิน
-                        </button>
-                    </form>
+              <div
+                id="eligibility-box"
+                class="d-none alert alert-secondary py-2 px-3 mb-3 small"
+              >
+                <div class="d-flex justify-content-between">
+                  <span>วันที่เช็คอินสัปดาห์นี้</span
+                  ><strong id="elig-work-days">-</strong>
                 </div>
-            </div>
+                <div class="d-flex justify-content-between">
+                  <span>รายได้สะสมสัปดาห์นี้</span
+                  ><strong id="elig-earned">-</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span>เบิกไปแล้วสัปดาห์นี้</span
+                  ><strong id="elig-used">-</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span>เหลือเบิกได้อีก</span
+                  ><strong id="elig-remaining" class="text-warning">-</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span>จำนวนครั้งที่เหลือ</span
+                  ><strong id="elig-requests-left">-</strong>
+                </div>
+              </div>
+              <div
+                id="eligibility-loading"
+                class="d-none text-secondary small mb-3"
+              >
+                <span class="spinner-border spinner-border-sm me-1"></span
+                >กำลังเช็ควงเงิน...
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">จำนวนเงินที่ขอเบิก (บาท)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  id="modal-amount"
+                  class="form-control bg-dark text-white border-secondary"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">เหตุผล / รายละเอียดการเบิก</label>
+                <textarea
+                  id="modal-reason"
+                  class="form-control bg-dark text-white border-secondary"
+                  rows="2"
+                ></textarea>
+              </div>
+              <button
+                type="submit"
+                class="btn btn-warning w-100 fw-bold"
+                id="btn-submit-withdrawal"
+              >
+                <i class="bi bi-send-check me-1"></i> ส่งคำขอเบิกเงิน
+              </button>
+            </form>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Modal: ปฏิเสธ/ยกเลิก (ขอเหตุผล) -->
     <div class="modal fade" id="noteModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white border-secondary">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title" id="noteModalTitle">ระบุเหตุผล</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <textarea id="note-input" class="form-control bg-dark text-white border-secondary" rows="2"
-                        placeholder="เหตุผล (ไม่บังคับ)"></textarea>
-                </div>
-                <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="button" class="btn btn-danger fw-bold" id="btn-confirm-note">ยืนยัน</button>
-                </div>
-            </div>
+      <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title" id="noteModalTitle">ระบุเหตุผล</h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <textarea
+              id="note-input"
+              class="form-control bg-dark text-white border-secondary"
+              rows="2"
+              placeholder="เหตุผล (ไม่บังคับ)"
+            ></textarea>
+          </div>
+          <div class="modal-footer border-secondary">
+            <button
+              type="button"
+              class="btn btn-outline-light"
+              data-bs-dismiss="modal"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger fw-bold"
+              id="btn-confirm-note"
+            >
+              ยืนยัน
+            </button>
+          </div>
         </div>
+      </div>
     </div>
 
     <script>
-        let pendingNoteAction = null; // { id, status }
+      let pendingNoteAction = null; // { id, status }
 
-        function showAlert(message, type) {
-            document.getElementById('alert-box').innerHTML = `
+      function showAlert(message, type) {
+        document.getElementById("alert-box").innerHTML = `
                 <div class="alert alert-${type} alert-dismissible fade show" role="alert">
                     ${message}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>`;
+      }
+
+      async function editWithdrawalRequestLimit() {
+        try {
+          const currentResponse = await fetch(
+            "/api/staff-withdrawals/settings",
+          );
+          const current = await currentResponse.json();
+          if (!currentResponse.ok)
+            throw new Error(current.message || "โหลดการตั้งค่าไม่สำเร็จ");
+          const value = prompt(
+            "จำนวนครั้งที่พนักงานเบิกได้ต่อสัปดาห์ (1-20)",
+            current.max_requests_per_week,
+          );
+          if (value === null) return;
+          const response = await fetch("/api/staff-withdrawals/settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ max_requests_per_week: Number(value) }),
+          });
+          const data = await response.json();
+          if (!response.ok)
+            throw new Error(data.message || "บันทึกการตั้งค่าไม่สำเร็จ");
+          showAlert(
+            `ตั้งค่าเบิกได้สูงสุด ${data.max_requests_per_week} ครั้ง/สัปดาห์แล้ว`,
+            "success",
+          );
+          if (document.getElementById("modal-staff-id").value)
+            loadEligibility();
+        } catch (error) {
+          showAlert(error.message, "danger");
         }
+      }
 
-        async function editWithdrawalRequestLimit() {
-            try {
-                const currentResponse = await fetch('/api/staff-withdrawals/settings');
-                const current = await currentResponse.json();
-                if (!currentResponse.ok) throw new Error(current.message || 'โหลดการตั้งค่าไม่สำเร็จ');
-                const value = prompt('จำนวนครั้งที่พนักงานเบิกได้ต่อสัปดาห์ (1-20)', current.max_requests_per_week);
-                if (value === null) return;
-                const response = await fetch('/api/staff-withdrawals/settings', {
-                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ max_requests_per_week: Number(value) })
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'บันทึกการตั้งค่าไม่สำเร็จ');
-                showAlert(`ตั้งค่าเบิกได้สูงสุด ${data.max_requests_per_week} ครั้ง/สัปดาห์แล้ว`, 'success');
-                if (document.getElementById('modal-staff-id').value) loadEligibility();
-            } catch (error) { showAlert(error.message, 'danger'); }
-        }
+      document.addEventListener("DOMContentLoaded", () => {
+        loadStaffDropdown();
+        loadWithdrawals();
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadStaffDropdown();
-            loadWithdrawals();
+        document
+          .getElementById("withdrawalForm")
+          .addEventListener("submit", async (e) => {
+            e.preventDefault();
 
-            document.getElementById('withdrawalForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                const payload = {
-                    staff_id: document.getElementById('modal-staff-id').value,
-                    amount: parseFloat(document.getElementById('modal-amount').value),
-                    reason: document.getElementById('modal-reason').value
-                };
-
-                const btn = document.getElementById('btn-submit-withdrawal');
-                const originalText = btn.innerHTML;
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>กำลังส่งคำขอ...';
-
-                try {
-                    const res = await fetch('/api/staff-withdrawals', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await res.json();
-
-                    if (!res.ok) throw new Error(data.message || 'เกิดข้อผิดพลาดในการบันทึก');
-
-                    showAlert('สร้างรายการเบิกเงินสำเร็จ สถานะ: รอจ่ายเงิน', 'success');
-
-                    const modalEl = document.getElementById('addWithdrawalModal');
-                    bootstrap.Modal.getInstance(modalEl).hide();
-                    document.getElementById('withdrawalForm').reset();
-                    resetEligibilityBox();
-
-                    await loadWithdrawals();
-
-                } catch (err) {
-                    showAlert(err.message, 'danger');
-                } finally {
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
-                }
-            });
-
-            document.getElementById('addWithdrawalModal').addEventListener('hidden.bs.modal', () => {
-                document.getElementById('withdrawalForm').reset();
-                resetEligibilityBox();
-            });
-
-            document.getElementById('btn-confirm-note').addEventListener('click', async () => {
-                if (!pendingNoteAction) return;
-                const note = document.getElementById('note-input').value.trim();
-                await changeStatus(pendingNoteAction.id, pendingNoteAction.status, note);
-                bootstrap.Modal.getInstance(document.getElementById('noteModal')).hide();
-                pendingNoteAction = null;
-            });
-        });
-
-        async function loadStaffDropdown() {
-            const res = await fetch('/api/staff?all=true');
-            const staffList = await res.json();
-
-            const filterSelect = document.getElementById('filter-staff');
-            const modalSelect = document.getElementById('modal-staff-id');
-
-            staffList.forEach(s => {
-                const label = `${s.employee_code} - ${s.full_name}`;
-                filterSelect.insertAdjacentHTML('beforeend', `<option value="${s.id}">${label}</option>`);
-                modalSelect.insertAdjacentHTML('beforeend', `<option value="${s.id}">${label}</option>`);
-            });
-        }
-
-        function formatBaht(n) {
-            return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2 }) + ' บ.';
-        }
-
-        function resetEligibilityBox() {
-            document.getElementById('eligibility-box').classList.add('d-none');
-            document.getElementById('eligibility-loading').classList.add('d-none');
-        }
-
-        async function loadEligibility() {
-            const staffId = document.getElementById('modal-staff-id').value;
-            resetEligibilityBox();
-
-            if (!staffId) return;
-
-            document.getElementById('eligibility-loading').classList.remove('d-none');
-
-            try {
-                const res = await fetch(`/api/staff-withdrawals/eligibility?staff_id=${staffId}`);
-                const data = await res.json();
-
-                if (!res.ok) throw new Error(data.message || 'เช็ควงเงินไม่สำเร็จ');
-
-                document.getElementById('elig-work-days').textContent = `${data.work_days} วัน`;
-                document.getElementById('elig-earned').textContent = formatBaht(data.earned_income);
-                document.getElementById('elig-used').textContent = formatBaht(data.already_requested_this_week);
-                document.getElementById('elig-remaining').textContent = formatBaht(data.remaining_income);
-                document.getElementById('elig-requests-left').textContent = `${data.remaining_requests} ครั้ง`;
-
-                // ตั้ง max ให้ช่องกรอกจำนวนเงินตามยอดที่เหลือจริง เพื่อกันกรอกเกินตั้งแต่ต้น
-                document.getElementById('modal-amount').max = Math.min(data.remaining_income, data.max_per_request);
-
-                document.getElementById('eligibility-box').classList.remove('d-none');
-
-            } catch (err) {
-                showAlert(err.message, 'danger');
-            } finally {
-                document.getElementById('eligibility-loading').classList.add('d-none');
-            }
-        }
-
-        function statusBadge(status) {
-            const map = {
-                pending: ['text-bg-warning', 'รอจ่ายเงิน'],
-                paid: ['text-bg-success', 'จ่ายเงินแล้ว'],
-                rejected: ['text-bg-danger', 'ปฏิเสธ'],
-                cancelled: ['text-bg-secondary', 'ยกเลิก']
+            const payload = {
+              staff_id: document.getElementById("modal-staff-id").value,
+              amount: parseFloat(document.getElementById("modal-amount").value),
+              reason: document.getElementById("modal-reason").value,
             };
-            const [cls, label] = map[status] || ['text-bg-secondary', status];
-            return `<span class="badge status-badge ${cls}">${label}</span>`;
-        }
 
-        function actionButtons(item) {
-            const buttons = [];
+            const btn = document.getElementById("btn-submit-withdrawal");
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML =
+              '<span class="spinner-border spinner-border-sm me-2"></span>กำลังส่งคำขอ...';
 
-            if (item.status === 'pending' || item.status === 'approved') {
-                buttons.push(`<button class="btn btn-sm btn-primary" onclick="changeStatus(${item.id}, 'paid')"><i class="bi bi-cash-coin"></i> จ่ายเงินแล้ว</button>`);
-            }
-            if (item.status === 'pending') {
-                buttons.push(`<button class="btn btn-sm btn-outline-danger" onclick="openNoteModal(${item.id}, 'rejected', 'เหตุผลที่ปฏิเสธ')"><i class="bi bi-x-lg"></i> ปฏิเสธ</button>`);
-            }
-
-            return buttons.length
-                ? `<div class="d-flex gap-1 justify-content-center flex-wrap">${buttons.join('')}</div>`
-                : '<span class="text-secondary small">-</span>';
-        }
-
-        function openNoteModal(id, status, title) {
-            pendingNoteAction = { id, status };
-            document.getElementById('noteModalTitle').textContent = title;
-            document.getElementById('note-input').value = '';
-            new bootstrap.Modal(document.getElementById('noteModal')).show();
-        }
-
-        async function changeStatus(id, status, note) {
-            if (status === 'paid' && !confirm('ยืนยันว่าจ่ายเงินให้พนักงานคนนี้เรียบร้อยแล้ว? การดำเนินการนี้ไม่สามารถย้อนกลับได้')) return;
             try {
-                const res = await fetch(`/api/staff-withdrawals/${id}/status`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status, note })
-                });
-                const data = await res.json();
+              const res = await fetch("/api/staff-withdrawals", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              const data = await res.json();
 
-                if (!res.ok) throw new Error(data.message || 'ดำเนินการไม่สำเร็จ');
+              if (!res.ok)
+                throw new Error(data.message || "เกิดข้อผิดพลาดในการบันทึก");
 
-                showAlert('อัปเดตสถานะเรียบร้อย', 'success');
-                await loadWithdrawals();
+              showAlert(
+                "สร้างรายการเบิกเงินสำเร็จ สถานะ: รอจ่ายเงิน",
+                "success",
+              );
 
+              const modalEl = document.getElementById("addWithdrawalModal");
+              bootstrap.Modal.getInstance(modalEl).hide();
+              document.getElementById("withdrawalForm").reset();
+              resetEligibilityBox();
+
+              await loadWithdrawals();
             } catch (err) {
-                showAlert(err.message, 'danger');
+              showAlert(err.message, "danger");
+            } finally {
+              btn.disabled = false;
+              btn.innerHTML = originalText;
             }
+          });
+
+        document
+          .getElementById("addWithdrawalModal")
+          .addEventListener("hidden.bs.modal", () => {
+            document.getElementById("withdrawalForm").reset();
+            resetEligibilityBox();
+          });
+
+        document
+          .getElementById("btn-confirm-note")
+          .addEventListener("click", async () => {
+            if (!pendingNoteAction) return;
+            const note = document.getElementById("note-input").value.trim();
+            await changeStatus(
+              pendingNoteAction.id,
+              pendingNoteAction.status,
+              note,
+            );
+            bootstrap.Modal.getInstance(
+              document.getElementById("noteModal"),
+            ).hide();
+            pendingNoteAction = null;
+          });
+      });
+
+      async function loadStaffDropdown() {
+        const res = await fetch("/api/staff?all=true");
+        const staffList = await res.json();
+
+        const filterSelect = document.getElementById("filter-staff");
+        const modalSelect = document.getElementById("modal-staff-id");
+
+        staffList.forEach((s) => {
+          const label = `${s.employee_code} - ${s.full_name}`;
+          filterSelect.insertAdjacentHTML(
+            "beforeend",
+            `<option value="${s.id}">${label}</option>`,
+          );
+          modalSelect.insertAdjacentHTML(
+            "beforeend",
+            `<option value="${s.id}">${label}</option>`,
+          );
+        });
+      }
+
+      function formatBaht(n) {
+        return (
+          Number(n).toLocaleString("th-TH", { minimumFractionDigits: 2 }) +
+          " บ."
+        );
+      }
+
+      function resetEligibilityBox() {
+        document.getElementById("eligibility-box").classList.add("d-none");
+        document.getElementById("eligibility-loading").classList.add("d-none");
+      }
+
+      async function loadEligibility() {
+        const staffId = document.getElementById("modal-staff-id").value;
+        resetEligibilityBox();
+
+        if (!staffId) return;
+
+        document
+          .getElementById("eligibility-loading")
+          .classList.remove("d-none");
+
+        try {
+          const res = await fetch(
+            `/api/staff-withdrawals/eligibility?staff_id=${staffId}`,
+          );
+          const data = await res.json();
+
+          if (!res.ok) throw new Error(data.message || "เช็ควงเงินไม่สำเร็จ");
+
+          document.getElementById("elig-work-days").textContent =
+            `${data.work_days} วัน`;
+          document.getElementById("elig-earned").textContent = formatBaht(
+            data.earned_income,
+          );
+          document.getElementById("elig-used").textContent = formatBaht(
+            data.already_requested_this_week,
+          );
+          document.getElementById("elig-remaining").textContent = formatBaht(
+            data.remaining_income,
+          );
+          document.getElementById("elig-requests-left").textContent =
+            `${data.remaining_requests} ครั้ง`;
+
+          // ตั้ง max ให้ช่องกรอกจำนวนเงินตามยอดที่เหลือจริง เพื่อกันกรอกเกินตั้งแต่ต้น
+          document.getElementById("modal-amount").max = Math.min(
+            data.remaining_income,
+            data.max_per_request,
+          );
+
+          document.getElementById("eligibility-box").classList.remove("d-none");
+        } catch (err) {
+          showAlert(err.message, "danger");
+        } finally {
+          document
+            .getElementById("eligibility-loading")
+            .classList.add("d-none");
+        }
+      }
+
+      function statusBadge(status) {
+        const map = {
+          pending: ["text-bg-warning", "รอจ่ายเงิน"],
+          paid: ["text-bg-success", "จ่ายเงินแล้ว"],
+          rejected: ["text-bg-danger", "ปฏิเสธ"],
+          cancelled: ["text-bg-secondary", "ยกเลิก"],
+        };
+        const [cls, label] = map[status] || ["text-bg-secondary", status];
+        return `<span class="badge status-badge ${cls}">${label}</span>`;
+      }
+
+      function actionButtons(item) {
+        const buttons = [];
+
+        if (item.status === "pending" || item.status === "approved") {
+          buttons.push(
+            `<button class="btn btn-sm btn-primary" onclick="changeStatus(${item.id}, 'paid')"><i class="bi bi-cash-coin"></i> จ่ายเงินแล้ว</button>`,
+          );
+        }
+        if (item.status === "pending") {
+          buttons.push(
+            `<button class="btn btn-sm btn-outline-danger" onclick="openNoteModal(${item.id}, 'rejected', 'เหตุผลที่ปฏิเสธ')"><i class="bi bi-x-lg"></i> ปฏิเสธ</button>`,
+          );
         }
 
-        async function loadWithdrawals() {
-            const staffId = document.getElementById('filter-staff').value;
-            const status = document.getElementById('filter-status').value;
+        return buttons.length
+          ? `<div class="d-flex gap-1 justify-content-center flex-wrap">${buttons.join("")}</div>`
+          : '<span class="text-secondary small">-</span>';
+      }
 
-            const params = new URLSearchParams();
-            if (staffId) params.set('staff_id', staffId);
-            if (status) params.set('status', status);
+      function openNoteModal(id, status, title) {
+        pendingNoteAction = { id, status };
+        document.getElementById("noteModalTitle").textContent = title;
+        document.getElementById("note-input").value = "";
+        new bootstrap.Modal(document.getElementById("noteModal")).show();
+      }
 
-            const res = await fetch('/api/staff-withdrawals?' + params.toString());
-            const data = await res.json();
+      async function changeStatus(id, status, note) {
+        if (
+          status === "paid" &&
+          !confirm(
+            "ยืนยันว่าจ่ายเงินให้พนักงานคนนี้เรียบร้อยแล้ว? การดำเนินการนี้ไม่สามารถย้อนกลับได้",
+          )
+        )
+          return;
+        try {
+          const res = await fetch(`/api/staff-withdrawals/${id}/status`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status, note }),
+          });
+          const data = await res.json();
 
-            const tbody = document.getElementById('withdrawal-table-body');
-            tbody.innerHTML = '';
+          if (!res.ok) throw new Error(data.message || "ดำเนินการไม่สำเร็จ");
 
-            if (data.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">ไม่พบข้อมูลการเบิกเงิน</td></tr>`;
-                return;
-            }
+          showAlert("อัปเดตสถานะเรียบร้อย", "success");
+          await loadWithdrawals();
+        } catch (err) {
+          showAlert(err.message, "danger");
+        }
+      }
 
-            data.forEach(item => {
-                tbody.innerHTML += `
+      async function loadWithdrawals() {
+        const staffId = document.getElementById("filter-staff").value;
+        const status = document.getElementById("filter-status").value;
+
+        const params = new URLSearchParams();
+        if (staffId) params.set("staff_id", staffId);
+        if (status) params.set("status", status);
+
+        const res = await fetch("/api/staff-withdrawals?" + params.toString());
+        const data = await res.json();
+
+        const tbody = document.getElementById("withdrawal-table-body");
+        tbody.innerHTML = "";
+
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">ไม่พบข้อมูลการเบิกเงิน</td></tr>`;
+          return;
+        }
+
+        data.forEach((item) => {
+          tbody.innerHTML += `
                     <tr>
-                        <td>${new Date(item.created_at).toLocaleString('th-TH')}</td>
+                        <td>${new Date(item.created_at).toLocaleString("th-TH")}</td>
                         <td>${item.employee_code}</td>
                         <td>${item.full_name}</td>
-                        <td>${item.reason || '-'}</td>
-                        <td class="text-end text-warning fw-bold">${Number(item.request_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บ.</td>
+                        <td>${item.reason || "-"}</td>
+                        <td class="text-end text-warning fw-bold">${Number(item.request_amount).toLocaleString("th-TH", { minimumFractionDigits: 2 })} บ.</td>
                         <td class="text-center">${statusBadge(item.status)}</td>
                         <td class="text-center no-print">${actionButtons(item)}</td>
                     </tr>
                 `;
-            });
-        }
+        });
+      }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>
-</body>
-
+  </body>
 </html>

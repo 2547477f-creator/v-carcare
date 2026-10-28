@@ -12,18 +12,33 @@ from flask import jsonify, request
 from .auth import manager_required
 from .security.rate_limit import rate_limiter
 from .line_bot import (
-    LINE_CHANNEL_SECRET, LINE_LIFF_ID, send_line_reply, verify_liff_id_token,
+    LINE_CHANNEL_SECRET, LINE_LIFF_ID, line_messaging_service,
 )
 
 logger = logging.getLogger(__name__)
 
 
+class LineLinkApplication:
+    """Registers LIFF and webhook routes with an explicit database dependency."""
+
+    def __init__(self, connection_factory):
+        self._connection_factory = connection_factory
+
+    def register_routes(self, app):
+        _register_line_link_routes(app, self._connection_factory)
+
+
 def register_line_link_routes(app, get_db_connection):
+    """Compatibility facade for ``LineLinkApplication``."""
+    LineLinkApplication(get_db_connection).register_routes(app)
+
+
+def _register_line_link_routes(app, get_db_connection):
     @app.route('/api/liff/register', methods=['POST'])
     @rate_limiter.limit(5, 60)
     def register_liff_vehicle():
         data = request.json or {}
-        profile = verify_liff_id_token(data.get('id_token'))
+        profile = line_messaging_service.verify_id_token(data.get('id_token'))
         if not profile:
             return jsonify({'status': 'error', 'message': 'ไม่สามารถยืนยันตัวตน LINE ได้ กรุณาเปิดหน้านี้ผ่าน LINE'}), 401
 
@@ -153,7 +168,7 @@ def register_line_link_routes(app, get_db_connection):
                                SET step='waiting_plate', license_plate=NULL, phone=NULL, province=NULL,
                                    updated_at=NOW();''', (line_user_id,))
                 conn.commit()
-                send_line_reply(reply_token, 'ยินดีต้อนรับ V CARCARE\nกรุณาพิมพ์ทะเบียนรถเพื่อเริ่มเชื่อมต่อ LINE')
+                line_messaging_service.reply(reply_token, 'ยินดีต้อนรับ V CARCARE\nกรุณาพิมพ์ทะเบียนรถเพื่อเริ่มเชื่อมต่อ LINE')
             except Exception:
                 conn.rollback()
                 logger.exception('LINE registration session start failed')
@@ -179,7 +194,7 @@ def register_line_link_routes(app, get_db_connection):
 
             if registration['step'] == 'waiting_plate':
                 if not text:
-                    send_line_reply(reply_token, 'กรุณาพิมพ์ทะเบียนรถ')
+                    line_messaging_service.reply(reply_token, 'กรุณาพิมพ์ทะเบียนรถ')
                     return
                 cur.execute('''SELECT v.id AS vehicle_id, v.customer_id, v.license_plate, v.province
                                FROM vehicles v
@@ -189,19 +204,19 @@ def register_line_link_routes(app, get_db_connection):
                 if not vehicles:
                     cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
                     conn.commit()
-                    send_line_reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถ กรุณาติดต่อพนักงาน')
+                    line_messaging_service.reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถ กรุณาติดต่อพนักงาน')
                     return
                 if len(vehicles) > 1:
                     cur.execute('''UPDATE line_registration_sessions
                                    SET license_plate=%s, phone=NULL, step='waiting_province', updated_at=NOW()
                                    WHERE line_user_id=%s;''', (text, line_user_id))
                     conn.commit()
-                    send_line_reply(reply_token, 'พบทะเบียนซ้ำหลายจังหวัด กรุณาพิมพ์จังหวัด')
+                    line_messaging_service.reply(reply_token, 'พบทะเบียนซ้ำหลายจังหวัด กรุณาพิมพ์จังหวัด')
                     return
                 error_message = link_line_user_to_vehicle(cur, line_user_id, vehicles[0])
                 cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
                 conn.commit()
-                send_line_reply(reply_token, error_message or 'เชื่อมต่อ LINE กับทะเบียนรถสำเร็จแล้ว')
+                line_messaging_service.reply(reply_token, error_message or 'เชื่อมต่อ LINE กับทะเบียนรถสำเร็จแล้ว')
                 return
 
             if registration['step'] == 'waiting_province':
@@ -214,16 +229,16 @@ def register_line_link_routes(app, get_db_connection):
                 if not vehicle:
                     cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
                     conn.commit()
-                    send_line_reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถและจังหวัดที่ตรงกัน กรุณาติดต่อพนักงาน')
+                    line_messaging_service.reply(reply_token, 'ไม่พบข้อมูลทะเบียนรถและจังหวัดที่ตรงกัน กรุณาติดต่อพนักงาน')
                     return
                 error_message = link_line_user_to_vehicle(cur, line_user_id, vehicle)
                 cur.execute('DELETE FROM line_registration_sessions WHERE line_user_id=%s;', (line_user_id,))
                 conn.commit()
-                send_line_reply(reply_token, error_message or 'เชื่อมต่อ LINE กับทะเบียนรถสำเร็จแล้ว')
+                line_messaging_service.reply(reply_token, error_message or 'เชื่อมต่อ LINE กับทะเบียนรถสำเร็จแล้ว')
         except Exception:
             conn.rollback()
             logger.exception('LINE registration message failed')
-            send_line_reply(reply_token, 'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง')
+            line_messaging_service.reply(reply_token, 'ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง')
         finally:
             cur.close()
             conn.close()

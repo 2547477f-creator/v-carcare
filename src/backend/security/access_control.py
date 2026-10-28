@@ -15,15 +15,26 @@ PUBLIC_PATHS = frozenset({
 })
 
 
+class AccessControlPolicy:
+    """Default-deny policy for public and authenticated Flask requests."""
+
+    def __init__(self, public_paths=PUBLIC_PATHS):
+        self._public_paths = frozenset(item.rstrip('/') or '/' for item in public_paths)
+
+    def is_public(self, path):
+        path = path.rstrip('/') or '/'
+        return (
+            path in self._public_paths or path.startswith('/static/')
+            or path.startswith('/api/track/') or path.startswith('/face-checkin/')
+            or path.startswith('/api/face-login/')
+        )
+
+
+access_control_policy = AccessControlPolicy()
+
+
 def is_public_request():
-    path = request.path.rstrip('/') or '/'
-    return (
-        path in {item.rstrip('/') or '/' for item in PUBLIC_PATHS}
-        or path.startswith('/static/')
-        or path.startswith('/api/track/')
-        or path.startswith('/face-checkin/')
-        or path.startswith('/api/face-login/')
-    )
+    return access_control_policy.is_public(request.path)
 
 
 def require_authenticated_routes():

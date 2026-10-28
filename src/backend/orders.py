@@ -1,9 +1,10 @@
 """API POS, คำสั่งซื้อ บริการ โปรโมชั่น และติดตามรถ"""
 
 import json
-import uuid
 import logging
 from datetime import datetime
+from collections.abc import Callable, Mapping
+from typing import Any
 import psycopg2
 from flask import jsonify, request, session
 from .auth import login_required, manager_required
@@ -11,9 +12,75 @@ from .auth import login_required, manager_required
 logger = logging.getLogger(__name__)
 
 
+class OrderWorkflow:
+    """Domain rules shared by the order route handlers."""
+
+    VALID_STATUSES = frozenset({
+        'pending', 'in_progress', 'drying', 'ready', 'completed', 'picked_up', 'cancelled',
+    })
+    PAYMENT_METHODS = frozenset({'cash', 'transfer', 'card', 'other'})
+    NOTIFIABLE_STATUSES = frozenset({'in_progress', 'ready', 'completed'})
+
+    @classmethod
+    def is_valid_status(cls, status):
+        return status in cls.VALID_STATUSES
+
+    @classmethod
+    def is_valid_payment_method(cls, payment_method):
+        return payment_method in cls.PAYMENT_METHODS
+
+    @staticmethod
+    def status_timestamp_sql(status):
+        if status == 'in_progress':
+            return ', started_at = COALESCE(started_at, NOW())'
+        if status == 'completed':
+            return ', completed_at = NOW()'
+        return ''
+
+
+class OrderApplication:
+    """Composition root for the order module and its external dependencies.
+
+    Route URLs stay in the legacy registrar below while this object makes the
+    module's collaborators explicit and provides a testable registration seam.
+    """
+
+    REQUIRED_DEPENDENCIES = frozenset({
+        'get_db_connection',
+        '_ensure_central_fund_tables',
+        '_ensure_finance_payment_method_column',
+        '_ensure_promotions_table',
+        '_record_central_fund_movement',
+        'ensure_thai_service_names',
+        'send_line_notification',
+    })
+
+    def __init__(self, dependencies: Mapping[str, Callable[..., Any]]):
+        missing = self.REQUIRED_DEPENDENCIES.difference(dependencies)
+        if missing:
+            raise ValueError(f"Missing order dependencies: {', '.join(sorted(missing))}")
+        self._dependencies = dict(dependencies)
+
+    def register_routes(self, app):
+        _register_order_routes(app, self._dependencies)
+
+
 def register_order_routes(app, dependencies):
+    """Compatibility facade for the object-oriented order application."""
+    OrderApplication(dependencies).register_routes(app)
+
+
+def _register_order_routes(app, dependencies):
     """ลงทะเบียน API โดยรับ dependency จากตัวประกอบระบบ"""
-    globals().update(dependencies)
+    # Keep collaborators in the route closure instead of mutating module globals.
+    # This also gives static analysis and IDEs concrete callable types.
+    get_db_connection: Callable[[], Any] = dependencies['get_db_connection']
+    _ensure_central_fund_tables: Callable[..., Any] = dependencies['_ensure_central_fund_tables']
+    _ensure_finance_payment_method_column: Callable[..., Any] = dependencies['_ensure_finance_payment_method_column']
+    _ensure_promotions_table: Callable[..., Any] = dependencies['_ensure_promotions_table']
+    _record_central_fund_movement: Callable[..., Any] = dependencies['_record_central_fund_movement']
+    ensure_thai_service_names: Callable[..., Any] = dependencies['ensure_thai_service_names']
+    send_line_notification: Callable[..., Any] = dependencies['send_line_notification']
 
     @app.route('/api/orders', methods=['GET'])
     @login_required
@@ -68,8 +135,7 @@ def register_order_routes(app, dependencies):
     @login_required
     def update_order_status(order_id):
         new_status = (request.json or {}).get('status')
-        valid_statuses = ('pending', 'in_progress', 'drying', 'ready', 'completed', 'picked_up', 'cancelled')
-        if new_status not in valid_statuses:
+        if not OrderWorkflow.is_valid_status(new_status):
             return jsonify({"status": "error", "message": "สถานะไม่ถูกต้อง"}), 400
         if new_status == 'picked_up':
             return jsonify({"status": "error", "message": "กรุณาชำระเงินผ่านปุ่มชำระเงินก่อนรับรถ"}), 400
@@ -77,11 +143,7 @@ def register_order_routes(app, dependencies):
         conn = get_db_connection()
         cur = conn.cursor()
         try:
-            extra_set = ""
-            if new_status == 'in_progress':
-                extra_set = ", started_at = COALESCE(started_at, NOW())"
-            elif new_status == 'completed':
-                extra_set = ", completed_at = NOW()"
+            extra_set = OrderWorkflow.status_timestamp_sql(new_status)
     
             cur.execute(
                 f"UPDATE service_orders SET status = %s, updated_at = NOW() {extra_set} WHERE id = %s RETURNING *;",
@@ -92,7 +154,7 @@ def register_order_routes(app, dependencies):
                 conn.rollback()
                 return jsonify({"status": "error", "message": "ไม่พบคิวนี้"}), 404
             conn.commit()
-            if new_status in ('in_progress', 'ready', 'completed'):
+            if new_status in OrderWorkflow.NOTIFIABLE_STATUSES:
                 try:
                     cur.execute('''SELECT l.line_user_id, v.license_plate
                                    FROM service_orders o JOIN vehicles v ON v.id=o.vehicle_id
@@ -118,7 +180,7 @@ def register_order_routes(app, dependencies):
     @login_required
     def pay_and_pick_up_order(order_id):
         payment_method = (request.json or {}).get('payment_method', 'cash')
-        if payment_method not in ('cash', 'transfer', 'card', 'other'):
+        if not OrderWorkflow.is_valid_payment_method(payment_method):
             return jsonify({"status": "error", "message": "ช่องทางชำระเงินไม่ถูกต้อง"}), 400
     
         conn = get_db_connection()

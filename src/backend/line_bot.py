@@ -21,6 +21,108 @@ LINE_LIFF_URL = os.environ.get('LINE_LIFF_URL')
 logger = logging.getLogger(__name__)
 
 
+class LineMessagingService:
+    """Encapsulates LINE authentication, replies, and push notifications."""
+
+    def __init__(
+        self,
+        channel_secret=LINE_CHANNEL_SECRET,
+        channel_access_token=LINE_CHANNEL_ACCESS_TOKEN,
+        login_channel_id=LINE_LOGIN_CHANNEL_ID,
+        *,
+        opener=urlopen,
+    ):
+        self.channel_secret = channel_secret
+        self.channel_access_token = channel_access_token
+        self.login_channel_id = login_channel_id
+        self._opener = opener
+
+    def is_configured(self):
+        return bool(self.channel_secret and self.channel_access_token)
+
+    def verify_access_token(self, access_token):
+        if not access_token or not self.login_channel_id:
+            return None
+        try:
+            verified = self._load_json(Request(
+                'https://api.line.me/oauth2/v2.1/verify',
+                headers={'Authorization': f'Bearer {access_token}'}, method='GET',
+            ))
+            if (str(verified.get('client_id')) != str(self.login_channel_id)
+                    or int(verified.get('expires_in', 0)) <= 0):
+                return None
+            profile = self._load_json(Request(
+                'https://api.line.me/v2/profile',
+                headers={'Authorization': f'Bearer {access_token}'}, method='GET',
+            ))
+            return profile if profile.get('userId') else None
+        except (HTTPError, URLError, ValueError, OSError):
+            logger.warning('LINE identity verification failed')
+            return None
+
+    def verify_id_token(self, id_token):
+        if not id_token or not self.login_channel_id:
+            return None
+        try:
+            payload = urlencode({
+                'id_token': id_token,
+                'client_id': self.login_channel_id,
+            }).encode('utf-8')
+            verified = self._load_json(Request(
+                'https://api.line.me/oauth2/v2.1/verify', data=payload, method='POST',
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            ))
+            return verified if verified.get('sub') else None
+        except (HTTPError, URLError, ValueError, OSError):
+            logger.warning('LINE ID token verification failed')
+            return None
+
+    def reply(self, reply_token, message):
+        if not reply_token or not self.channel_access_token:
+            logger.info('LINE reply skipped: LINE is not configured')
+            return False
+        return self._send('https://api.line.me/v2/bot/message/reply', {
+            'replyToken': reply_token,
+            'messages': [{'type': 'text', 'text': message[:5000]}],
+        }, 'LINE reply failed')
+
+    def notify(self, line_user_id, message):
+        if not line_user_id or not self.channel_access_token:
+            logger.info('LINE notification skipped: account is not linked or LINE is not configured')
+            return False
+        sent = self._send('https://api.line.me/v2/bot/message/push', {
+            'to': line_user_id,
+            'messages': [{'type': 'text', 'text': message[:5000]}],
+        }, 'LINE notification failed')
+        if sent:
+            logger.info('LINE notification sent')
+        return sent
+
+    def _load_json(self, request):
+        with self._opener(request, timeout=10) as response:
+            return json.load(response)
+
+    def _send(self, url, body, failure_log):
+        payload = json.dumps(body).encode('utf-8')
+        try:
+            request = Request(
+                url, data=payload, method='POST',
+                headers={
+                    'Authorization': f'Bearer {self.channel_access_token}',
+                    'Content-Type': 'application/json',
+                },
+            )
+            with self._opener(request, timeout=10):
+                pass
+            return True
+        except (HTTPError, URLError, OSError):
+            logger.warning(failure_log)
+            return False
+
+
+line_messaging_service = LineMessagingService()
+
+
 def is_line_configured():
     """คืนค่าว่าระบบมีข้อมูลสำหรับเชื่อมต่อ LINE ครบหรือไม่"""
     return bool(LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN)

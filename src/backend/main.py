@@ -35,7 +35,7 @@ from .database import (
     get_db_connection as _get_db_connection,
     get_local_network_ip as _get_local_network_ip,
 )
-from .line_bot import LINE_LIFF_ID, is_line_configured, send_line_notification
+from .line_bot import LINE_LIFF_ID, line_messaging_service
 from .line_link import register_line_link_routes
 
 # ===================================================================
@@ -44,7 +44,15 @@ from .line_link import register_line_link_routes
 # ===================================================================
 # 📂 1. โฟลเดอร์ frontend (templates / static) & Flask App Setup
 # ===================================================================
-app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+class VCarCareApplication:
+    """Application composition root; exposes the Flask app for route modules."""
+
+    def __init__(self):
+        self.flask_app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+
+
+application = VCarCareApplication()
+app = application.flask_app
 app.secret_key = os.environ.get("SECRET_KEY")
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -1280,17 +1288,17 @@ def setup_staff_pins():
 # ===================================================================
 # 🔌 6. API: คิวงาน / Kanban (index.html)
 # ===================================================================
-from .orders import register_order_routes
+from .orders import OrderApplication
 
-register_order_routes(app, {
+OrderApplication({
     'get_db_connection': get_db_connection,
     '_ensure_central_fund_tables': _ensure_central_fund_tables,
     '_ensure_finance_payment_method_column': _ensure_finance_payment_method_column,
     '_ensure_promotions_table': _ensure_promotions_table,
     '_record_central_fund_movement': _record_central_fund_movement,
     'ensure_thai_service_names': ensure_thai_service_names,
-    'send_line_notification': send_line_notification,
-})
+    'send_line_notification': line_messaging_service.notify,
+}).register_routes(app)
 
 register_line_link_routes(app, get_db_connection)
 
@@ -2538,9 +2546,9 @@ def update_staff_withdrawal_status(withdrawal_id):
         conn.close()
 
 
-from .finance import register_finance_routes
+from .finance import FinanceApplication
 
-register_finance_routes(app, {
+FinanceApplication({
     'get_db_connection': get_db_connection,
     '_ensure_finance_payment_method_column': _ensure_finance_payment_method_column,
     '_period_to_range': _period_to_range,
@@ -2552,7 +2560,7 @@ register_finance_routes(app, {
     '_ensure_security_settings': _ensure_security_settings,
     '_central_fund_has_active_cash_float': _central_fund_has_active_cash_float,
     '_run_scheduled_shop_open': _run_scheduled_shop_open,
-})
+}).register_routes(app)
 
 @app.route('/api/manager/face-enroll', methods=['POST'])
 @manager_required

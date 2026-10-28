@@ -1,1145 +1,1347 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="th">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>V CarCare - แดชบอร์ดระบบ</title>
 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-        <!-- Google Fonts: Kanit -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <!-- Google Fonts: Kanit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
 
     <style>
+      .kanban-col {
+        background-color: #1e1e1e;
+        border: 1px solid #2d2d2d;
+        border-radius: 16px;
+        padding: 16px;
+        min-height: 300px;
+      }
 
+      .queue-card {
+        background-color: #2a2a2a;
+        border: 1px solid #3a3a3a;
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 12px;
+        transition: transform 0.2s;
+      }
 
-        .kanban-col {
-            background-color: #1E1E1E;
-            border: 1px solid #2D2D2D;
-            border-radius: 16px;
-            padding: 16px;
-            min-height: 300px;
-        }
+      .queue-card:hover {
+        border-color: #555;
+      }
 
-        .queue-card {
-            background-color: #2A2A2A;
-            border: 1px solid #3A3A3A;
-            border-radius: 12px;
-            padding: 14px;
-            margin-bottom: 12px;
-            transition: transform 0.2s;
-        }
-
-        .queue-card:hover {
-            border-color: #555;
-        }
-
-        .empty-hint {
-            color: #6c757d;
-            font-size: 13px;
-            text-align: center;
-            padding: 20px 0;
-        }
+      .empty-hint {
+        color: #6c757d;
+        font-size: 13px;
+        text-align: center;
+        padding: 20px 0;
+      }
     </style>
-</head>
-{% if session_role != 'manager' %}
-<style>
+  </head>
+  {% if session_role != 'manager' %}
+  <style>
     .sidebar .nav-link[href="/staff"],
     .sidebar .nav-link[href="/staff-advances"],
     .sidebar .nav-link[href="/finance"],
     .sidebar .nav-link[href="/service-management"] {
-        display: none !important;
+      display: none !important;
     }
-</style>
-{% endif %}
+  </style>
+  {% endif %}
 
-<body>
-
+  <body>
     <!-- ==================== Mobile View ==================== -->
     <div class="d-block d-md-none p-3">
-        <div class="fb-nav-tabs mb-3">
-            <a href="/" class="fb-tab-item active"><i class="bi bi-speedometer2 me-1"></i>ภาพรวม</a>
-            <a href="/pos" class="fb-tab-item"><i class="bi bi-plus-circle-fill"></i>รับรถ</a>
-            <a href="/register" class="fb-tab-item"><i class="bi bi-person-vcard"></i>ลงทะเบียน</a>
-            <a href="/history" class="fb-tab-item"><i class="bi bi-clock-history"></i>ประวัติ</a>
-            {% if session_role == 'manager' %}
-            <a href="/staff" class="fb-tab-item"><i class="bi bi-people-fill"></i>พนักงาน</a>
-            <a href="/staff-advances" class="fb-tab-item"><i class="bi bi-cash-stack"></i>เบิกเงิน</a>
-            <a href="/finance" class="fb-tab-item"><i class="bi bi-wallet2"></i>บัญชี</a>
-            <a href="/service-management" class="fb-tab-item"><i class="bi bi-tags"></i>บริการ</a>
-            {% endif %}
-            <a href="{{ url_for('logout') }}" class="fb-tab-item logout-link text-danger">
-                <i class="bi bi-box-arrow-right"></i>
-                ออก
-            </a>
-        </div>
+      <div class="fb-nav-tabs mb-3">
+        <a href="/" class="fb-tab-item active"
+          ><i class="bi bi-speedometer2 me-1"></i>ภาพรวม</a
+        >
+        <a href="/pos" class="fb-tab-item"
+          ><i class="bi bi-plus-circle-fill"></i>รับรถ</a
+        >
+        <a href="/register" class="fb-tab-item"
+          ><i class="bi bi-person-vcard"></i>ลงทะเบียน</a
+        >
+        <a href="/history" class="fb-tab-item"
+          ><i class="bi bi-clock-history"></i>ประวัติ</a
+        >
+        {% if session_role == 'manager' %}
+        <a href="/staff" class="fb-tab-item"
+          ><i class="bi bi-people-fill"></i>พนักงาน</a
+        >
+        <a href="/staff-advances" class="fb-tab-item"
+          ><i class="bi bi-cash-stack"></i>เบิกเงิน</a
+        >
+        <a href="/finance" class="fb-tab-item"
+          ><i class="bi bi-wallet2"></i>บัญชี</a
+        >
+        <a href="/service-management" class="fb-tab-item"
+          ><i class="bi bi-tags"></i>บริการ</a
+        >
+        {% endif %}
+        <a
+          href="{{ url_for('logout') }}"
+          class="fb-tab-item logout-link text-danger"
+        >
+          <i class="bi bi-box-arrow-right"></i>
+          ออก
+        </a>
+      </div>
 
-        <div class="row g-2 mb-3">
-            <div class="col-6">
-                <div class="card-custom p-3 border-start border-orange border-4">
-                    <small class="text-secondary d-block">ในคิวปัจจุบัน</small>
-                    <h3 class="fw-bold m-0 text-white" id="total-queue-mb">0 คัน</h3>
-                </div>
-            </div>
-            <div class="col-6">
-                <div class="card-custom p-3 border-start border-success border-4">
-                    <small class="text-secondary d-block">รายได้วันนี้</small>
-                    <h3 class="fw-bold text-success m-0" id="today-income-mb">0 บ.</h3>
-                </div>
-            </div>
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <div class="card-custom p-3 border-start border-orange border-4">
+            <small class="text-secondary d-block">ในคิวปัจจุบัน</small>
+            <h3 class="fw-bold m-0 text-white" id="total-queue-mb">0 คัน</h3>
+          </div>
         </div>
+        <div class="col-6">
+          <div class="card-custom p-3 border-start border-success border-4">
+            <small class="text-secondary d-block">รายได้วันนี้</small>
+            <h3 class="fw-bold text-success m-0" id="today-income-mb">0 บ.</h3>
+          </div>
+        </div>
+      </div>
 
-        <div class="d-flex flex-column gap-3">
-            <button class="btn btn-outline-info" onclick="openHistory()"><i
-                    class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว</button>
-            <div class="kanban-col">
-                <h6 class="text-secondary fw-bold mb-3"><i class="bi bi-clock me-2"></i>รถที่กำลังรอล้าง</h6>
-                <div id="col-pending-mb"></div>
-            </div>
-            <div class="kanban-col border-warning">
-                <h6 class="text-warning fw-bold mb-3"><i class="bi bi-arrow-repeat me-2"></i>รถที่กำลังล้าง</h6>
-                <div id="col-progress-mb"></div>
-            </div>
-            <div class="kanban-col border-success">
-                <h6 class="text-success fw-bold mb-3"><i class="bi bi-check-circle me-2"></i>รถที่ล้างเสร็จแล้ว</h6>
-                <div id="col-done-mb"></div>
-            </div>
+      <div class="d-flex flex-column gap-3">
+        <button class="btn btn-outline-info" onclick="openHistory()">
+          <i class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว
+        </button>
+        <div class="kanban-col">
+          <h6 class="text-secondary fw-bold mb-3">
+            <i class="bi bi-clock me-2"></i>รถที่กำลังรอล้าง
+          </h6>
+          <div id="col-pending-mb"></div>
         </div>
+        <div class="kanban-col border-warning">
+          <h6 class="text-warning fw-bold mb-3">
+            <i class="bi bi-arrow-repeat me-2"></i>รถที่กำลังล้าง
+          </h6>
+          <div id="col-progress-mb"></div>
+        </div>
+        <div class="kanban-col border-success">
+          <h6 class="text-success fw-bold mb-3">
+            <i class="bi bi-check-circle me-2"></i>รถที่ล้างเสร็จแล้ว
+          </h6>
+          <div id="col-done-mb"></div>
+        </div>
+      </div>
     </div>
-
 
     <!-- ==================== PC View ==================== -->
     <div class="d-none d-md-block">
-        <div class="wrapper d-flex">
-            <div class="sidebar">
-                <div class="brand-header text-center mb-3">
-                    <div class="brand-badge-glow mb-2">
-                        <i class="bi bi-car-front-fill"></i>
-                    </div>
-                    <h3 class="text-orange fw-bold m-0">V CARCARE</h3>
-                </div>
-                <p class="text-center text-secondary small mb-4">{{ session_name }} ({{ session_role }})</p>
-                <nav class="nav flex-column">
-                    <a class="nav-link" href="/history"><i class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว</a>
-                    <a class="nav-link active" href="/"><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a>
-                    <a class="nav-link" href="/pos"><i class="bi bi-cart-check me-2"></i> รับรถ POS</a>
-                    <a class="nav-link" href="/register"><i class="bi bi-person-vcard me-2"></i>
-                        ลงทะเบียนลูกค้าและรถ</a>
-                    <a class="nav-link" href="/staff"><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a>
-                    <a class="nav-link" href="/staff-advances"><i class="bi bi-cash-stack me-2"></i>
-                        จัดการการเบิกพนักงาน</a>
-                    <a class="nav-link" href="/finance"><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a>
-                    <a class="nav-link" href="/service-management"><i class="bi bi-tags me-2"></i>
-                        จัดการบริการและโปรโมชัน</a>
-                    <a class="nav-link logout-link text-danger mt-2" href="{{ url_for('logout') }}">
-                        <i class="bi bi-box-arrow-right me-2"></i>
-                        ออกจากระบบ
-                    </a>
-                </nav>
+      <div class="wrapper d-flex">
+        <div class="sidebar">
+          <div class="brand-header text-center mb-3">
+            <div class="brand-badge-glow mb-2">
+              <i class="bi bi-car-front-fill"></i>
             </div>
-
-            <div class="main-content flex-grow-1 p-4">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2 class="fw-bold text-white m-0">แดชบอร์ดภาพรวมร้าน</h2>
-                    <div class="d-flex gap-2"><button class="btn btn-outline-info" onclick="openHistory()"><i
-                                class="bi bi-clock-history me-2"></i>ประวัติ</button><span
-                            class="badge bg-danger p-2 fs-6"><i class="bi bi-broadcast me-2"></i>Live Mode</span></div>
-                </div>
-
-                <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                        <div class="card-custom p-4 border-start border-orange border-5">
-                            <h5>รถในคิวปัจจุบัน</h5>
-                            <h2 class="fw-bold text-white" id="total-queue-pc">0 คัน</h2>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card-custom p-4 border-start border-success border-5">
-                            <h5>ยอดเงินสด/โอนวันนี้</h5>
-                            <h2 class="fw-bold text-success" id="today-income-pc">0.00 บาท</h2>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row g-3">
-                    <!-- 1. รอล้าง -->
-                    <div class="col-md-4">
-                        <div class="kanban-col">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="text-secondary fw-bold m-0"><i class="bi bi-clock me-2"></i>รอล้าง</h5>
-                                <span class="badge bg-secondary rounded-pill" id="count-pending">0</span>
-                            </div>
-                            <div id="col-pending-pc"></div>
-                        </div>
-                    </div>
-
-                    <!-- 2. กำลังล้าง -->
-                    <div class="col-md-4">
-                        <div class="kanban-col border-warning">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="text-warning fw-bold m-0"><i class="bi bi-arrow-repeat me-2"></i>กำลังล้าง
-                                </h5>
-                                <span class="badge bg-warning text-dark rounded-pill" id="count-progress">0</span>
-                            </div>
-                            <div id="col-progress-pc"></div>
-                        </div>
-                    </div>
-
-                    <!-- 3. ล้างเสร็จแล้ว -->
-                    <div class="col-md-4">
-                        <div class="kanban-col border-success">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="text-success fw-bold m-0"><i
-                                        class="bi bi-check-circle me-2"></i>ล้างเสร็จแล้ว</h5>
-                                <span class="badge bg-success rounded-pill" id="count-done">0</span>
-                            </div>
-                            <div id="col-done-pc"></div>
-                        </div>
-                    </div>
-
-                </div>
-
-            </div>
+            <h3 class="text-orange fw-bold m-0">V CARCARE</h3>
+          </div>
+          <p class="text-center text-secondary small mb-4">
+            {{ session_name }} ({{ session_role }})
+          </p>
+          <nav class="nav flex-column">
+            <a class="nav-link" href="/history"
+              ><i class="bi bi-clock-history me-2"></i>ประวัติรถที่รับแล้ว</a
+            >
+            <a class="nav-link active" href="/"
+              ><i class="bi bi-speedometer2 me-2"></i> ภาพรวมระบบ</a
+            >
+            <a class="nav-link" href="/pos"
+              ><i class="bi bi-cart-check me-2"></i> รับรถ POS</a
+            >
+            <a class="nav-link" href="/register"
+              ><i class="bi bi-person-vcard me-2"></i> ลงทะเบียนลูกค้าและรถ</a
+            >
+            <a class="nav-link" href="/staff"
+              ><i class="bi bi-people-fill me-2"></i> จัดการพนักงาน</a
+            >
+            <a class="nav-link" href="/staff-advances"
+              ><i class="bi bi-cash-stack me-2"></i> จัดการการเบิกพนักงาน</a
+            >
+            <a class="nav-link" href="/finance"
+              ><i class="bi bi-wallet2 me-2"></i> สรุปบัญชีรายรับ</a
+            >
+            <a class="nav-link" href="/service-management"
+              ><i class="bi bi-tags me-2"></i> จัดการบริการและโปรโมชัน</a
+            >
+            <a
+              class="nav-link logout-link text-danger mt-2"
+              href="{{ url_for('logout') }}"
+            >
+              <i class="bi bi-box-arrow-right me-2"></i>
+              ออกจากระบบ
+            </a>
+          </nav>
         </div>
+
+        <div class="main-content flex-grow-1 p-4">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold text-white m-0">แดชบอร์ดภาพรวมร้าน</h2>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-info" onclick="openHistory()">
+                <i class="bi bi-clock-history me-2"></i>ประวัติ</button
+              ><span class="badge bg-danger p-2 fs-6"
+                ><i class="bi bi-broadcast me-2"></i>Live Mode</span
+              >
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <div class="card-custom p-4 border-start border-orange border-5">
+                <h5>รถในคิวปัจจุบัน</h5>
+                <h2 class="fw-bold text-white" id="total-queue-pc">0 คัน</h2>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="card-custom p-4 border-start border-success border-5">
+                <h5>ยอดเงินสด/โอนวันนี้</h5>
+                <h2 class="fw-bold text-success" id="today-income-pc">
+                  0.00 บาท
+                </h2>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <!-- 1. รอล้าง -->
+            <div class="col-md-4">
+              <div class="kanban-col">
+                <div
+                  class="d-flex justify-content-between align-items-center mb-3"
+                >
+                  <h5 class="text-secondary fw-bold m-0">
+                    <i class="bi bi-clock me-2"></i>รอล้าง
+                  </h5>
+                  <span
+                    class="badge bg-secondary rounded-pill"
+                    id="count-pending"
+                    >0</span
+                  >
+                </div>
+                <div id="col-pending-pc"></div>
+              </div>
+            </div>
+
+            <!-- 2. กำลังล้าง -->
+            <div class="col-md-4">
+              <div class="kanban-col border-warning">
+                <div
+                  class="d-flex justify-content-between align-items-center mb-3"
+                >
+                  <h5 class="text-warning fw-bold m-0">
+                    <i class="bi bi-arrow-repeat me-2"></i>กำลังล้าง
+                  </h5>
+                  <span
+                    class="badge bg-warning text-dark rounded-pill"
+                    id="count-progress"
+                    >0</span
+                  >
+                </div>
+                <div id="col-progress-pc"></div>
+              </div>
+            </div>
+
+            <!-- 3. ล้างเสร็จแล้ว -->
+            <div class="col-md-4">
+              <div class="kanban-col border-success">
+                <div
+                  class="d-flex justify-content-between align-items-center mb-3"
+                >
+                  <h5 class="text-success fw-bold m-0">
+                    <i class="bi bi-check-circle me-2"></i>ล้างเสร็จแล้ว
+                  </h5>
+                  <span class="badge bg-success rounded-pill" id="count-done"
+                    >0</span
+                  >
+                </div>
+                <div id="col-done-pc"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Modal ประวัติ -->
-    <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content bg-dark border-secondary text-white">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title" id="historyModalLabel"><i
-                            class="bi bi-clock-history text-info me-2"></i>ประวัติรถที่รับแล้ว</h5><button type="button"
-                        class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="input-group mb-3"><input type="date" id="historyDate" class="form-control"><button
-                            class="btn btn-info" onclick="loadHistory()">ดูประวัติ</button></div>
-                    <div id="historyResults" class="d-flex flex-column gap-2"></div>
-                </div>
+    <div
+      class="modal fade"
+      id="historyModal"
+      tabindex="-1"
+      aria-labelledby="historyModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content bg-dark border-secondary text-white">
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title" id="historyModalLabel">
+              <i class="bi bi-clock-history text-info me-2"></i
+              >ประวัติรถที่รับแล้ว
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="input-group mb-3">
+              <input type="date" id="historyDate" class="form-control" /><button
+                class="btn btn-info"
+                onclick="loadHistory()"
+              >
+                ดูประวัติ
+              </button>
             </div>
+            <div id="historyResults" class="d-flex flex-column gap-2"></div>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Step 1: Modal ตรวจสอบความเสียหาย/ของสูญหาย -->
-    <div class="modal fade" id="inspectionModal" tabindex="-1" aria-labelledby="inspectionModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bg-dark border-secondary text-white">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title" id="inspectionModalLabel"><i
-                            class="bi bi-exclamation-triangle text-warning me-2"></i>ตรวจสอบความเสียหาย / สิ่งของ</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-secondary small mb-3">ระบุความเสียหายหรือของสูญหายกรณีพนักงานทำของพัง/หาย
-                        (หากไม่มีให้ปล่อยว่างไว้ ระบบจะบันทึกเป็น "ไม่มีอะไรเสียหาย")</p>
-                    <div class="mb-3">
-                        <label for="damageNote" class="form-label">หมายเหตุความเสียหาย / สินค้าสูญหาย</label>
-                        <textarea id="damageNote" class="form-control bg-secondary text-white border-0" rows="3"
-                            placeholder="ตัวอย่าง: กระจกมองข้างซ้ายเป็นรอย, หมวกกันน็อคในรถหาย"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="button" class="btn btn-warning fw-bold text-dark" onclick="goToPaymentModal()">ถัดไป
-                        (ไปหน้าชำระเงิน) <i class="bi bi-arrow-right ms-1"></i></button>
-                </div>
+    <div
+      class="modal fade"
+      id="inspectionModal"
+      tabindex="-1"
+      aria-labelledby="inspectionModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border-secondary text-white">
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title" id="inspectionModalLabel">
+              <i class="bi bi-exclamation-triangle text-warning me-2"></i
+              >ตรวจสอบความเสียหาย / สิ่งของ
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-secondary small mb-3">
+              ระบุความเสียหายหรือของสูญหายกรณีพนักงานทำของพัง/หาย
+              (หากไม่มีให้ปล่อยว่างไว้ ระบบจะบันทึกเป็น "ไม่มีอะไรเสียหาย")
+            </p>
+            <div class="mb-3">
+              <label for="damageNote" class="form-label"
+                >หมายเหตุความเสียหาย / สินค้าสูญหาย</label
+              >
+              <textarea
+                id="damageNote"
+                class="form-control bg-secondary text-white border-0"
+                rows="3"
+                placeholder="ตัวอย่าง: กระจกมองข้างซ้ายเป็นรอย, หมวกกันน็อคในรถหาย"
+              ></textarea>
             </div>
+          </div>
+          <div class="modal-footer border-secondary">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              class="btn btn-warning fw-bold text-dark"
+              onclick="goToPaymentModal()"
+            >
+              ถัดไป (ไปหน้าชำระเงิน) <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- Step 2: Modal ชำระเงิน -->
-    <div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content bg-dark border-secondary text-white">
-                <div class="modal-header border-secondary">
-                    <h5 class="modal-title" id="paymentModalLabel"><i
-                            class="bi bi-cash-coin text-success me-2"></i>ชำระเงิน</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="mb-2">ยอดชำระ <strong class="text-orange" id="paymentAmount"></strong></p>
-                    <div class="p-2 mb-3 rounded bg-secondary bg-opacity-25 border border-secondary">
-                        <small class="text-secondary d-block">บันทึกความเสียหาย:</small>
-                        <span id="displayDamageNote" class="text-warning fw-bold small">ไม่มีอะไรเสียหาย</span>
-                    </div>
-                    <label for="paymentMethod" class="form-label">ช่องทางชำระเงิน</label>
-                    <select id="paymentMethod" class="form-select">
-                        <option value="cash">เงินสด</option>
-                        <option value="transfer">สแกน / โอนเงิน</option>
-                        <option value="card">บัตร</option>
-                        <option value="other">อื่น ๆ</option>
-                    </select>
-                    <div id="cashPaymentFields" class="mt-3">
-                        <label for="cashReceived" class="form-label">รับเงินมา (บาท)</label>
-                        <input id="cashReceived" class="form-control" type="number" min="0" step="0.01"
-                            inputmode="decimal" placeholder="ระบุจำนวนเงินที่รับมา">
-                        <div
-                            class="d-flex justify-content-between align-items-center mt-2 p-2 rounded bg-secondary bg-opacity-25">
-                            <span class="text-secondary">เงินทอน</span>
-                            <strong id="cashChange" class="text-warning">0.00 บาท</strong>
-                        </div>
-                        <small id="cashPaymentHint"
-                            class="text-secondary d-block mt-1">กรอกจำนวนเงินที่รับจากลูกค้า</small>
-                    </div>
-                </div>
-                <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary" onclick="backToInspection()">ย้อนกลับ</button>
-                    <button type="button" class="btn btn-success" id="confirmPaymentBtn"
-                        onclick="confirmPayment()">ยืนยันชำระเงิน</button>
-                </div>
+    <div
+      class="modal fade"
+      id="paymentModal"
+      tabindex="-1"
+      aria-labelledby="paymentModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border-secondary text-white">
+          <div class="modal-header border-secondary">
+            <h5 class="modal-title" id="paymentModalLabel">
+              <i class="bi bi-cash-coin text-success me-2"></i>ชำระเงิน
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">
+              ยอดชำระ <strong class="text-orange" id="paymentAmount"></strong>
+            </p>
+            <div
+              class="p-2 mb-3 rounded bg-secondary bg-opacity-25 border border-secondary"
+            >
+              <small class="text-secondary d-block">บันทึกความเสียหาย:</small>
+              <span id="displayDamageNote" class="text-warning fw-bold small"
+                >ไม่มีอะไรเสียหาย</span
+              >
             </div>
+            <label for="paymentMethod" class="form-label"
+              >ช่องทางชำระเงิน</label
+            >
+            <select id="paymentMethod" class="form-select">
+              <option value="cash">เงินสด</option>
+              <option value="transfer">สแกน / โอนเงิน</option>
+              <option value="card">บัตร</option>
+              <option value="other">อื่น ๆ</option>
+            </select>
+            <div id="cashPaymentFields" class="mt-3">
+              <label for="cashReceived" class="form-label"
+                >รับเงินมา (บาท)</label
+              >
+              <input
+                id="cashReceived"
+                class="form-control"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                placeholder="ระบุจำนวนเงินที่รับมา"
+              />
+              <div
+                class="d-flex justify-content-between align-items-center mt-2 p-2 rounded bg-secondary bg-opacity-25"
+              >
+                <span class="text-secondary">เงินทอน</span>
+                <strong id="cashChange" class="text-warning">0.00 บาท</strong>
+              </div>
+              <small id="cashPaymentHint" class="text-secondary d-block mt-1"
+                >กรอกจำนวนเงินที่รับจากลูกค้า</small
+              >
+            </div>
+          </div>
+          <div class="modal-footer border-secondary">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="backToInspection()"
+            >
+              ย้อนกลับ
+            </button>
+            <button
+              type="button"
+              class="btn btn-success"
+              id="confirmPaymentBtn"
+              onclick="confirmPayment()"
+            >
+              ยืนยันชำระเงิน
+            </button>
+          </div>
         </div>
+      </div>
     </div>
     <!-- Modal สแกนหน้าเช็กเอ้า -->
-    <div class="modal fade" id="faceCheckoutModal" tabindex="-1" aria-labelledby="faceCheckoutModalLabel"
-        aria-hidden="true">
+    <div
+      class="modal fade"
+      id="faceCheckoutModal"
+      tabindex="-1"
+      aria-labelledby="faceCheckoutModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content face-checkout-modal">
+          <div class="modal-header">
+            <h5 class="modal-title" id="faceCheckoutModalLabel">
+              <i class="bi bi-person-bounding-box text-orange me-2"></i>
+              สแกนหน้าเช็กเอ้า
+            </h5>
 
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content face-checkout-modal">
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
 
-                <div class="modal-header">
-                    <h5 class="modal-title" id="faceCheckoutModalLabel">
-                        <i class="bi bi-person-bounding-box text-orange me-2"></i>
-                        สแกนหน้าเช็กเอ้า
-                    </h5>
+          <div class="modal-body text-center">
+            <!-- กล้อง -->
+            <div class="camera-container">
+              <video id="checkoutVideo" autoplay playsinline muted></video>
 
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close">
-                    </button>
-                </div>
+              <canvas id="checkoutCanvas"></canvas>
 
-                <div class="modal-body text-center">
-
-                    <!-- กล้อง -->
-                    <div class="camera-container">
-
-                        <video id="checkoutVideo" autoplay playsinline muted>
-                        </video>
-
-                        <canvas id="checkoutCanvas"></canvas>
-
-                        <!-- กรอบใบหน้า -->
-                        <div class="face-guide">
-                            <div class="face-frame"></div>
-                        </div>
-
-                    </div>
-
-                    <!-- สถานะการสแกน -->
-                    <div id="checkoutStatus" class="checkout-status mt-3">
-                        กำลังเตรียมกล้อง...
-                    </div>
-
-                    <!-- ปุ่ม -->
-                    <div class="d-flex justify-content-center gap-2 mt-3">
-
-                        <button type="button" id="startCheckoutScanBtn" class="btn btn-primary">
-                            <i class="bi bi-camera me-1"></i>
-                            สแกนใบหน้า
-                        </button>
-
-                        <button type="button" id="cancelCheckoutBtn" class="btn btn-secondary" data-bs-dismiss="modal">
-                            ยกเลิก
-                        </button>
-
-                    </div>
-
-                </div>
+              <!-- กรอบใบหน้า -->
+              <div class="face-guide">
+                <div class="face-frame"></div>
+              </div>
             </div>
+
+            <!-- สถานะการสแกน -->
+            <div id="checkoutStatus" class="checkout-status mt-3">
+              กำลังเตรียมกล้อง...
+            </div>
+
+            <!-- ปุ่ม -->
+            <div class="d-flex justify-content-center gap-2 mt-3">
+              <button
+                type="button"
+                id="startCheckoutScanBtn"
+                class="btn btn-primary"
+              >
+                <i class="bi bi-camera me-1"></i>
+                สแกนใบหน้า
+              </button>
+
+              <button
+                type="button"
+                id="cancelCheckoutBtn"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
         </div>
+      </div>
     </div>
     <script>
-        let paymentOrderId = null;
-        let paymentTotalAmount = 0;
-        let currentDamageNote = '';
-        let isRefreshingDashboard = false;
-
-        const STATUS_LABELS = {
-            pending: 'รอล้าง',
-            in_progress: 'กำลังล้าง',
-            drying: 'กำลังเช็ดแห้ง/เคลือบ',
-            ready: 'พร้อมรับรถ',
-            completed: 'เสร็จสิ้น',
-            picked_up: 'รับรถแล้ว',
-            cancelled: 'ยกเลิกแล้ว'
-        };
-
-        function vehicleLabel(order) {
-            const plate = order.license_plate + (order.province ? ' ' + order.province : '');
-            const typeLabel = order.vehicle_category === 'bike' ? 'มอเตอร์ไซค์' : 'รถยนต์';
-            return `${plate} • ${typeLabel} (${order.size_code})`;
-        }
-
-        function buildCard(order, target) {
-            const wrap = document.createElement('div');
-            wrap.className = 'queue-card';
-            wrap.id = `order-${order.order_id}-${target}`;
-
-            let actionHtml = '';
-            // ปุ่มอัปเดตสถานะตามขั้นตอน
-            if (order.status === 'pending') {
-                actionHtml = `
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-danger px-3" onclick="cancelOrder(${order.order_id})" title="ยกเลิกคิวนี้"><i class="bi bi-x-lg"></i></button>
-                        <button class="btn btn-sm btn-outline-warning px-3" onclick="advanceOrder(${order.order_id}, 'in_progress')">เริ่มงาน</button>
-                    </div>`;
-            } else if (order.status === 'in_progress' || order.status === 'drying' || order.status === 'ready') {
-                actionHtml = `
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-danger px-3" onclick="cancelOrder(${order.order_id})" title="ยกเลิกรายการนี้"><i class="bi bi-x-lg"></i></button>
-                        <button class="btn btn-sm btn-success px-3" onclick="advanceOrder(${order.order_id}, 'completed')">ล้างเสร็จ</button>
-                    </div>`;
-            } else if (order.status === 'completed') {
-                // กดล้างเสร็จแล้วจะเรียก openInspection แทนเพื่อเช็กความเสียหายก่อน
-                actionHtml = `<button class="btn btn-sm btn-success fw-bold px-3" onclick="openInspection(${order.order_id}, ${Number(order.total_amount)})"><i class="bi bi-cash-coin me-1"></i>ชำระเงิน</button>`;
-            } else {
-                actionHtml = `<span class="text-info small fw-bold"><i class="bi bi-check-all me-1"></i>ปิดงาน</span>`;
-            }
-
-            wrap.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-bold text-white fs-6">${vehicleLabel(order)}</span>
-                    <span class="badge bg-secondary">${order.queue_no}</span>
-                </div>
-                <p class="text-secondary small mb-2">บริการ: ${order.services_summary || '-'}</p>
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary">
-                    <span class="text-orange fw-bold">${Number(order.total_amount).toFixed(2)} บ.</span>
-                    ${actionHtml}
-                </div>`;
-            return wrap;
-        }
-
-        async function advanceOrder(orderId, newStatus) {
-            if (newStatus === 'completed' && !confirm('ยืนยันว่ารถคันนี้ล้างเสร็จแล้ว?')) return;
-            try {
-                const res = await fetch(`/api/orders/${orderId}/status`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: newStatus })
-                });
-                if (!res.ok) throw new Error('update failed');
-                await loadOrders(); // โหลดข้อมูลใหม่หลังจากอัปเดต
-            } catch (err) {
-                alert('อัปเดตสถานะไม่สำเร็จ: ' + err.message);
-            }
-        }
-
-        // ยกเลิกรายการได้จนกว่างานจะเสร็จ โดยบันทึกสถานะ cancelled ไว้ในประวัติ
-        async function cancelOrder(orderId) {
-            if (!confirm('ยืนยันยกเลิกรายการนี้? รายการจะถูกเก็บไว้ในประวัติเป็นสถานะ “ยกเลิกแล้ว” และไม่สามารถย้อนกลับได้')) return;
-
-            const cardPc = document.getElementById(`order-${orderId}-pc`);
-            const cardMb = document.getElementById(`order-${orderId}-mb`);
-            [cardPc, cardMb].forEach(el => { if (el) el.style.opacity = '0.5'; });
-
-            try {
-                const res = await fetch(`/api/orders/${orderId}/status`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'cancelled' })
-                });
-                if (!res.ok) throw new Error('ยกเลิกไม่สำเร็จ');
-                await loadOrders(); // โหลดข้อมูลใหม่หลังจากยกเลิก
-            } catch (err) {
-                alert('ยกเลิกคิวไม่สำเร็จ: ' + err.message);
-                [cardPc, cardMb].forEach(el => { if (el) el.style.opacity = '1'; });
-            }
-        }
-
-        // เปิด Modal ตรวจสอบความเสียหายเป็นขั้นแรก
-        function openInspection(orderId, amount) {
-            paymentOrderId = orderId;
-            paymentTotalAmount = amount;
-            document.getElementById('damageNote').value = '';
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('inspectionModal')).show();
-        }
-
-        // ย้อนกลับจากชำระเงินไปหน้าหมายเหตุ
-        function backToInspection() {
-            switchModal('paymentModal', 'inspectionModal');
-        }
-
-        // นำค่าหมายเหตุไปแสดงและเปลี่ยนไปยัง Modal ชำระเงิน
-        function goToPaymentModal() {
-            const rawNote = document.getElementById('damageNote').value.trim();
-            currentDamageNote = rawNote !== '' ? rawNote : 'ไม่มีอะไรเสียหาย';
-
-            document.getElementById('displayDamageNote').innerText = currentDamageNote;
-
-            switchModal('inspectionModal', 'paymentModal', () => preparePayment(paymentTotalAmount));
-        }
-
-        // Bootstrap does not support two modals being toggled in the same
-        // instant.  Wait for the current modal to finish closing first, so the
-        // payment page always opens after the inspection page.
-        function switchModal(fromId, toId, beforeShow) {
-            const fromElement = document.getElementById(fromId);
-            const toElement = document.getElementById(toId);
-            const fromModal = bootstrap.Modal.getInstance(fromElement);
-
-            const showNext = () => {
-                if (beforeShow) beforeShow();
-                bootstrap.Modal.getOrCreateInstance(toElement).show();
-            };
-
-            if (!fromModal) {
-                showNext();
-                return;
-            }
-
-            fromElement.addEventListener('hidden.bs.modal', showNext, { once: true });
-            fromModal.hide();
-        }
-
-        function preparePayment(amount) {
-            document.getElementById('paymentAmount').innerText = `${amount.toFixed(2)} บาท`;
-            document.getElementById('paymentMethod').value = 'cash';
-            document.getElementById('cashReceived').value = '';
-            updateCashPayment();
-        }
-
-        function updateCashPayment() {
-            const isCash = document.getElementById('paymentMethod').value === 'cash';
-            const cashFields = document.getElementById('cashPaymentFields');
-            const receivedInput = document.getElementById('cashReceived');
-            const changeEl = document.getElementById('cashChange');
-            const hintEl = document.getElementById('cashPaymentHint');
-
-            cashFields.classList.toggle('d-none', !isCash);
-            receivedInput.required = isCash;
-            if (!isCash) return;
-
-            const received = Number(receivedInput.value);
-            const hasAmount = receivedInput.value !== '' && Number.isFinite(received);
-            const difference = hasAmount ? received - paymentTotalAmount : 0;
-            changeEl.textContent = `${Math.max(difference, 0).toFixed(2)} บาท`;
-
-            if (!hasAmount) {
-                hintEl.textContent = 'กรอกจำนวนเงินที่รับจากลูกค้า';
-                hintEl.className = 'text-secondary d-block mt-1';
-            } else if (difference < 0) {
-                hintEl.textContent = `รับเงินไม่พอ อีก ${Math.abs(difference).toFixed(2)} บาท`;
-                hintEl.className = 'text-danger d-block mt-1';
-            } else {
-                hintEl.textContent = difference === 0 ? 'รับเงินครบพอดี' : 'คำนวณเงินทอนเรียบร้อย';
-                hintEl.className = 'text-success d-block mt-1';
-            }
-        }
-
-        document.getElementById('paymentMethod').addEventListener('change', updateCashPayment);
-        document.getElementById('cashReceived').addEventListener('input', updateCashPayment);
-
-        function openHistory() {
-            window.location.href = '/history';
-            return;
-        }
-
-        async function loadHistory() {
-            const date = document.getElementById('historyDate').value;
-            const results = document.getElementById('historyResults');
-            if (!date) return;
-            results.innerHTML = '<p class="text-secondary m-0">กำลังโหลดประวัติ...</p>';
-            try {
-                const res = await fetch(`/api/orders?status=picked_up&date=${encodeURIComponent(date)}`);
-                if (!res.ok) throw new Error('โหลดประวัติไม่สำเร็จ');
-                const orders = await res.json();
-                results.innerHTML = '';
-                if (!orders.length) {
-                    results.innerHTML = '<p class="text-secondary text-center m-0">ไม่พบประวัติการรับรถในวันที่เลือก</p>';
-                    return;
-                }
-                orders.forEach(order => results.appendChild(buildCard(order, 'history')));
-            } catch (err) {
-                results.innerHTML = `<p class="text-danger m-0">${err.message}</p>`;
-            }
-        }
-
-        async function confirmPayment() {
-            if (!paymentOrderId) return;
-            const paymentMethod = document.getElementById('paymentMethod').value;
-            if (paymentMethod === 'cash') {
-                const receivedValue = document.getElementById('cashReceived').value;
-                const cashReceived = Number(receivedValue);
-                if (receivedValue === '' || !Number.isFinite(cashReceived) || cashReceived < paymentTotalAmount) {
-                    alert('กรุณาระบุจำนวนเงินสดที่รับมาให้ไม่น้อยกว่ายอดชำระ');
-                    document.getElementById('cashReceived').focus();
-                    return;
-                }
-            }
-            const button = document.getElementById('confirmPaymentBtn');
-            button.disabled = true;
-            try {
-                const res = await fetch(`/api/orders/${paymentOrderId}/payment`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        payment_method: paymentMethod,
-                        damage_note: currentDamageNote // ส่งหมายเหตุความเสียหายไปยัง Backend
-                    })
-                });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.message || data.error || 'ชำระเงินไม่สำเร็จ');
-                bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
-                paymentOrderId = null;
-                await loadOrders();
-            } catch (err) {
-                alert('ชำระเงินไม่สำเร็จ: ' + err.message);
-            } finally {
-                button.disabled = false;
-            }
-        }
-
-        async function loadOrders() {
-            try {
-                const res = await fetch('/api/orders');
-                if (!res.ok) throw new Error('โหลดข้อมูลคิวไม่สำเร็จ');
-                const orders = await res.json();
-
-                // คัดกรองข้อมูลเข้า 4 ช่อง
-                const pending = orders.filter(o => o.status === 'pending');
-                const progress = orders.filter(o => ['in_progress', 'drying', 'ready'].includes(o.status));
-                const completed = orders.filter(o => o.status === 'completed');
-                const picked_up = orders.filter(o => o.status === 'picked_up');
-
-                // อ้างอิง Container ของ PC
-                const colPendingPc = document.getElementById('col-pending-pc');
-                const colProgressPc = document.getElementById('col-progress-pc');
-                const colDonePc = document.getElementById('col-done-pc');
-
-                // อ้างอิง Container ของ Mobile
-                const colPendingMb = document.getElementById('col-pending-mb');
-                const colProgressMb = document.getElementById('col-progress-mb');
-                const colDoneMb = document.getElementById('col-done-mb');
-
-                // ล้างข้อมูลเก่าออกก่อน
-                [colPendingPc, colProgressPc, colDonePc,
-                    colPendingMb, colProgressMb, colDoneMb].forEach(el => el.innerHTML = '');
-
-                const showEmptyState = (desktopColumn, mobileColumn, message) => {
-                    desktopColumn.innerHTML = `<p class="empty-hint">${message}</p>`;
-                    mobileColumn.innerHTML = `<p class="empty-hint">${message}</p>`;
-                };
-
-                // นำการ์ดไปใส่ตามช่อง
-                pending.forEach(o => {
-                    colPendingPc.appendChild(buildCard(o, 'pc'));
-                    colPendingMb.appendChild(buildCard(o, 'mb'));
-                });
-                progress.forEach(o => {
-                    colProgressPc.appendChild(buildCard(o, 'pc'));
-                    colProgressMb.appendChild(buildCard(o, 'mb'));
-                });
-                completed.forEach(o => {
-                    colDonePc.appendChild(buildCard(o, 'pc'));
-                    colDoneMb.appendChild(buildCard(o, 'mb'));
-                });
-
-                if (!pending.length) showEmptyState(colPendingPc, colPendingMb, 'ไม่มีรถรอล้าง');
-                if (!progress.length) showEmptyState(colProgressPc, colProgressMb, 'ไม่มีรถกำลังล้าง');
-                if (!completed.length) showEmptyState(colDonePc, colDoneMb, 'ไม่มีรถรอชำระเงิน');
-
-                // อัปเดตตัวเลขบนหัวช่อง
-                document.getElementById('count-pending').innerText = pending.length;
-                document.getElementById('count-progress').innerText = progress.length;
-                document.getElementById('count-done').innerText = completed.length;
-
-                // อัปเดตรถที่ยังอยู่ในความดูแลของร้าน (ยังไม่ได้รับรถกลับ)
-                const activeQueue = pending.length + progress.length + completed.length;
-                document.getElementById('total-queue-pc').innerText = activeQueue + ' คัน';
-                document.getElementById('total-queue-mb').innerText = activeQueue + ' คัน';
-
-            } catch (err) {
-                console.error(err);
-                const message = '<p class="empty-hint text-danger">โหลดข้อมูลคิวไม่สำเร็จ กรุณาลองใหม่</p>';
-                ['col-pending-pc', 'col-progress-pc', 'col-done-pc', 'col-pending-mb', 'col-progress-mb', 'col-done-mb']
-                    .map(id => document.getElementById(id))
-                    .filter(Boolean)
-                    .forEach(el => el.innerHTML = message);
-            }
-        }
-
-        async function loadTodaySummary() {
-            {% if session_role == 'manager' %}
-            try {
-                const res = await fetch('/api/finance/summary?period=day');
-                if (!res.ok) return;
-                const data = await res.json();
-
-                // อัปเดตรายได้
-                const income = Number(data.summary.total_income || 0);
-                document.getElementById('today-income-pc').innerText = income.toFixed(2) + ' บาท';
-                document.getElementById('today-income-mb').innerText = income.toFixed(0) + ' บ.';
-
-            } catch (err) {
-                console.error(err);
-            }
-            {% endif %}
-        }
-
-        async function refreshAll() {
-            if (isRefreshingDashboard) return;
-            isRefreshingDashboard = true;
-            try {
-                await Promise.all([loadOrders(), loadTodaySummary()]);
-            } finally {
-                isRefreshingDashboard = false;
-            }
-        }
-
-        window.addEventListener('DOMContentLoaded', () => {
-            refreshAll();
-            setInterval(refreshAll, 8000); // อัปเดตอัตโนมัติทุก 8 วินาที
-        });
-        /* ==========================================
-   Face Checkout
-   ========================================== */
-
-        let checkoutStream = null;
-
-        const faceCheckoutModal =
-            document.getElementById('faceCheckoutModal');
-
-        const checkoutVideo =
-            document.getElementById('checkoutVideo');
-
-        const checkoutCanvas =
-            document.getElementById('checkoutCanvas');
-
-        const checkoutStatus =
-            document.getElementById('checkoutStatus');
-
-        const startCheckoutScanBtn =
-            document.getElementById('startCheckoutScanBtn');
-
-
-        /* =========================
-           เปิดกล้อง
-        ========================= */
-
-        async function startCheckoutCamera() {
-
-            try {
-
-                // ถ้ามีกล้องเก่าอยู่ ให้ปิดก่อน
-                stopCheckoutCamera();
-
-                checkoutStatus.textContent =
-                    'กำลังเปิดกล้อง...';
-
-                checkoutStatus.className =
-                    'checkout-status mt-3 loading';
-
-
-                // ตรวจสอบว่า Browser รองรับกล้องหรือไม่
-                if (!navigator.mediaDevices ||
-                    !navigator.mediaDevices.getUserMedia) {
-
-                    throw new Error(
-                        'Browser ไม่รองรับการใช้งานกล้อง'
-                    );
-                }
-
-
-                checkoutStream =
-                    await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'user',
-                            width: {
-                                ideal: 640
-                            },
-                            height: {
-                                ideal: 480
-                            }
-                        },
-                        audio: false
-                    });
-
-
-                checkoutVideo.srcObject =
-                    checkoutStream;
-
-
-                checkoutStatus.textContent =
-                    'กรุณาหันหน้าเข้ากรอบ แล้วกด "สแกนใบหน้า"';
-
-                checkoutStatus.className =
-                    'checkout-status mt-3';
-
-            } catch (error) {
-
-                console.error(
-                    'Camera error:',
-                    error
-                );
-
-                checkoutStatus.textContent =
-                    'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้งานกล้อง';
-
-                checkoutStatus.className =
-                    'checkout-status mt-3 error';
-            }
-        }
-
-
-        /* =========================
-           ปิดกล้อง
-        ========================= */
-
-        function stopCheckoutCamera() {
-
-            if (checkoutStream) {
-
-                checkoutStream
-                    .getTracks()
-                    .forEach(track => {
-                        track.stop();
-                    });
-
-                checkoutStream = null;
-            }
-
-            if (checkoutVideo) {
-                checkoutVideo.srcObject = null;
-            }
-        }
-
-
-        /* =========================
-           เมื่อเปิด Modal
-        ========================= */
-
-        if (faceCheckoutModal) {
-
-            faceCheckoutModal.addEventListener(
-                'shown.bs.modal',
-                function () {
-
-                    startCheckoutCamera();
-
-                }
-            );
-
-
-            /* =========================
-               เมื่อปิด Modal
-            ========================= */
-
-            faceCheckoutModal.addEventListener(
-                'hidden.bs.modal',
-                function () {
-
-                    stopCheckoutCamera();
-
-
-                    checkoutStatus.textContent =
-                        'กำลังเตรียมกล้อง...';
-
-                    checkoutStatus.className =
-                        'checkout-status mt-3';
-
-
-                    startCheckoutScanBtn.disabled =
-                        false;
-                }
-            );
-        }
-
-
-        /* =========================
-           ปุ่มสแกนหน้า
-        ========================= */
-
-        if (startCheckoutScanBtn) {
-
-            startCheckoutScanBtn.addEventListener(
-                'click',
-                async function () {
-
-                    try {
-
-                        /* -------------------------
-                           ตรวจสอบกล้อง
-                        ------------------------- */
-
-                        if (!checkoutStream) {
-
-                            checkoutStatus.textContent =
-                                'ยังไม่สามารถเปิดกล้องได้';
-
-                            checkoutStatus.className =
-                                'checkout-status mt-3 error';
-
-                            return;
-                        }
-
-
-                        /* -------------------------
-                           ป้องกันกดซ้ำ
-                        ------------------------- */
-
-                        startCheckoutScanBtn.disabled =
-                            true;
-
-
-                        checkoutStatus.textContent =
-                            'กำลังตรวจสอบใบหน้า...';
-
-                        checkoutStatus.className =
-                            'checkout-status mt-3 loading';
-
-
-                        /* -------------------------
-                           ตรวจสอบ video
-                        ------------------------- */
-
-                        if (checkoutVideo.readyState < 2) {
-
-                            checkoutStatus.textContent =
-                                'กล้องยังไม่พร้อม กรุณาลองอีกครั้ง';
-
-                            checkoutStatus.className =
-                                'checkout-status mt-3 error';
-
-                            startCheckoutScanBtn.disabled =
-                                false;
-
-                            return;
-                        }
-
-
-                        /* -------------------------
-                           Canvas
-                        ------------------------- */
-
-                        const width =
-                            checkoutVideo.videoWidth;
+           // =========================================================================
+           // 1. ตัวแปรสถานะส่วนกลาง (Global State Variables)
+           // =========================================================================
+           let paymentOrderId = null;         // ไอดีของออเดอร์ที่กำลังทำการชำระเงิน
+           let paymentTotalAmount = 0;        // ยอดเงินรวมที่ต้องชำระสำหรับออเดอร์นั้น
+           let currentDamageNote = '';        // หมายเหตุความเสียหายของตัวรถ
+           let isRefreshingDashboard = false; // ตัวควบคุมสถานะการรีเฟรชข้อมูล
+
+           // พจนานุกรมแปลงรหัสสถานะภาษาอังกฤษเป็นภาษาไทย
+           const STATUS_LABELS = {
+               pending: 'รอล้าง',
+               in_progress: 'กำลังล้าง',
+               drying: 'กำลังเช็ดแห้ง/เคลือบ',
+               ready: 'พร้อมรับรถ',
+               completed: 'เสร็จสิ้น',
+               picked_up: 'รับรถแล้ว',
+               cancelled: 'ยกเลิกแล้ว'
+           };
+
+           // ฟังก์ชันจัดรูปแบบข้อความแสดงป้ายทะเบียน ประเภท และขนาดรถ
+           function vehicleLabel(order) {
+               const plate = order.license_plate + (order.province ? ' ' + order.province : '');
+               const typeLabel = order.vehicle_category === 'bike' ? 'มอเตอร์ไซค์' : 'รถยนต์';
+               return `${plate} • ${typeLabel} (${order.size_code})`;
+           }
+
+           // =========================================================================
+           // 2. ฟังก์ชันสร้างการ์ดคิวรถ (Queue Card Component Builder)
+           // =========================================================================
+           function buildCard(order, target) {
+               const wrap = document.createElement('div');
+               wrap.className = 'queue-card';
+               wrap.id = `order-${order.order_id}-${target}`;
+
+               let actionHtml = '';
+               // กำหนดปุ่ม Action ตามสถานะปัจจุบันของรถแต่ละคัน
+               if (order.status === 'pending') {
+                   actionHtml = `
+                       <div class="d-flex gap-2">
+                           <button class="btn btn-sm btn-outline-danger px-3" onclick="cancelOrder(${order.order_id})" title="ยกเลิกคิวนี้"><i class="bi bi-x-lg"></i></button>
+                           <button class="btn btn-sm btn-outline-warning px-3" onclick="advanceOrder(${order.order_id}, 'in_progress')">เริ่มงาน</button>
+                       </div>`;
+               } else if (order.status === 'in_progress' || order.status === 'drying' || order.status === 'ready') {
+                   actionHtml = `
+                       <div class="d-flex gap-2">
+                           <button class="btn btn-sm btn-outline-danger px-3" onclick="cancelOrder(${order.order_id})" title="ยกเลิกรายการนี้"><i class="bi bi-x-lg"></i></button>
+                           <button class="btn btn-sm btn-success px-3" onclick="advanceOrder(${order.order_id}, 'completed')">ล้างเสร็จ</button>
+                       </div>`;
+               } else if (order.status === 'completed') {
+                   // กดล้างเสร็จแล้วจะเรียก openInspection แทนเพื่อเช็กความเสียหายก่อน
+                   actionHtml = `<button class="btn btn-sm btn-success fw-bold px-3" onclick="openInspection(${order.order_id}, ${Number(order.total_amount)})"><i class="bi bi-cash-coin me-1"></i>ชำระเงิน</button>`;
+               } else {
+                   actionHtml = `<span class="text-info small fw-bold"><i class="bi bi-check-all me-1"></i>ปิดงาน</span>`;
+               }
+
+               wrap.innerHTML = `
+                   <div class="d-flex justify-content-between align-items-center mb-2">
+                       <span class="fw-bold text-white fs-6">${vehicleLabel(order)}</span>
+                       <span class="badge bg-secondary">${order.queue_no}</span>
+                   </div>
+                   <p class="text-secondary small mb-2">บริการ: ${order.services_summary || '-'}</p>
+                   <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary">
+                       <span class="text-orange fw-bold">${Number(order.total_amount).toFixed(2)} บ.</span>
+                       ${actionHtml}
+                   </div>`;
+               return wrap;
+           }
+
+           // =========================================================================
+           // 3. ฟังก์ชันควบคุมสถานะคิวงาน (Order Lifecycle & Workflow Operations)
+           // =========================================================================
+
+           // เลื่อนสถานะคิวรถไปยังขั้นตอนถัดไป (เช่น เริ่มงาน หรือ ล้างเสร็จ)
+           async function advanceOrder(orderId, newStatus) {
+               if (newStatus === 'completed' && !confirm('ยืนยันว่ารถคันนี้ล้างเสร็จแล้ว?')) return;
+               try {
+                   const res = await fetch(`/api/orders/${orderId}/status`, {
+                       method: 'PUT',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({ status: newStatus })
+                   });
+                   if (!res.ok) throw new Error('update failed');
+                   await loadOrders(); // โหลดข้อมูลใหม่หลังจากอัปเดต
+               } catch (err) {
+                   alert('อัปเดตสถานะไม่สำเร็จ: ' + err.message);
+               }
+           }
+
+           // ยกเลิกรายการคิว (บันทึกสถานะ 'cancelled' ลงในประวัติ ไม่ลบข้อมูลออกจากฐานข้อมูล)
+           async function cancelOrder(orderId) {
+               if (!confirm('ยืนยันยกเลิกรายการนี้? รายการจะถูกเก็บไว้ในประวัติเป็นสถานะ “ยกเลิกแล้ว” และไม่สามารถย้อนกลับได้')) return;
+
+               const cardPc = document.getElementById(`order-${orderId}-pc`);
+               const cardMb = document.getElementById(`order-${orderId}-mb`);
+               [cardPc, cardMb].forEach(el => { if (el) el.style.opacity = '0.5'; });
+
+               try {
+                   const res = await fetch(`/api/orders/${orderId}/status`, {
+                       method: 'PUT',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({ status: 'cancelled' })
+                   });
+                   if (!res.ok) throw new Error('ยกเลิกไม่สำเร็จ');
+                   await loadOrders(); // โหลดข้อมูลใหม่หลังจากยกเลิก
+               } catch (err) {
+                   alert('ยกเลิกคิวไม่สำเร็จ: ' + err.message);
+                   [cardPc, cardMb].forEach(el => { if (el) el.style.opacity = '1'; });
+               }
+           }
+
+           // ขั้นตอนที่ 1: เปิด Modal ตรวจสอบสภาพรถและความเสียหายก่อนชำระเงิน
+           function openInspection(orderId, amount) {
+               paymentOrderId = orderId;
+               paymentTotalAmount = amount;
+               document.getElementById('damageNote').value = '';
+               bootstrap.Modal.getOrCreateInstance(document.getElementById('inspectionModal')).show();
+           }
+
+           // ย้อนกลับจากชำระเงินไปหน้าหมายเหตุ
+           function backToInspection() {
+               switchModal('paymentModal', 'inspectionModal');
+           }
+
+           // นำค่าหมายเหตุไปแสดงและเปลี่ยนไปยัง Modal ชำระเงิน
+           function goToPaymentModal() {
+               const rawNote = document.getElementById('damageNote').value.trim();
+               currentDamageNote = rawNote !== '' ? rawNote : 'ไม่มีอะไรเสียหาย';
+
+               document.getElementById('displayDamageNote').innerText = currentDamageNote;
+
+               switchModal('inspectionModal', 'paymentModal', () => preparePayment(paymentTotalAmount));
+           }
+
+           // Bootstrap does not support two modals being toggled in the same
+           // instant.  Wait for the current modal to finish closing first, so the
+           // payment page always opens after the inspection page.
+           function switchModal(fromId, toId, beforeShow) {
+               const fromElement = document.getElementById(fromId);
+               const toElement = document.getElementById(toId);
+               const fromModal = bootstrap.Modal.getInstance(fromElement);
+
+               const showNext = () => {
+                   if (beforeShow) beforeShow();
+                   bootstrap.Modal.getOrCreateInstance(toElement).show();
+               };
+
+               if (!fromModal) {
+                   showNext();
+                   return;
+               }
+
+               fromElement.addEventListener('hidden.bs.modal', showNext, { once: true });
+               fromModal.hide();
+           }
+
+           function preparePayment(amount) {
+               document.getElementById('paymentAmount').innerText = `${amount.toFixed(2)} บาท`;
+               document.getElementById('paymentMethod').value = 'cash';
+               document.getElementById('cashReceived').value = '';
+               updateCashPayment();
+           }
+
+           // =========================================================================
+           // ระบบตรวจสอบสภาพรถและคำนวณการชำระเงิน (Car Inspection & Payment Logic)
+           // =========================================================================
+
+           // ปรับปรุงฟิลด์การชำระเงินสด (คำนวณเงินทอน และแจ้งเตือนเมื่อเงินไม่พอ/พอดี)
+           function updateCashPayment() {
+               const isCash = document.getElementById('paymentMethod').value === 'cash';
+               const cashFields = document.getElementById('cashPaymentFields');
+               const receivedInput = document.getElementById('cashReceived');
+               const changeEl = document.getElementById('cashChange');
+               const hintEl = document.getElementById('cashPaymentHint');
+
+               cashFields.classList.toggle('d-none', !isCash);
+               receivedInput.required = isCash;
+               if (!isCash) return;
+
+               const received = Number(receivedInput.value);
+               const hasAmount = receivedInput.value !== '' && Number.isFinite(received);
+               const difference = hasAmount ? received - paymentTotalAmount : 0;
+               changeEl.textContent = `${Math.max(difference, 0).toFixed(2)} บาท`;
+
+               if (!hasAmount) {
+                   hintEl.textContent = 'กรอกจำนวนเงินที่รับจากลูกค้า';
+                   hintEl.className = 'text-secondary d-block mt-1';
+               } else if (difference < 0) {
+                   hintEl.textContent = `รับเงินไม่พอ อีก ${Math.abs(difference).toFixed(2)} บาท`;
+                   hintEl.className = 'text-danger d-block mt-1';
+               } else {
+                   hintEl.textContent = difference === 0 ? 'รับเงินครบพอดี' : 'คำนวณเงินทอนเรียบร้อย';
+                   hintEl.className = 'text-success d-block mt-1';
+               }
+           }
+
+           // ผูก Event ติดตามการเปลี่ยนวิธีจ่ายเงินและการกรอกยอดเงินสด
+           document.getElementById('paymentMethod').addEventListener('change', updateCashPayment);
+           document.getElementById('cashReceived').addEventListener('input', updateCashPayment);
+
+           // นำทางไปยังหน้าประวัติการรับรถ
+           function openHistory() {
+               window.location.href = '/history';
+               return;
+           }
+
+           async function loadHistory() {
+               const date = document.getElementById('historyDate').value;
+               const results = document.getElementById('historyResults');
+               if (!date) return;
+               results.innerHTML = '<p class="text-secondary m-0">กำลังโหลดประวัติ...</p>';
+               try {
+                   const res = await fetch(`/api/orders?status=picked_up&date=${encodeURIComponent(date)}`);
+                   if (!res.ok) throw new Error('โหลดประวัติไม่สำเร็จ');
+                   const orders = await res.json();
+                   results.innerHTML = '';
+                   if (!orders.length) {
+                       results.innerHTML = '<p class="text-secondary text-center m-0">ไม่พบประวัติการรับรถในวันที่เลือก</p>';
+                       return;
+                   }
+                   orders.forEach(order => results.appendChild(buildCard(order, 'history')));
+               } catch (err) {
+                   results.innerHTML = `<p class="text-danger m-0">${err.message}</p>`;
+               }
+           }
+
+           async function confirmPayment() {
+               if (!paymentOrderId) return;
+               const paymentMethod = document.getElementById('paymentMethod').value;
+               if (paymentMethod === 'cash') {
+                   const receivedValue = document.getElementById('cashReceived').value;
+                   const cashReceived = Number(receivedValue);
+                   if (receivedValue === '' || !Number.isFinite(cashReceived) || cashReceived < paymentTotalAmount) {
+                       alert('กรุณาระบุจำนวนเงินสดที่รับมาให้ไม่น้อยกว่ายอดชำระ');
+                       document.getElementById('cashReceived').focus();
+                       return;
+                   }
+               }
+               const button = document.getElementById('confirmPaymentBtn');
+               button.disabled = true;
+               try {
+                   const res = await fetch(`/api/orders/${paymentOrderId}/payment`, {
+                       method: 'POST',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({
+                           payment_method: paymentMethod,
+                           damage_note: currentDamageNote // ส่งหมายเหตุความเสียหายไปยัง Backend
+                       })
+                   });
+                   const data = await res.json();
+                   if (!res.ok) throw new Error(data.message || data.error || 'ชำระเงินไม่สำเร็จ');
+                   bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
+                   paymentOrderId = null;
+                   await loadOrders();
+               } catch (err) {
+                   alert('ชำระเงินไม่สำเร็จ: ' + err.message);
+               } finally {
+                   button.disabled = false;
+               }
+           }
+
+           // =========================================================================
+           // 4. ระบบกระดานคานบันและการซิงค์ข้อมูล (Kanban Board & Real-time Sync)
+           // =========================================================================
+
+           // ดึงข้อมูลรายการคิวทั้งหมดจาก API แล้วแยกแสดงผลลงกระดาน Kanban ตามสถานะ
+           async function loadOrders() {
+               try {
+                   const res = await fetch('/api/orders');
+                   if (!res.ok) throw new Error('โหลดข้อมูลคิวไม่สำเร็จ');
+                   const orders = await res.json();
+
+                   // แยกกลุ่มออเดอร์ตามขั้นตอนการทำงาน
+                   const pending = orders.filter(o => o.status === 'pending');
+                   const progress = orders.filter(o => ['in_progress', 'drying', 'ready'].includes(o.status));
+                   const completed = orders.filter(o => o.status === 'completed');
+                   const picked_up = orders.filter(o => o.status === 'picked_up');
+
+                   // อ้างอิง Container คอลัมน์บนจอคอมพิวเตอร์ (PC View)
+                   const colPendingPc = document.getElementById('col-pending-pc');
+                   const colProgressPc = document.getElementById('col-progress-pc');
+                   const colDonePc = document.getElementById('col-done-pc');
+
+                   // อ้างอิง Container คอลัมน์บนจอมือถือ (Mobile View)
+                   const colPendingMb = document.getElementById('col-pending-mb');
+                   const colProgressMb = document.getElementById('col-progress-mb');
+                   const colDoneMb = document.getElementById('col-done-mb');
+
+                   // เคลียร์รายการเดิมก่อนเรนเดอร์ใหม่
+                   [colPendingPc, colProgressPc, colDonePc,
+                       colPendingMb, colProgressMb, colDoneMb].forEach(el => el.innerHTML = '');
+
+                   // ฟังก์ชันแสดงสถานะว่าง (Empty State) เมื่อไม่มีรถในขั้นตอนนั้น ๆ
+                   const showEmptyState = (desktopColumn, mobileColumn, message) => {
+                       desktopColumn.innerHTML = `<p class="empty-hint">${message}</p>`;
+                       mobileColumn.innerHTML = `<p class="empty-hint">${message}</p>`;
+                   };
+
+                   // นำการ์ดไปใส่ตามช่อง
+                   pending.forEach(o => {
+                       colPendingPc.appendChild(buildCard(o, 'pc'));
+                       colPendingMb.appendChild(buildCard(o, 'mb'));
+                   });
+                   progress.forEach(o => {
+                       colProgressPc.appendChild(buildCard(o, 'pc'));
+                       colProgressMb.appendChild(buildCard(o, 'mb'));
+                   });
+                   completed.forEach(o => {
+                       colDonePc.appendChild(buildCard(o, 'pc'));
+                       colDoneMb.appendChild(buildCard(o, 'mb'));
+                   });
+
+                   if (!pending.length) showEmptyState(colPendingPc, colPendingMb, 'ไม่มีรถรอล้าง');
+                   if (!progress.length) showEmptyState(colProgressPc, colProgressMb, 'ไม่มีรถกำลังล้าง');
+                   if (!completed.length) showEmptyState(colDonePc, colDoneMb, 'ไม่มีรถรอชำระเงิน');
+
+                   // อัปเดตตัวเลขบนหัวช่อง
+                   document.getElementById('count-pending').innerText = pending.length;
+                   document.getElementById('count-progress').innerText = progress.length;
+                   document.getElementById('count-done').innerText = completed.length;
+
+                   // อัปเดตรถที่ยังอยู่ในความดูแลของร้าน (ยังไม่ได้รับรถกลับ)
+                   const activeQueue = pending.length + progress.length + completed.length;
+                   document.getElementById('total-queue-pc').innerText = activeQueue + ' คัน';
+                   document.getElementById('total-queue-mb').innerText = activeQueue + ' คัน';
+
+               } catch (err) {
+                   console.error(err);
+                   const message = '<p class="empty-hint text-danger">โหลดข้อมูลคิวไม่สำเร็จ กรุณาลองใหม่</p>';
+                   ['col-pending-pc', 'col-progress-pc', 'col-done-pc', 'col-pending-mb', 'col-progress-mb', 'col-done-mb']
+                       .map(id => document.getElementById(id))
+                       .filter(Boolean)
+                       .forEach(el => el.innerHTML = message);
+               }
+           }
+
+           async function loadTodaySummary() {
+               {% if session_role == 'manager' %}
+               try {
+                   const res = await fetch('/api/finance/summary?period=day');
+                   if (!res.ok) return;
+                   const data = await res.json();
+
+                   // อัปเดตรายได้
+                   const income = Number(data.summary.total_income || 0);
+                   document.getElementById('today-income-pc').innerText = income.toFixed(2) + ' บาท';
+                   document.getElementById('today-income-mb').innerText = income.toFixed(0) + ' บ.';
+
+               } catch (err) {
+                   console.error(err);
+               }
+               {% endif %}
+           }
+
+           async function refreshAll() {
+               if (isRefreshingDashboard) return;
+               isRefreshingDashboard = true;
+               try {
+                   await Promise.all([loadOrders(), loadTodaySummary()]);
+               } finally {
+                   isRefreshingDashboard = false;
+               }
+           }
+
+           window.addEventListener('DOMContentLoaded', () => {
+               refreshAll();
+               setInterval(refreshAll, 8000); // อัปเดตอัตโนมัติทุก 8 วินาที
+           });
+           /* ==========================================
+      Face Checkout
+      ========================================== */
+
+           let checkoutStream = null;
+
+           const faceCheckoutModal =
+               document.getElementById('faceCheckoutModal');
+
+           const checkoutVideo =
+               document.getElementById('checkoutVideo');
+
+           const checkoutCanvas =
+               document.getElementById('checkoutCanvas');
+
+           const checkoutStatus =
+               document.getElementById('checkoutStatus');
+
+           const startCheckoutScanBtn =
+               document.getElementById('startCheckoutScanBtn');
+
+
+           /* =========================
+              เปิดกล้อง
+           ========================= */
+
+           async function startCheckoutCamera() {
+
+               try {
+
+                   // ถ้ามีกล้องเก่าอยู่ ให้ปิดก่อน
+                   stopCheckoutCamera();
+
+                   checkoutStatus.textContent =
+                       'กำลังเปิดกล้อง...';
+
+                   checkoutStatus.className =
+                       'checkout-status mt-3 loading';
+
+
+                   // ตรวจสอบว่า Browser รองรับกล้องหรือไม่
+                   if (!navigator.mediaDevices ||
+                       !navigator.mediaDevices.getUserMedia) {
+
+                       throw new Error(
+                           'Browser ไม่รองรับการใช้งานกล้อง'
+                       );
+                   }
+
+
+                   checkoutStream =
+                       await navigator.mediaDevices.getUserMedia({
+                           video: {
+                               facingMode: 'user',
+                               width: {
+                                   ideal: 640
+                               },
+                               height: {
+                                   ideal: 480
+                               }
+                           },
+                           audio: false
+                       });
+
+
+                   checkoutVideo.srcObject =
+                       checkoutStream;
+
+
+                   checkoutStatus.textContent =
+                       'กรุณาหันหน้าเข้ากรอบ แล้วกด "สแกนใบหน้า"';
+
+                   checkoutStatus.className =
+                       'checkout-status mt-3';
+
+               } catch (error) {
+
+                   console.error(
+                       'Camera error:',
+                       error
+                   );
+
+                   checkoutStatus.textContent =
+                       'ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้งานกล้อง';
+
+                   checkoutStatus.className =
+                       'checkout-status mt-3 error';
+               }
+           }
+
+
+           /* =========================
+              ปิดกล้อง
+           ========================= */
+
+           function stopCheckoutCamera() {
+
+               if (checkoutStream) {
+
+                   checkoutStream
+                       .getTracks()
+                       .forEach(track => {
+                           track.stop();
+                       });
+
+                   checkoutStream = null;
+               }
+
+               if (checkoutVideo) {
+                   checkoutVideo.srcObject = null;
+               }
+           }
+
+
+           /* =========================
+              เมื่อเปิด Modal
+           ========================= */
+
+           if (faceCheckoutModal) {
+
+               faceCheckoutModal.addEventListener(
+                   'shown.bs.modal',
+                   function () {
+
+                       startCheckoutCamera();
+
+                   }
+               );
+
+
+               /* =========================
+                  เมื่อปิด Modal
+               ========================= */
+
+               faceCheckoutModal.addEventListener(
+                   'hidden.bs.modal',
+                   function () {
+
+                       stopCheckoutCamera();
+
+
+                       checkoutStatus.textContent =
+                           'กำลังเตรียมกล้อง...';
+
+                       checkoutStatus.className =
+                           'checkout-status mt-3';
+
+
+                       startCheckoutScanBtn.disabled =
+                           false;
+                   }
+               );
+           }
+
+
+           /* =========================
+              ปุ่มสแกนหน้า
+           ========================= */
+
+           if (startCheckoutScanBtn) {
+
+               startCheckoutScanBtn.addEventListener(
+                   'click',
+                   async function () {
+
+                       try {
+
+                           /* -------------------------
+                              ตรวจสอบกล้อง
+                           ------------------------- */
+
+                           if (!checkoutStream) {
+
+                               checkoutStatus.textContent =
+                                   'ยังไม่สามารถเปิดกล้องได้';
+
+                               checkoutStatus.className =
+                                   'checkout-status mt-3 error';
+
+                               return;
+                           }
+
+
+                           /* -------------------------
+                              ป้องกันกดซ้ำ
+                           ------------------------- */
+
+                           startCheckoutScanBtn.disabled =
+                               true;
+
+
+                           checkoutStatus.textContent =
+                               'กำลังตรวจสอบใบหน้า...';
+
+                           checkoutStatus.className =
+                               'checkout-status mt-3 loading';
+
+
+                           /* -------------------------
+                              ตรวจสอบ video
+                           ------------------------- */
+
+                           if (checkoutVideo.readyState < 2) {
+
+                               checkoutStatus.textContent =
+                                   'กล้องยังไม่พร้อม กรุณาลองอีกครั้ง';
+
+                               checkoutStatus.className =
+                                   'checkout-status mt-3 error';
+
+                               startCheckoutScanBtn.disabled =
+                                   false;
+
+                               return;
+                           }
+
+
+                           /* -------------------------
+                              Canvas
+                           ------------------------- */
+
+                           const width =
+                               checkoutVideo.videoWidth;
+
+                           const height =
+                               checkoutVideo.videoHeight;
+
+
+                           if (!width || !height) {
+
+                               checkoutStatus.textContent =
+                                   'ไม่สามารถอ่านภาพจากกล้องได้';
+
+                               checkoutStatus.className =
+                                   'checkout-status mt-3 error';
+
+                               startCheckoutScanBtn.disabled =
+                                   false;
+
+                               return;
+                           }
+
+
+                           checkoutCanvas.width =
+                               width;
+
+                           checkoutCanvas.height =
+                               height;
+
+
+                           const context =
+                               checkoutCanvas.getContext('2d');
+
+
+                           /* -------------------------
+                              กลับภาพจากกล้อง
+                              เพราะหน้าจอเป็น Mirror
+                           ------------------------- */
+
+                           context.save();
+
+                           context.translate(
+                               width,
+                               0
+                           );
 
-                        const height =
-                            checkoutVideo.videoHeight;
+                           context.scale(
+                               -1,
+                               1
+                           );
+
 
+                           context.drawImage(
+                               checkoutVideo,
+                               0,
+                               0,
+                               width,
+                               height
+                           );
 
-                        if (!width || !height) {
 
-                            checkoutStatus.textContent =
-                                'ไม่สามารถอ่านภาพจากกล้องได้';
+                           context.restore();
 
-                            checkoutStatus.className =
-                                'checkout-status mt-3 error';
 
-                            startCheckoutScanBtn.disabled =
-                                false;
+                           /* -------------------------
+                              แปลงเป็น Base64
+                           ------------------------- */
 
-                            return;
-                        }
+                           const imageBase64 =
+                               checkoutCanvas.toDataURL(
+                                   'image/jpeg',
+                                   0.9
+                               );
 
 
-                        checkoutCanvas.width =
-                            width;
+                           /* -------------------------
+                              ส่งไป Backend
+                           ------------------------- */
 
-                        checkoutCanvas.height =
-                            height;
+                           const response =
+                               await fetch(
+                                   '/api/staff/face-checkout',
+                                   {
+                                       method: 'POST',
 
+                                       headers: {
+                                           'Content-Type':
+                                               'application/json'
+                                       },
 
-                        const context =
-                            checkoutCanvas.getContext('2d');
+                                       body: JSON.stringify({
+                                           face_image: imageBase64
+                                       })
+                                   }
+                               );
 
 
-                        /* -------------------------
-                           กลับภาพจากกล้อง
-                           เพราะหน้าจอเป็น Mirror
-                        ------------------------- */
+                           /* -------------------------
+                              อ่านผลลัพธ์
+                           ------------------------- */
 
-                        context.save();
+                           let result = {};
 
-                        context.translate(
-                            width,
-                            0
-                        );
+                           try {
 
-                        context.scale(
-                            -1,
-                            1
-                        );
+                               result =
+                                   await response.json();
 
+                           } catch (jsonError) {
 
-                        context.drawImage(
-                            checkoutVideo,
-                            0,
-                            0,
-                            width,
-                            height
-                        );
+                               console.error(
+                                   'JSON parse error:',
+                                   jsonError
+                               );
+                           }
 
 
-                        context.restore();
+                           /* -------------------------
+                              สำเร็จ
+                           ------------------------- */
 
+                           if (
+                               response.ok &&
+                               result.success
+                           ) {
 
-                        /* -------------------------
-                           แปลงเป็น Base64
-                        ------------------------- */
+                               checkoutStatus.textContent =
+                                   result.message ||
+                                   'เช็กเอ้าสำเร็จ';
 
-                        const imageBase64 =
-                            checkoutCanvas.toDataURL(
-                                'image/jpeg',
-                                0.9
-                            );
+                               checkoutStatus.className =
+                                   'checkout-status mt-3 success';
 
 
-                        /* -------------------------
-                           ส่งไป Backend
-                        ------------------------- */
+                               /* -------------------------
+                                  หยุดกล้อง
+                               ------------------------- */
 
-                        const response =
-                            await fetch(
-                                '/api/staff/face-checkout',
-                                {
-                                    method: 'POST',
+                               stopCheckoutCamera();
 
-                                    headers: {
-                                        'Content-Type':
-                                            'application/json'
-                                    },
 
-                                    body: JSON.stringify({
-                                        face_image: imageBase64
-                                    })
-                                }
-                            );
+                               /* -------------------------
+                                  ออกจากระบบ
+                               ------------------------- */
 
+                               setTimeout(
+                                   function () {
 
-                        /* -------------------------
-                           อ่านผลลัพธ์
-                        ------------------------- */
+                                       window.location.href =
+                                           "{{ url_for('logout') }}";
 
-                        let result = {};
+                                   },
+                                   1500
+                               );
 
-                        try {
+                               return;
+                           }
 
-                            result =
-                                await response.json();
 
-                        } catch (jsonError) {
+                           /* -------------------------
+                              ใบหน้าไม่ผ่าน
+                           ------------------------- */
 
-                            console.error(
-                                'JSON parse error:',
-                                jsonError
-                            );
-                        }
+                           checkoutStatus.textContent =
+                               result.message ||
+                               result.error ||
+                               'ใบหน้าไม่ตรงกับบัญชีที่กำลังใช้งาน';
 
+                           checkoutStatus.className =
+                               'checkout-status mt-3 error';
 
-                        /* -------------------------
-                           สำเร็จ
-                        ------------------------- */
 
-                        if (
-                            response.ok &&
-                            result.success
-                        ) {
+                           startCheckoutScanBtn.disabled =
+                               false;
 
-                            checkoutStatus.textContent =
-                                result.message ||
-                                'เช็กเอ้าสำเร็จ';
 
-                            checkoutStatus.className =
-                                'checkout-status mt-3 success';
+                       } catch (error) {
 
+                           console.error(
+                               'Face checkout error:',
+                               error
+                           );
 
-                            /* -------------------------
-                               หยุดกล้อง
-                            ------------------------- */
 
-                            stopCheckoutCamera();
+                           checkoutStatus.textContent =
+                               'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์';
 
+                           checkoutStatus.className =
+                               'checkout-status mt-3 error';
 
-                            /* -------------------------
-                               ออกจากระบบ
-                            ------------------------- */
 
-                            setTimeout(
-                                function () {
+                           startCheckoutScanBtn.disabled =
+                               false;
+                       }
 
-                                    window.location.href =
-                                        "{{ url_for('logout') }}";
+                   }
+               );
+           }
+           /* ==========================================
+      เปิด Modal สแกนหน้าเช็กเอ้า
+      ========================================== */
 
-                                },
-                                1500
-                            );
+           function openFaceCheckout(event) {
 
-                            return;
-                        }
+               // ป้องกันไม่ให้ href="#" เปลี่ยนตำแหน่งหน้า
+               if (event) {
+                   event.preventDefault();
+               }
 
+               const modalElement =
+                   document.getElementById('faceCheckoutModal');
 
-                        /* -------------------------
-                           ใบหน้าไม่ผ่าน
-                        ------------------------- */
+               if (!modalElement) {
+                   console.error('ไม่พบ faceCheckoutModal');
+                   return;
+               }
 
-                        checkoutStatus.textContent =
-                            result.message ||
-                            result.error ||
-                            'ใบหน้าไม่ตรงกับบัญชีที่กำลังใช้งาน';
+               const modal =
+                   bootstrap.Modal.getOrCreateInstance(modalElement);
 
-                        checkoutStatus.className =
-                            'checkout-status mt-3 error';
-
-
-                        startCheckoutScanBtn.disabled =
-                            false;
-
-
-                    } catch (error) {
-
-                        console.error(
-                            'Face checkout error:',
-                            error
-                        );
-
-
-                        checkoutStatus.textContent =
-                            'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์';
-
-                        checkoutStatus.className =
-                            'checkout-status mt-3 error';
-
-
-                        startCheckoutScanBtn.disabled =
-                            false;
-                    }
-
-                }
-            );
-        }
-        /* ==========================================
-   เปิด Modal สแกนหน้าเช็กเอ้า
-   ========================================== */
-
-        function openFaceCheckout(event) {
-
-            // ป้องกันไม่ให้ href="#" เปลี่ยนตำแหน่งหน้า
-            if (event) {
-                event.preventDefault();
-            }
-
-            const modalElement =
-                document.getElementById('faceCheckoutModal');
-
-            if (!modalElement) {
-                console.error('ไม่พบ faceCheckoutModal');
-                return;
-            }
-
-            const modal =
-                bootstrap.Modal.getOrCreateInstance(modalElement);
-
-            modal.show();
-        }
+               modal.show();
+           }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/management-menu.js') }}"></script>
-</body>
-
+  </body>
 </html>
