@@ -856,6 +856,58 @@ def staff_page():
     return render_template('staff.html', session_role=session.get("role"), session_name=session.get("display_name"))
 
 
+@app.route('/managers')
+@manager_required
+def managers_page():
+    return render_template('managers.html', session_role=session.get("role"), session_name=session.get("display_name"))
+
+
+@app.route('/api/managers', methods=['GET', 'POST'])
+@manager_required
+def managers_api():
+    """List and create manager accounts, with a hard three-account limit."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        if request.method == 'GET':
+            cur.execute("SELECT id, username, is_active, created_at FROM app_users WHERE role = 'manager' ORDER BY created_at, id;")
+            return jsonify({'managers': cur.fetchall(), 'maximum': 3})
+
+        data = request.get_json(silent=True) or {}
+        username = (data.get('username') or '').strip()
+        password = data.get('password') or ''
+        if (not username or len(username) > 100
+                or not all(char.isalnum() or char in '._-' for char in username)):
+            return jsonify({'status': 'error', 'message': 'ชื่อผู้ใช้ใช้ได้เฉพาะตัวอักษร ตัวเลข จุด ขีด และขีดล่าง'}), 400
+        if len(password) < 6:
+            return jsonify({'status': 'error', 'message': 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'}), 400
+
+        # Serialise creation so simultaneous requests cannot exceed the limit.
+        cur.execute('SELECT pg_advisory_xact_lock(%s);', (3003,))
+        cur.execute("SELECT COUNT(*) AS total FROM app_users WHERE role = 'manager';")
+        if cur.fetchone()['total'] >= 3:
+            conn.rollback()
+            return jsonify({'status': 'error', 'message': 'มีบัญชีผู้จัดการครบสูงสุด 3 คนแล้ว'}), 409
+        cur.execute('SELECT 1 FROM app_users WHERE username = %s;', (username,))
+        if cur.fetchone():
+            conn.rollback()
+            return jsonify({'status': 'error', 'message': 'ชื่อผู้ใช้นี้ถูกใช้แล้ว'}), 409
+
+        cur.execute(
+            "INSERT INTO app_users (username, password_hash, role) VALUES (%s, %s, 'manager') RETURNING id, username, is_active, created_at;",
+            (username, generate_password_hash(password)),
+        )
+        manager = cur.fetchone()
+        conn.commit()
+        return jsonify({'status': 'success', 'message': 'เพิ่มผู้จัดการสำเร็จ', 'manager': manager}), 201
+    except Exception as exc:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(exc)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 @app.route('/finance')
 @manager_required
 def finance():

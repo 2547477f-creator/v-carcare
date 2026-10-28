@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         managerSettings.innerHTML = `
             <summary><i class="bi bi-person-gear me-2"></i>ตั้งค่าผู้จัดการ <i class="bi bi-chevron-down menu-chevron"></i></summary>
             <div class="management-submenu">
+                <a href="/managers"><i class="bi bi-people-fill me-2"></i>จัดการบัญชีผู้จัดการ</a>
                 <a href="/face-checkin?mode=enroll"><i class="bi bi-person-bounding-box me-2"></i>ลงทะเบียนใบหน้าผู้จัดการ</a>
                 <a href="/face-checkin?mode=verify-manager-change"><i class="bi bi-arrow-repeat me-2"></i>เปลี่ยนผู้จัดการ</a>
                 <a href="/face-checkin?mode=change-ip"><i class="bi bi-router-fill me-2"></i>ตั้งค่า IP เครื่องหลัก</a>
