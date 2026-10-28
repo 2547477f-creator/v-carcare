@@ -7,6 +7,7 @@ import os
 import time as clock
 import threading
 import uuid
+from zoneinfo import ZoneInfo
 
 import cv2
 from insightface.app import FaceAnalysis
@@ -60,6 +61,18 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get('RENDER') == 'true',
 )
 CORS(app, supports_credentials=True)
+
+# Attendance is entered in Thailand time. Render runs in UTC, so naive
+# datetimes would be treated as UTC by PostgreSQL and shifted by seven hours.
+THAI_TIMEZONE = ZoneInfo('Asia/Bangkok')
+
+
+def thailand_today():
+    return datetime.now(THAI_TIMEZONE).date()
+
+
+def thai_attendance_datetime(work_date, work_time):
+    return datetime.combine(work_date, work_time, tzinfo=THAI_TIMEZONE)
 
 
 @app.get('/health')
@@ -1822,7 +1835,7 @@ def mark_staff_leave():
         work_date = datetime.strptime((data.get('work_date') or '').strip(), '%Y-%m-%d').date()
     except ValueError:
         return jsonify({'status': 'error', 'message': 'กรุณาระบุวันที่ให้ถูกต้อง'}), 400
-    if not staff_id or work_date > date.today():
+    if not staff_id or work_date > thailand_today():
         return jsonify({'status': 'error', 'message': 'ไม่สามารถบันทึกการลาในวันอนาคตได้'}), 400
     conn = get_db_connection()
     cur = conn.cursor()
@@ -1903,20 +1916,20 @@ def backdate_staff_attendance():
             "message": "รูปแบบเวลาไม่ถูกต้อง ต้องเป็น HH:MM"
         }), 400
 
-    if work_date > date.today():
+    if work_date > thailand_today():
         return jsonify({
             "status": "error",
             "message": "ไม่สามารถบันทึกเวลาในอนาคตได้"
         }), 400
 
-    check_in_datetime = datetime.combine(
+    check_in_datetime = thai_attendance_datetime(
         work_date,
         check_in_time_only
     )
     check_out_datetime = None
     if check_out_time_str:
         try:
-            check_out_datetime = datetime.combine(
+            check_out_datetime = thai_attendance_datetime(
                 work_date, datetime.strptime(check_out_time_str, '%H:%M').time()
             )
         except ValueError:
@@ -2086,14 +2099,14 @@ def edit_staff_attendance():
     except ValueError:
         return jsonify({"status": "error", "message": "รูปแบบวันที่ไม่ถูกต้อง"}), 400
 
-    if work_date > date.today():
+    if work_date > thailand_today():
         return jsonify({"status": "error", "message": "ไม่สามารถแก้ไขเวลาของวันในอนาคตได้"}), 400
 
     check_in_datetime = None
     if check_in_time_str:
         try:
             check_in_time_only = datetime.strptime(check_in_time_str, '%H:%M').time()
-            check_in_datetime = datetime.combine(work_date, check_in_time_only)
+            check_in_datetime = thai_attendance_datetime(work_date, check_in_time_only)
         except ValueError:
             return jsonify({"status": "error", "message": "รูปแบบเวลาเข้างานไม่ถูกต้อง"}), 400
 
@@ -2101,7 +2114,7 @@ def edit_staff_attendance():
     if check_out_time_str:
         try:
             check_out_time_only = datetime.strptime(check_out_time_str, '%H:%M').time()
-            check_out_datetime = datetime.combine(work_date, check_out_time_only)
+            check_out_datetime = thai_attendance_datetime(work_date, check_out_time_only)
         except ValueError:
             return jsonify({"status": "error", "message": "รูปแบบเวลาออกงานไม่ถูกต้อง"}), 400
 

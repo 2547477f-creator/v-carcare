@@ -1116,6 +1116,7 @@
         return parsed.toLocaleTimeString("th-TH", {
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: "Asia/Bangkok",
         });
       }
 
@@ -1818,7 +1819,15 @@
           return "";
         }
 
-        return `${String(parsed.getHours()).padStart(2, "0")}:${String(parsed.getMinutes()).padStart(2, "0")}`;
+        const parts = new Intl.DateTimeFormat("en-GB", {
+          timeZone: "Asia/Bangkok",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        }).formatToParts(parsed);
+        const part = (type) => parts.find((item) => item.type === type)?.value;
+
+        return `${part("hour")}:${part("minute")}`;
       }
 
       function openAttendanceEdit(staffId) {
