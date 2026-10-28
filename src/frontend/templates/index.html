@@ -358,6 +358,22 @@
                 placeholder="ตัวอย่าง: กระจกมองข้างซ้ายเป็นรอย, หมวกกันน็อคในรถหาย"
               ></textarea>
             </div>
+            <div class="mb-1">
+              <label for="damageAmount" class="form-label"
+                >จำนวนเงินค่าความเสียหาย (บาท)</label
+              >
+              <input
+                id="damageAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                class="form-control bg-secondary text-white border-0"
+                placeholder="กรอกเมื่อมีค่าเสียหายเท่านั้น"
+              />
+              <small class="text-warning"
+                >เมื่อมีรายการเสียหาย ระบบจะตัดยอดนี้จากเงินกองกลาง และบันทึกเป็นรายจ่ายหมวดค่าเสียหาย</small
+              >
+            </div>
           </div>
           <div class="modal-footer border-secondary">
             <button
@@ -537,6 +553,7 @@
            let paymentOrderId = null;         // ไอดีของออเดอร์ที่กำลังทำการชำระเงิน
            let paymentTotalAmount = 0;        // ยอดเงินรวมที่ต้องชำระสำหรับออเดอร์นั้น
            let currentDamageNote = '';        // หมายเหตุความเสียหายของตัวรถ
+           let currentDamageAmount = 0;       // ค่าใช้จ่ายจากความเสียหาย/ของสูญหาย
            let isRefreshingDashboard = false; // ตัวควบคุมสถานะการรีเฟรชข้อมูล
 
            // พจนานุกรมแปลงรหัสสถานะภาษาอังกฤษเป็นภาษาไทย
@@ -646,6 +663,7 @@
                paymentOrderId = orderId;
                paymentTotalAmount = amount;
                document.getElementById('damageNote').value = '';
+               document.getElementById('damageAmount').value = '';
                bootstrap.Modal.getOrCreateInstance(document.getElementById('inspectionModal')).show();
            }
 
@@ -657,7 +675,21 @@
            // นำค่าหมายเหตุไปแสดงและเปลี่ยนไปยัง Modal ชำระเงิน
            function goToPaymentModal() {
                const rawNote = document.getElementById('damageNote').value.trim();
+               const rawAmount = document.getElementById('damageAmount').value;
+               const damageAmount = Number(rawAmount);
+
+               if (rawNote && (!Number.isFinite(damageAmount) || damageAmount <= 0)) {
+                   alert('กรุณาระบุจำนวนเงินค่าความเสียหายให้มากกว่า 0 บาท');
+                   document.getElementById('damageAmount').focus();
+                   return;
+               }
+               if (!rawNote && rawAmount !== '') {
+                   alert('กรุณาระบุหมายเหตุความเสียหายก่อนกรอกจำนวนเงิน');
+                   document.getElementById('damageNote').focus();
+                   return;
+               }
                currentDamageNote = rawNote !== '' ? rawNote : 'ไม่มีอะไรเสียหาย';
+               currentDamageAmount = rawNote ? damageAmount : 0;
 
                document.getElementById('displayDamageNote').innerText = currentDamageNote;
 
@@ -776,7 +808,8 @@
                        headers: { 'Content-Type': 'application/json' },
                        body: JSON.stringify({
                            payment_method: paymentMethod,
-                           damage_note: currentDamageNote // ส่งหมายเหตุความเสียหายไปยัง Backend
+                           damage_note: currentDamageNote,
+                           damage_amount: currentDamageAmount
                        })
                    });
                    const data = await res.json();

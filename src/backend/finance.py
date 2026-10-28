@@ -14,6 +14,10 @@ class FinanceWorkflow:
     TRANSACTION_TYPES = frozenset({'all', 'income', 'expense', 'central_fund'})
     PAYMENT_METHODS = frozenset({'all', 'cash', 'transfer'})
     FUND_ACTIVITIES = frozenset({'all', 'adjustment', 'fund_received'})
+    EXPENSE_CATEGORIES = frozenset({
+        'ค่าวัตถุดิบ', 'ค่าแรง/เงินเดือน', 'ค่าน้ำค่าไฟ',
+        'ค่าซ่อมบำรุง', 'ค่าอุปกรณ์', 'ค่าเสียหาย',
+    })
 
     @classmethod
     def normalize_transaction_type(cls, value):
@@ -91,6 +95,7 @@ def _register_finance_routes(app, dependencies):
         payment_method = FinanceWorkflow.normalize_payment_method(
             request.args.get('payment_method', 'all')
         )
+        expense_category = (request.args.get('expense_category') or '').strip()
         page, page_size = FinanceWorkflow.pagination(
             request.args.get('page'), request.args.get('page_size')
         )
@@ -129,13 +134,18 @@ def _register_finance_routes(app, dependencies):
                     type_filter_params = (transaction_type,)
             payment_filter_sql = '' if payment_method == 'all' else " AND COALESCE(f.payment_method, p.method) = %s"
             payment_filter_params = () if payment_method == 'all' else (payment_method,)
+            expense_category_filter_sql = ''
+            expense_category_filter_params = ()
+            if transaction_type == 'expense' and expense_category:
+                expense_category_filter_sql = ' AND f.category = %s'
+                expense_category_filter_params = (expense_category,)
     
             cur.execute(
                 """SELECT COUNT(*) AS total
                    FROM finance_transactions f
                    LEFT JOIN payments p ON p.order_id = f.order_id AND p.status = 'paid'
-                   WHERE f.occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + payment_filter_sql + ';',
-                (transaction_start_date, transaction_end_date) + type_filter_params + payment_filter_params
+                   WHERE f.occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + payment_filter_sql + expense_category_filter_sql + ';',
+                (transaction_start_date, transaction_end_date) + type_filter_params + payment_filter_params + expense_category_filter_params
             )
             total_transactions = cur.fetchone()['total']
             total_pages = max((total_transactions + page_size - 1) // page_size, 1)
@@ -143,19 +153,23 @@ def _register_finance_routes(app, dependencies):
     
             cur.execute(
                 """SELECT f.id, f.transaction_type, f.category, f.description, f.amount, f.occurred_at,
-                          COALESCE(f.payment_method, p.method) AS payment_method
+                          COALESCE(f.payment_method, p.method) AS payment_method,
+                          v.license_plate AS vehicle_plate
                    FROM finance_transactions f
                    LEFT JOIN payments p ON p.order_id = f.order_id AND p.status = 'paid'
-                   WHERE f.occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + payment_filter_sql + """
+                   LEFT JOIN service_orders o ON o.id = f.order_id
+                   LEFT JOIN vehicles v ON v.id = o.vehicle_id
+                   WHERE f.occurred_at::date BETWEEN %s AND %s""" + type_filter_sql + payment_filter_sql + expense_category_filter_sql + """
                    ORDER BY f.occurred_at DESC
                    LIMIT %s OFFSET %s;""",
-                (transaction_start_date, transaction_end_date) + type_filter_params + payment_filter_params + (page_size, (page - 1) * page_size)
+                (transaction_start_date, transaction_end_date) + type_filter_params + payment_filter_params + expense_category_filter_params + (page_size, (page - 1) * page_size)
             )
             transactions = cur.fetchall()
     
             return jsonify({
                 "period": period,
                 "transaction_type": transaction_type,
+                "expense_category": expense_category,
                 "payment_method": payment_method,
                 "start_date": str(start_date),
                 "end_date": str(end_date),
@@ -180,12 +194,16 @@ def _register_finance_routes(app, dependencies):
     def add_transaction():
         data = request.json or {}
         trans_type = data.get('transaction_type', 'expense')
-        category = data.get('category', 'general')
+        category = (data.get('category') or '').strip()
         amount = data.get('amount')
-        description = data.get('description', '')
+        description = (data.get('description') or '').strip()
     
         if trans_type not in ('income', 'expense') or amount is None:
             return jsonify({"status": "error", "message": "ข้อมูลไม่ถูกต้อง"}), 400
+        if trans_type == 'expense' and category not in FinanceWorkflow.EXPENSE_CATEGORIES:
+            return jsonify({"status": "error", "message": "กรุณาเลือกหมวดหมู่รายจ่าย"}), 400
+        if not description:
+            return jsonify({"status": "error", "message": "กรุณาระบุหมายเหตุรายการ"}), 400
         try:
             amount = float(amount)
         except (TypeError, ValueError):

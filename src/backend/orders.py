@@ -179,9 +179,24 @@ def _register_order_routes(app, dependencies):
     @app.route('/api/orders/<int:order_id>/payment', methods=['POST'])
     @login_required
     def pay_and_pick_up_order(order_id):
-        payment_method = (request.json or {}).get('payment_method', 'cash')
+        data = request.json or {}
+        payment_method = data.get('payment_method', 'cash')
         if not OrderWorkflow.is_valid_payment_method(payment_method):
             return jsonify({"status": "error", "message": "ช่องทางชำระเงินไม่ถูกต้อง"}), 400
+
+        damage_note = data.get('damage_note')
+        damage_note = damage_note.strip() if isinstance(damage_note, str) else ''
+        # Older clients submit this display value when no damage was reported.
+        if damage_note == 'ไม่มีอะไรเสียหาย':
+            damage_note = ''
+        try:
+            damage_amount = float(data.get('damage_amount') or 0)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "จำนวนเงินค่าความเสียหายไม่ถูกต้อง"}), 400
+        if damage_amount < 0:
+            return jsonify({"status": "error", "message": "จำนวนเงินค่าความเสียหายต้องไม่ติดลบ"}), 400
+        if bool(damage_note) != bool(damage_amount):
+            return jsonify({"status": "error", "message": "กรุณาระบุทั้งหมายเหตุและจำนวนเงินค่าความเสียหาย"}), 400
     
         conn = get_db_connection()
         cur = conn.cursor()
@@ -236,8 +251,22 @@ def _register_order_routes(app, dependencies):
                     cur, float(order['total_amount']), 'income', finance_transaction['description'],
                     finance_transaction_id=finance_transaction['id'], created_by=session.get('user_id')
                 )
-            damage_note = (request.json or {}).get('damage_note')
-            damage_note = damage_note.strip() if isinstance(damage_note, str) else None
+            if damage_amount:
+                damage_description = (
+                    f"ค่าเสียหาย/สิ่งของสูญหาย คิว {order['queue_no']} "
+                    f"(ทะเบียน {order['license_plate']}): {damage_note}"
+                )
+                cur.execute(
+                    """INSERT INTO finance_transactions
+                           (order_id, transaction_type, category, description, amount)
+                       VALUES (%s, 'expense', 'ค่าเสียหาย', %s, %s) RETURNING *;""",
+                    (order_id, damage_description, damage_amount)
+                )
+                damage_transaction = cur.fetchone()
+                _record_central_fund_movement(
+                    cur, -damage_amount, 'expense', damage_description,
+                    finance_transaction_id=damage_transaction['id'], created_by=session.get('user_id')
+                )
             cur.execute(
                 """UPDATE service_orders
                    SET status = 'picked_up', payment_method = %s, damage_note = %s, updated_at = NOW()

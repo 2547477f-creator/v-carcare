@@ -454,6 +454,27 @@
               </select>
             </div>
             <div
+              id="expense-category-filter-box"
+              class="col-6 col-md-auto d-none"
+            >
+              <select
+                id="expense-category-filter"
+                class="form-select form-select-sm form-control-custom"
+                style="max-width: 190px"
+                onchange="changeExpenseCategory()"
+              >
+                <option value="">ทุกหมวดรายจ่าย</option>
+                <option value="ค่าวัตถุดิบ">ค่าวัตถุดิบ</option>
+                <option value="ค่าแรง/เงินเดือน">ค่าแรง/เงินเดือน</option>
+                <option value="ค่าน้ำค่าไฟ">ค่าน้ำค่าไฟ</option>
+                <option value="ค่าซ่อมบำรุง">ค่าซ่อมบำรุง</option>
+                <option value="ค่าอุปกรณ์">ค่าอุปกรณ์</option>
+                <option value="ค่าเสียหาย">ค่าเสียหาย</option>
+                <option value="staff_advance">เบิกเงินพนักงาน</option>
+                <option value="attendance_bonus">โบนัสพนักงาน</option>
+              </select>
+            </div>
+            <div
               id="payment-method-filter-box"
               class="col-6 col-md-auto d-none"
             >
@@ -504,6 +525,7 @@
       let currentPage = 1;
       let currentTransactionType = "all";
       let currentPaymentMethod = "all";
+      let currentExpenseCategory = "";
       let historyPeriod = "current";
       let chartMbInstance = null;
       let chartPcInstance = null;
@@ -600,6 +622,7 @@
           page_size: 10,
           transaction_type: currentTransactionType,
           payment_method: currentPaymentMethod,
+          expense_category: currentExpenseCategory,
         });
         if (period === "custom" && start && end) {
           summaryParams.set("start", start);
@@ -998,13 +1021,24 @@
           "transaction-type-filter",
         ).value;
         const paymentBox = document.getElementById("payment-method-filter-box");
+        const expenseCategoryBox = document.getElementById(
+          "expense-category-filter-box",
+        );
         paymentBox.classList.toggle(
           "d-none",
           currentTransactionType !== "income",
         );
+        expenseCategoryBox.classList.toggle(
+          "d-none",
+          currentTransactionType !== "expense",
+        );
         if (currentTransactionType !== "income") {
           currentPaymentMethod = "all";
           document.getElementById("payment-method-filter").value = "all";
+        }
+        if (currentTransactionType !== "expense") {
+          currentExpenseCategory = "";
+          document.getElementById("expense-category-filter").value = "";
         }
         loadFinance(
           currentMode,
@@ -1017,6 +1051,18 @@
       function changePaymentMethod() {
         currentPaymentMethod = document.getElementById(
           "payment-method-filter",
+        ).value;
+        loadFinance(
+          currentMode,
+          document.getElementById("start-date").value,
+          document.getElementById("end-date").value,
+          1,
+        );
+      }
+
+      function changeExpenseCategory() {
+        currentExpenseCategory = document.getElementById(
+          "expense-category-filter",
         ).value;
         loadFinance(
           currentMode,
@@ -1116,6 +1162,7 @@
           page: 1,
           page_size: 100,
           transaction_type: currentTransactionType,
+          expense_category: currentExpenseCategory,
         });
         if (currentMode === "custom" && start && end) {
           exportParams.set("start", start);

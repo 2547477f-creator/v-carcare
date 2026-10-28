@@ -171,21 +171,36 @@
             <!-- Category Input -->
             <div class="col-md-3">
               <label class="form-label text-secondary">หมวดหมู่</label>
+              {% if transaction_type == 'expense' %}
+              <select id="category" class="form-select form-control-custom">
+                <option value="" selected disabled>เลือกหมวดรายจ่าย</option>
+                <option value="ค่าวัตถุดิบ">ค่าวัตถุดิบ</option>
+                <option value="ค่าแรง/เงินเดือน">ค่าแรง/เงินเดือน</option>
+                <option value="ค่าน้ำค่าไฟ">ค่าน้ำค่าไฟ</option>
+                <option value="ค่าซ่อมบำรุง">ค่าซ่อมบำรุง</option>
+                <option value="ค่าอุปกรณ์">ค่าอุปกรณ์</option>
+                <option value="ค่าเสียหาย">ค่าเสียหาย</option>
+              </select>
+              {% else %}
               <input
                 id="category"
                 class="form-control form-control-custom"
                 placeholder="เช่น ค่าบริการ, ค่าอุปกรณ์"
               />
+              {% endif %}
             </div>
 
             <!-- Description Input -->
             <div class="col-md-5">
-              <label class="form-label text-secondary">รายละเอียด</label>
+              <label class="form-label text-secondary">หมายเหตุ / รายละเอียด</label>
               <input
                 id="description"
                 class="form-control form-control-custom"
-                placeholder="ระบุรายละเอียดรายการ"
+                placeholder="ระบุรายละเอียดก่อนยืนยันจ่ายเงิน"
               />
+              {% if transaction_type == 'expense' %}
+              <small class="text-secondary">กรณีค่าเสียหาย ให้ระบุสาเหตุหรือรายการที่เสียหาย</small>
+              {% endif %}
             </div>
 
             <!-- Amount Input -->
@@ -207,7 +222,7 @@
                 class="btn {{ 'btn-success' if transaction_type == 'income' else 'bg-orange text-dark' }} fw-bold w-100"
                 onclick="saveTransaction()"
               >
-                บันทึกรายการ
+                ยืนยันจ่ายเงิน
               </button>
             </div>
           </div>
@@ -222,13 +237,14 @@
                 <tr>
                   <th>วัน-เวลา</th>
                   <th>หมวดหมู่</th>
+                  <th>ทะเบียนรถ</th>
                   <th>รายละเอียด</th>
                   <th class="text-end">จำนวนเงิน</th>
                 </tr>
               </thead>
               <tbody id="transaction-list">
                 <tr>
-                  <td colspan="4" class="text-secondary text-center py-3">
+                  <td colspan="5" class="text-secondary text-center py-3">
                     กำลังโหลดข้อมูล...
                   </td>
                 </tr>
@@ -269,6 +285,7 @@
                     <tr>
                         <td class="text-secondary">${new Date(item.occurred_at).toLocaleString("th-TH")}</td>
                         <td>${escapeHtml(item.category)}</td>
+                        <td class="text-info fw-semibold">${escapeHtml(item.vehicle_plate || "-")}</td>
                         <td>${escapeHtml(item.description)}</td>
                         <td class="text-end ${transactionType === "income" ? "text-success" : "text-danger"} fw-bold">
                             ${Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
@@ -277,21 +294,20 @@
                 `,
                 )
                 .join("")
-            : `<tr><td colspan="4" class="text-secondary text-center py-3">ยังไม่มีรายการ${typeLabel}</td></tr>`;
+            : `<tr><td colspan="5" class="text-secondary text-center py-3">ยังไม่มีรายการ${typeLabel}</td></tr>`;
         } catch (error) {
-          tbody.innerHTML = `<tr><td colspan="4" class="text-danger text-center py-3">${error.message}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="5" class="text-danger text-center py-3">${error.message}</td></tr>`;
         }
       }
 
       // บันทึกรายการธุรกรรมใหม่
       async function saveTransaction() {
-        const category =
-          document.getElementById("category").value.trim() || "general";
+        const category = document.getElementById("category").value.trim();
         const description = document.getElementById("description").value.trim();
         const amount = Number(document.getElementById("amount").value);
 
-        if (!description || !Number.isFinite(amount) || amount <= 0) {
-          return alert("กรุณากรอกรายละเอียดและจำนวนเงินให้ถูกต้อง");
+        if (!category || !description || !Number.isFinite(amount) || amount <= 0) {
+          return alert("กรุณาเลือกหมวดหมู่ กรอกหมายเหตุ และจำนวนเงินให้ถูกต้อง");
         }
 
         if (
