@@ -493,6 +493,11 @@ def _ensure_payroll_tables(cur):
 
 
 def _payroll_period_is_closed(cur, work_date):
+    # A period can only be frozen after its calendar month has ended.  This
+    # keeps current-month attendance editable even if an old/manual database
+    # record was mistakenly marked paid.
+    if work_date.replace(day=1) >= thailand_today().replace(day=1):
+        return False
     _ensure_payroll_tables(cur)
     period_start = work_date.replace(day=1)
     cur.execute(
