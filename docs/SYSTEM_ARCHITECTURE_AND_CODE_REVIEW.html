@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>V-CarCare System Architecture & Code Review</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=Fira+Code:wght@400;600&display=swap');
+
+@page {
+    size: A4;
+    margin: 18mm 15mm 18mm 15mm;
+    @bottom-right {
+        content: counter(page);
+    }
+}
+
+body {
+    font-family: 'Sarabun', 'Leelawadee UI', 'Tahoma', sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.6;
+    color: #1e293b;
+    background: #ffffff;
+    padding: 0;
+    margin: 0;
+}
+
+h1, h2, h3, h4 {
+    color: #0f172a;
+    font-weight: 700;
+    page-break-after: avoid;
+}
+
+h1 {
+    font-size: 20pt;
+    border-bottom: 3px solid #2563eb;
+    padding-bottom: 8px;
+    margin-top: 0;
+    margin-bottom: 16px;
+    color: #1e3a8a;
+}
+
+h2 {
+    font-size: 14pt;
+    border-bottom: 1.5px solid #cbd5e1;
+    padding-bottom: 6px;
+    margin-top: 24px;
+    margin-bottom: 12px;
+    color: #1e40af;
+}
+
+h3 {
+    font-size: 12pt;
+    margin-top: 18px;
+    margin-bottom: 8px;
+    color: #0369a1;
+}
+
+h4 {
+    font-size: 11pt;
+    margin-top: 14px;
+    margin-bottom: 6px;
+}
+
+p, ul, ol {
+    margin-top: 4px;
+    margin-bottom: 10px;
+}
+
+li {
+    margin-bottom: 3px;
+}
+
+code {
+    font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+    font-size: 9pt;
+    background-color: #f1f5f9;
+    color: #0f172a;
+    padding: 2px 5px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+}
+
+pre {
+    background-color: #0f172a;
+    color: #f8fafc;
+    padding: 12px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 8.5pt;
+    line-height: 1.45;
+    page-break-inside: avoid;
+    margin: 12px 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    border: none;
+    font-size: inherit;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 9pt;
+    page-break-inside: avoid;
+}
+
+th, td {
+    border: 1px solid #cbd5e1;
+    padding: 7px 10px;
+    text-align: left;
+    vertical-align: top;
+}
+
+th {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: 600;
+}
+
+tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+blockquote {
+    border-left: 4px solid #3b82f6;
+    background-color: #eff6ff;
+    padding: 8px 14px;
+    margin: 12px 0;
+    color: #1e40af;
+    border-radius: 0 6px 6px 0;
+    page-break-inside: avoid;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin: 20px 0;
+}
+
+a {
+    color: #2563eb;
+    text-decoration: none;
+}
+</style>
+</head>
+<body>
+<h1>คู่มือวิเคราะห์สถาปัตยกรรมและรีวิวโค้ดระบบ V-CarCare ฉบับสมบูรณ์</h1>
+<p><em>(Comprehensive System Architecture, Class Hierarchy, Security, and Database Analysis)</em></p>
+<hr />
+<h2>1. ภาพรวมสถาปัตยกรรมระบบ (System Architecture Overview)</h2>
+<p>ระบบ <strong>V-CarCare</strong> เป็นเว็บแอปพลิเคชันสำหรับบริหารจัดการธุรกิจคาร์แคร์แบบครบวงจร (POS, จัดการคิวล้างรถ, ระบบพนักงานและบันทึกเวลาด้วยการสแกนใบหน้า, ระบบบัญชีรายรับ-รายจ่ายและเงินกองกลาง, รวมถึงการแจ้งเตือนและติดตามสถานะผ่าน LINE Official Account)</p>
+<p>สถาปัตยกรรมถูกออกแบบในรูปแบบ <strong>Layered Architecture</strong> ผสมผสาน <strong>Object-Oriented Analysis &amp; Design (OOAD)</strong> ควบคู่กับ <strong>Composition Root Pattern</strong>:</p>
+<ul>
+<li><strong>Application Layer:</strong> [<code>VCarCareApplication</code>](file:///c:/projects/v-carcare/src/backend/main.py#L66-L72) ทำหน้าที่เป็น Composition Root รวมระบบทั้งหมดเข้าด้วยกัน</li>
+<li><strong>Domain &amp; Workflow Layer:</strong> แบ่งแยกกฎทางธุรกิจออกจาก Route Handler ชัดเจน เช่น [<code>OrderWorkflow</code>](file:///c:/projects/v-carcare/src/backend/orders.py#L82-L106), [<code>FinanceWorkflow</code>](file:///c:/projects/v-carcare/src/backend/finance.py#L11-L40), [<code>AttendanceService</code>](file:///c:/projects/v-carcare/src/backend/attendance.py#L13-L47)</li>
+<li><strong>Security &amp; Policy Layer:</strong> ระบบรักษาความปลอดภัยแบบหลายชั้น (Defense-in-Depth) ตั้งแต่ [Access Control Policy](file:///c:/projects/v-carcare/src/backend/security/access_control.py), [Rate Limiting](file:///c:/projects/v-carcare/src/backend/security/rate_limit.py), และ [Argon2id Password Hashing Engine](file:///c:/projects/v-carcare/src/backend/security/password_hashing.py)</li>
+<li><strong>Integration Boundary:</strong> เชื่อมต่อกับระบบภายนอกผ่าน Service เฉพาะทาง เช่น [<code>FaceEmbeddingService</code>](file:///c:/projects/v-carcare/src/backend/face_recognition.py#L17-L76) (InsightFace AI) และ [<code>LineMessagingService</code>](file:///c:/projects/v-carcare/src/backend/line_bot.py#L24-L126) (LINE Messaging API / LIFF)</li>
+<li><strong>Data Access Layer:</strong> เข้าถึง PostgreSQL ผ่าน [<code>DatabaseClient</code>](file:///c:/projects/v-carcare/src/backend/database.py#L11-L28) พร้อม Connection Pool และ Transaction Management</li>
+</ul>
+<hr />
+<h2>2. เจาะลึกรายไฟล์และคลาสในระบบ (File &amp; Class Deep Dive)</h2>
+<pre><code class="language-mermaid">classDiagram
+    class VCarCareApplication {
+        +Flask flask_app
+    }
+    class DatabaseClient {
+        -dict _config
+        +connect() connection
+        +local_network_ip()$ str
+    }
+    class AccessControlPolicy {
+        -frozenset _public_paths
+        +is_public(path) bool
+    }
+    class RateLimiter {
+        +defaultdict requests
+        +Lock lock
+        +limit(maximum, window_seconds) decorator
+    }
+    class AuthorizationService {
+        +is_authenticated()$ bool
+        +is_manager()$ bool
+    }
+    class AttendanceService {
+        -callable _connection_factory
+        -dict _cache
+        +configured_start_time() time
+        +calculate_status(check_in_at) tuple
+    }
+    class FaceEmbeddingService {
+        -Path _model_root
+        -str _model_name
+        -list _providers
+        -tuple _detection_size
+        -FaceAnalysis _app
+        -Lock _app_lock
+        +create_embedding(image_path) list~float~
+        +warm_up(static_folder) void
+        -_get_app() FaceAnalysis
+        -_face_area(face)$ float
+    }
+    class LineMessagingService {
+        +str channel_secret
+        +str channel_access_token
+        +str login_channel_id
+        -_opener
+        +is_configured() bool
+        +verify_access_token(access_token) dict
+        +verify_id_token(id_token) dict
+        +reply(reply_token, message) bool
+        +notify(line_user_id, message) bool
+    }
+    class OrderWorkflow {
+        +frozenset VALID_STATUSES
+        +frozenset PAYMENT_METHODS
+        +frozenset NOTIFIABLE_STATUSES
+        +is_valid_status(status)$ bool
+        +is_valid_payment_method(payment_method)$ bool
+        +status_timestamp_sql(status)$ str
+    }
+    class OrderApplication {
+        -dict _dependencies
+        +register_routes(app) void
+    }
+    class FinanceWorkflow {
+        +frozenset TRANSACTION_TYPES
+        +frozenset PAYMENT_METHODS
+        +frozenset FUND_ACTIVITIES
+        +frozenset EXPENSE_CATEGORIES
+        +normalize_transaction_type(value)$ str
+        +normalize_payment_method(value)$ str
+        +normalize_fund_activity(value)$ str
+        +pagination(page, page_size)$ tuple
+    }
+    class FinanceApplication {
+        -dict _dependencies
+        +register_routes(app) void
+    }
+    class AttendanceBonusApplication {
+        -callable _connection_factory
+        -callable _fund_movement_recorder
+        +register_routes(app) void
+    }
+    class LineLinkApplication {
+        -callable _connection_factory
+        +register_routes(app) void
+    }
+
+    VCarCareApplication --&gt; OrderApplication
+    VCarCareApplication --&gt; FinanceApplication
+    VCarCareApplication --&gt; AttendanceBonusApplication
+    VCarCareApplication --&gt; LineLinkApplication
+    OrderApplication --&gt; OrderWorkflow
+    FinanceApplication --&gt; FinanceWorkflow
+    LineLinkApplication --&gt; LineMessagingService
+    AttendanceService --&gt; DatabaseClient
+</code></pre>
+<hr />
+<h3>2.1 โครงสร้างไฟล์ราก (Root Directory Files)</h3>
+<h4>1. [<code>run.py</code>](file:///c:/projects/v-carcare/run.py)</h4>
+<ul>
+<li><strong>หน้าที่:</strong> จุดเริ่มต้นสำหรับรันแอปพลิเคชัน (Entry Point)</li>
+<li><strong>จุดสำคัญ:</strong>
+<ul>
+<li>มีฟังก์ชัน <code>_ssl_context()</code> ทำหน้าที่สลับ HTTPS อัตโนมัติ: หากรันบน Cloud (Render) จะส่งผ่าน TLS termination แต่ถ้ารันบน Localhost จะโหลดใบรับรองจาก <code>.certs/vcarcare-cert.pem</code> หรือใช้โหมด <code>adhoc</code> เพื่อให้กล้องในบราวเซอร์เข้าถึง API WebRTC สำหรับสแกนหน้าได้</li>
+<li>เรียก <code>warm_up_face_model()</code> เพื่อโหลดโมเดล AI ขึ้นหน่วยความจำล่วงหน้า</li>
+<li>เรียก <code>start_auto_shop_open_scheduler()</code> เพื่อรัน Background Thread ตรวจสอบเวลาเปิดร้านและตั้งเงินทอนอัตโนมัติ</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h3>2.2 โมดูลระบบฐานข้อมูลและการตั้งค่า (Configuration &amp; Database)</h3>
+<h4>2. [<code>src/backend/config.py</code>](file:///c:/projects/v-carcare/src/backend/config.py)</h4>
+<ul>
+<li><strong>หน้าที่:</strong> แหล่งรวมการตั้งค่าคงที่ (Constants) และการอ่าน Environment Variables</li>
+<li><strong>จุดสำคัญ:</strong>
+<ul>
+<li>รองรับทั้งการต่อฐานข้อมูลแยกตัวแปร (<code>DB_HOST</code>, <code>DB_NAME</code>, ...) และการเชื่อมต่อผ่าน <code>DATABASE_URL</code> (พร้อมถอดรหัส URL encoding และบังคับ <code>sslmode=require</code>)</li>
+<li>กำหนดค่าคงที่ทางธุรกิจ:
+<ul>
+<li><code>FACE_MATCH_DISTANCE_THRESHOLD = 0.42</code>: เกณฑ์ Cosine Distance สำหรับการยืนยันใบหน้า</li>
+<li><code>WORK_START_TIME = time(8, 0)</code>: เวลาเริ่มงานมาตรฐาน (08:00 น.)</li>
+<li><code>STAFF_WITHDRAWAL_MAX_PER_REQUEST = 3000</code>: ลิมิตการเบิกเงินล่วงหน้าต่อครั้ง</li>
+<li><code>STAFF_WITHDRAWAL_MAX_REQUESTS_PER_WEEK = 2</code>: สิทธิ์การเบิกต่อสัปดาห์</li>
+<li><code>CENTRAL_FUND_OPENING_FLOAT = 3000</code>: จำนวนเงินทอนตั้งต้นประจำวัน</li>
+<li><code>THAI_SERVICE_NAMES</code>: พจนานุกรมแปลรหัสบริการเป็นภาษาไทย</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h4>3. [<code>src/backend/database.py</code>](file:///c:/projects/v-carcare/src/backend/database.py)</h4>
+<ul>
+<li><strong>คลาส <code>DatabaseClient</code>:</strong>
+<ul>
+<li><strong>Attributes:</strong>
+<ul>
+<li><code>_config</code>: พารามิเตอร์การเชื่อมต่อ PostgreSQL</li>
+</ul>
+</li>
+<li><strong>Methods:</strong>
+<ul>
+<li><code>connect()</code>: คืนค่า Connection ของ <code>psycopg2</code> พร้อม <code>cursor_factory=RealDictCursor</code></li>
+<li><code>local_network_ip()</code> (Static): ตรวจจับ IP จริงของเครื่องใน LAN ผ่าน UDP socket ไปยัง <code>8.8.8.8:80</code> (ไม่ส่งข้อมูลจริง) เพื่อให้แท็บเล็ตหรือเครื่องสแกนหน้าภายนอกรู้ URL ปลายทาง</li>
+</ul>
+</li>
+<li><strong>Facade Functions:</strong> <code>get_db_connection()</code>, <code>get_local_network_ip()</code></li>
+</ul>
+</li>
+</ul>
+<hr />
+<h3>2.3 โมดูลความปลอดภัย (Security Modules)</h3>
+<h4>4. [<code>src/backend/security/password_hashing.py</code>](file:///c:/projects/v-carcare/src/backend/security/password_hashing.py)</h4>
+<ul>
+<li><strong>หน้าที่:</strong> กลไกการแฮชรหัสผ่านขั้นสูงระดับ Production</li>
+<li><strong>จุดสำคัญ:</strong>
+<ul>
+<li>ใช้ <strong>Argon2id</strong> (OWASP Standard): <code>time_cost=3</code>, <code>memory_cost=65536</code> (64 MB), <code>parallelism=4</code>, <code>salt_len=16</code>, <code>hash_len=32</code></li>
+<li><strong>Dual-Layer Protection (HMAC + Pepper):</strong> ฟังก์ชัน <code>_peppered_password()</code> นำรหัสผ่านมารวมกับ <code>PASSWORD_PEPPER</code> ผ่าน <code>HMAC-SHA256</code> ก่อนส่งเข้า Argon2id ป้องกันปัญหาเรื่องรหัสผ่านยาวเกินไปและเพิ่มความปลอดภัยหากฐานข้อมูลหลุด</li>
+<li><strong>Legacy Migration:</strong> ฟังก์ชัน <code>verify_legacy_werkzeug_password()</code> รองรับผู้ใช้เดิมที่เคยแฮชด้วย Werkzeug PBKDF2/Scrypt โดยจะยืนยันตัวตนได้และระบบจะแปลงเป็น Argon2id ทันทีผ่านฟังก์ชัน <code>_verify_and_upgrade_password()</code></li>
+</ul>
+</li>
+</ul>
+<h4>5. [<code>src/backend/security/access_control.py</code>](file:///c:/projects/v-carcare/src/backend/security/access_control.py)</h4>
+<ul>
+<li><strong>คลาส <code>AccessControlPolicy</code>:</strong>
+<ul>
+<li><strong>Attributes:</strong>
+<ul>
+<li><code>_public_paths</code>: เซ็ต <code>frozenset</code> ของ Path ที่อนุญาตให้เรียกได้โดยไม่ต้องล็อกอิน (เช่น <code>/login</code>, <code>/health</code>, <code>/track</code>, <code>/callback</code>, <code>/api/track/orders</code>, <code>/api/liff/register</code>)</li>
+</ul>
+</li>
+<li><strong>Methods:</strong>
+<ul>
+<li><code>is_public(path)</code>: ตรวจสอบแบบ Normalization ตัด trailing slashes และตรวจ Regex-like prefix สำหรับ Route ติดตามสถานะและรูปสแตติก</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>ฟังก์ชัน <code>require_authenticated_routes()</code>:</strong>
+<ul>
+<li>ทำหน้าที่เป็น <strong>Default-Deny Access Gate</strong> ใน Flask <code>before_request</code>: ทุกคำขอที่ไม่ใช่ Public Path และไม่มี <code>session['user_id']</code> จะถูกปฏิเสธทันที (ส่ง HTTP 401 ถ้าเป็น API หรือ Redirect ไป <code>/login</code> ถ้าเป็นหน้าเว็บ)</li>
+</ul>
+</li>
+</ul>
+<h4>6. [<code>src/backend/security/rate_limit.py</code>](file:///c:/projects/v-carcare/src/backend/security/rate_limit.py)</h4>
+<ul>
+<li><strong>คลาส <code>RateLimiter</code>:</strong>
+<ul>
+<li><strong>Attributes:</strong>
+<ul>
+<li><code>requests</code>: พจนานุกรม <code>defaultdict(deque)</code> เก็บ Timestamp ของแต่ละคำขอ แยกตามคีย์ <code>(function_name, client_ip)</code></li>
+<li><code>lock</code>: <code>threading.Lock</code> ป้องกัน Race condition เมื่อมีหลาย Thread เข้ามาพร้อมกัน</li>
+</ul>
+</li>
+<li><strong>Methods:</strong>
+<ul>
+<li><code>limit(maximum, window_seconds)</code>: Decorator จำกัดความถี่แบบ Sliding Window ป้องกันการโจมตีแบบ Brute-Force หากส่งคำขอเกินกำหนดจะคืนค่า HTTP <code>429 Too Many Requests</code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h4>7. [<code>src/backend/auth.py</code>](file:///c:/projects/v-carcare/src/backend/auth.py)</h4>
+<ul>
+<li><strong>คลาส <code>AuthorizationService</code>:</strong>
+<ul>
+<li><strong>Methods:</strong>
+<ul>
+<li><code>is_authenticated()</code>: ตรวจสอบความมีอยู่ของ Session <code>user_id</code></li>
+<li><code>is_manager()</code>: ตรวจสอบสิทธิ์ว่าเป็นผู้จัดการ (<code>role == 'manager'</code>)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>Decorators:</strong>
+<ul>
+<li><code>@login_required</code>: ป้องกัน Route สำหรับผู้ใช้ทั่วไป</li>
+<li><code>@manager_required</code>: บังคับสิทธิ์เฉพาะผู้จัดการ หากไม่ใช่จะส่ง HTTP 403 หรือ Redirect กลับหน้า POS พร้อมแจ้งเตือน</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h3>2.4 โมดูลงานบริการและกฎทางธุรกิจ (Business Logic &amp; Workflows)</h3>
+<h4>8. [<code>src/backend/attendance.py</code>](file:///c:/projects/v-carcare/src/backend/attendance.py)</h4>
+<ul>
+<li><strong>คลาส <code>AttendanceService</code>:</strong>
+<ul>
+<li><strong>Attributes:</strong>
+<ul>
+<li><code>_connection_factory</code>: ฟังก์ชันเปิดการเชื่อมต่อ DB</li>
+<li><code>_cache</code>: ระบบ In-memory cache เวลาเปิดร้าน (<code>loaded_at</code>, <code>time</code>) มี TTL 60 วินาที เพื่อลดภาระการคิวรีฐานข้อมูล</li>
+</ul>
+</li>
+<li><strong>Methods:</strong>
+<ul>
+<li><code>configured_start_time()</code>: ดึงเวลาเข้างานจากตาราง <code>system_settings</code> (<code>auto_shop_open_time</code>) หากไม่มีจะใช้ <code>WORK_START_TIME</code> (08:00)</li>
+<li><code>calculate_status(check_in_at)</code>: คำนวณสถานะการลงเวลา:
+<ul>
+<li>ถ้า <code>check_in_at &lt;= start_time</code> -&gt; <code>on_time</code>, <code>late_minutes = 0</code></li>
+<li>ถ้า <code>check_in_at &gt; start_time</code> -&gt; <code>late</code>, คำนวณจำนวนนาทีที่สายจริง</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h4>9. [<code>src/backend/face_recognition.py</code>](file:///c:/projects/v-carcare/src/backend/face_recognition.py)</h4>
+<ul>
+<li><strong>คลาส <code>FaceEmbeddingService</code>:</strong>
+<ul>
+<li><strong>Attributes:</strong>
+<ul>
+<li><code>_model_root</code>: โฟลเดอร์เก็บไฟล์โมเดล ONNX (<code>.models/</code>)</li>
+<li><code>_model_name</code>: <code>buffalo_sc</code></li>
+<li><code>_detection_size</code>: ขนาดภาพตรวจจับ <code>(320, 320)</code></li>
+<li><code>_app</code>: ตัวแปรเก็บอินสแตนซ์โมเดล InsightFace</li>
+<li><code>_app_lock</code>: Mutex Lock ป้องกันการ Initialize โมเดลซ้อนกันใน Multi-thread</li>
+</ul>
+</li>
+<li><strong>Methods:</strong>
+<ul>
+<li><code>_get_app()</code>: โครงสร้างแบบ <strong>Double-Checked Locking Singleton</strong> โหลดโมเดล InsightFace เมื่อจำเป็น (Lazy Loading)</li>
+<li><code>_face_area(face)</code>: คำนวณขนาด Bounding box ของใบหน้า</li>
+<li><code>create_embedding(image_path)</code>: ค้นหาใบหน้าที่ใหญ่ที่สุดในภาพ แล้วคืนค่า Normalised Vector 512 มิติ (<code>list[float]</code>)</li>
+<li><code>warm_up(static_folder)</code>: กระตุ้นการโหลดโมเดลเข้าหน่วยความจำตั้งแต่บูตระบบ</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h4>10. [<code>src/backend/orders.py</code>](file:///c:/projects/v-carcare/src/backend/orders.py)</h4>
+<ul>
+<li><strong>คลาส <code>OrderWorkflow</code> (Domain Rules):</strong>
+<ul>
+<li><strong>Attributes:</strong>
+<ul>
+<li><code>VALID_STATUSES</code>: <code>pending</code>, <code>in_progress</code>, <code>drying</code>, <code>ready</code>, <code>completed</code>, <code>picked_up</code>, <code>cancelled</code></li>
+<li><code>PAYMENT_METHODS</code>: <code>cash</code>, <code>transfer</code>, <code>card</code>, <code>other</code></li>
+<li><code>NOTIFIABLE_STATUSES</code>: สถานะที่ต้องยิงแจ้งเตือนเข้า LINE (<code>in_progress</code>, <code>ready</code>, <code>completed</code>)</li>
+</ul>
+</li>
+<li><strong>Methods:</strong>
+<ul>
+<li><code>is_valid_status()</code>, <code>is_valid_payment_method()</code></li>
+<li><code>status_timestamp_sql(status)</code>: กำหนดฟิลด์เวลาที่จะบันทึกเมื่อเปลี่ยนสถานะ (<code>started_at</code>, <code>completed_at</code>)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>คลาส <code>OrderApplication</code> (Composition Root):</strong>
+<ul>
+<li>ตรวจสอบ Dependency Injection ครบถ้วนก่อนลงทะเบียน Route</li>
+</ul>
+</li>
+<li><strong>จุดสำคัญใน Route Handlers:</strong>
+<ul>
+<li>ฟังก์ชัน <code>build_line_status_message()</code>: ประกอบ Flex Message สีสันสวยงามตามสถานะส่งหาลูกค้าทาง LINE</li>
+<li>จัดการ Flow การชำระเงิน: เมื่อลูกค้าชำระเงิน จะบันทึกตาราง <code>payments</code> พร้อมทั้งส่งยอดเงินเข้า <code>finance_transactions</code> และส่งเงินสดเข้า <code>central_fund</code> โดยอัตโนมัติ</li>
+</ul>
+</li>
+</ul>
+<h4>11. [<code>src/backend/finance.py</code>](file:///c:/projects/v-carcare/src/backend/finance.py)</h4>
+<ul>
+<li><strong>คลาส <code>FinanceWorkflow</code> (Domain Rules):</strong>
+<ul>
+<li>ตรวจสอบความถูกต้องและจัดรูปแบบ (Normalize) ตัวกรองการเงิน: ประเภทรายการ (<code>income</code>, <code>expense</code>, <code>central_fund</code>), วิธีชำระเงิน (<code>cash</code>, <code>transfer</code>), และหมวดหมู่ค่าใช้จ่าย</li>
+</ul>
+</li>
+<li><strong>คลาส <code>FinanceApplication</code> (Composition Root):</strong>
+<ul>
+<li>รับ Dependency และลงทะเบียนระบบบัญชี</li>
+</ul>
+</li>
+<li><strong>จุดสำคัญใน Route Handlers:</strong>
+<ul>
+<li><strong>ระบบเงินทอนหน้าร้าน (Daily Cash Float):</strong> ควบคุมการเปิดร้าน (<code>/api/central-fund/open</code>) โดยดึงเงิน 3,000 บาทจากกองกลางมาเป็นเงินทอน และการปิดร้าน (<code>/api/central-fund/close-cash-float</code>) นำเงินทอนพร้อมเงินสดที่รับระหว่างวันกลับคืนเข้ากองกลาง</li>
+<li><strong>ระบบบัญชีคุมยอด (Central Fund Movement Ledger):</strong> บันทึกการเพิ่ม/ลด/ปรับยอดเงินกองกลางทุกรายการอย่างโปร่งใส</li>
+</ul>
+</li>
+</ul>
+<h4>12. [<code>src/backend/staff.py</code>](file:///c:/projects/v-carcare/src/backend/staff.py)</h4>
+<ul>
+<li><strong>คลาส <code>AttendanceBonusApplication</code>:</strong>
+<ul>
+<li>ลงทะเบียน Endpoint คำนวณเบี้ยขยันประจำเดือน</li>
+</ul>
+</li>
+<li><strong>จุดสำคัญใน Route Handlers:</strong>
+<ul>
+<li>ฟังก์ชัน <code>attendance_bonus()</code>: คัดกรองพนักงานที่ได้เบี้ยขยัน โดยนับจำนวนวันที่มาทำงาน (<code>attended_days &gt; 0</code>) และต้องไม่มีวันที่สาย ขาด หรือลาเลย (<code>disqualifying_days == 0</code>)</li>
+<li>ฟังก์ชัน <code>pay_attendance_bonus()</code>: บันทึกการจ่ายเบี้ยขยันลงใน <code>attendance_bonus_payouts</code>, สร้างรายการรายจ่ายใน <code>finance_transactions</code>, และตัดยอดเงินกองกลางทันที</li>
+</ul>
+</li>
+</ul>
+<h4>13. [<code>src/backend/line_bot.py</code>](file:///c:/projects/v-carcare/src/backend/line_bot.py)</h4>
+<ul>
+<li><strong>คลาส <code>LineMessagingService</code>:</strong>
+<ul>
+<li><strong>Attributes:</strong>
+<ul>
+<li><code>channel_secret</code>, <code>channel_access_token</code>, <code>login_channel_id</code></li>
+</ul>
+</li>
+<li><strong>Methods:</strong>
+<ul>
+<li><code>verify_access_token(access_token)</code>: ตรวจสอบความถูกต้องของ Access Token กับ LINE OAuth</li>
+<li><code>verify_id_token(id_token)</code>: ถอดรหัสและตรวจสอบ JWT ID Token ที่ได้จาก LIFF SDK เพื่อยืนยันตัวตนลูกค้า</li>
+<li><code>reply(reply_token, message)</code>: ตอบกลับข้อความใน Webhook</li>
+<li><code>notify(line_user_id, message)</code>: ส่ง Push Notification หาผู้ใช้เป็นรายบุคคล</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h4>14. [<code>src/backend/line_link.py</code>](file:///c:/projects/v-carcare/src/backend/line_link.py)</h4>
+<ul>
+<li><strong>คลาส <code>LineLinkApplication</code>:</strong>
+<ul>
+<li>ควบคุมการผูกรถกับบัญชี LINE</li>
+</ul>
+</li>
+<li><strong>จุดสำคัญใน Route Handlers:</strong>
+<ul>
+<li><strong>LIFF Registration Flow (<code>/api/liff/register</code>):</strong> อนุญาตให้ลูกค้ากรอกทะเบียนรถและเบอร์โทรผ่านหน้าเว็บ LIFF เพื่อผูกบัญชี LINE กับรถได้ทันที</li>
+<li><strong>Conversational Webhook State Machine (<code>/callback</code>):</strong> บอทโต้ตอบผ่าน LINE Chat โดยจำสถานะการสนทนาในตาราง <code>line_registration_sessions</code> เพื่อให้ลูกค้าพิมพ์ ทะเบียนรถ -&gt; จังหวัด -&gt; เบอร์โทร ในแชทได้</li>
+</ul>
+</li>
+</ul>
+<h4>15. [<code>src/backend/main.py</code>](file:///c:/projects/v-carcare/src/backend/main.py)</h4>
+<ul>
+<li><strong>คลาส <code>VCarCareApplication</code>:</strong>
+<ul>
+<li>ประกอบร่าง Flask App, กำหนด Path ของ Jinja Template และ Static File, ตั้งค่า Session Cookie Security, และเปิดใช้งาน CORS</li>
+</ul>
+</li>
+<li><strong>จุดสำคัญในไฟล์:</strong>
+<ul>
+<li><strong>Scheduler เปิดร้านอัตโนมัติ (<code>_auto_shop_open_loop</code>):</strong> Background Daemon Thread ที่ทำงานทุกนาที ตรวจสอบว่าถึงเวลาเปิดร้านที่ผู้จัดการตั้งไว้หรือไม่ และทำการเปิดร้านพร้อมดึงเงินทอนให้โดยอัตโนมัติ</li>
+<li><strong>ระบบสแกนใบหน้าเข้า-ออกงานและรีเซ็ตรหัสผ่าน:</strong>
+<ul>
+<li><code>face_login()</code>: ตรวจสอบใบหน้าเพื่อล็อกอินเข้าสู่ระบบ</li>
+<li><code>staff_face_checkout()</code>: สแกนหน้าเพื่อบันทึกเวลาเลิกงาน</li>
+<li><code>verify_password_reset_face()</code> &amp; <code>reset_password_with_face()</code>: ให้ผู้จัดการสแกนหน้าเพื่อรีเซ็ตรหัสผ่านเมื่อลืมรหัสผ่าน</li>
+<li>มีการตรวจสอบ Terminal IP เพื่อความปลอดภัย</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2>3. สถาปัตยกรรมความปลอดภัยและการจัดเก็บข้อมูล (Security Architecture &amp; Storage)</h2>
+<p>ระบบความปลอดภัยแบ่งออกเป็น 6 มิติหลัก:</p>
+<pre><code>[ ผู้ใช้ส่งคำขอ ]
+       │
+       ▼
+1. Rate Limiting (จำกัดความถี่ต่อ IP + Thread Safe Lock)
+       │
+       ▼
+2. Access Control Gate (Default-Deny Policy: ดักจับ Route ทั้งหมด)
+       │
+       ▼
+3. Role-Based Access Control (RBAC: session['role'] == manager / staff)
+       │
+       ▼
+4. ระบบยืนยันตัวตน (Authentication &amp; Biometrics)
+   ├── รหัสผ่าน: Argon2id + HMAC-SHA256 (Secret Pepper) + Dynamic Salt
+   ├── สแกนหน้า: InsightFace (Buffalo_sc) + ตรวจสอบ Primary Terminal IP
+   ├── LINE Tokens: LIFF JWT Signature Verification &amp; Token Expiry
+   └── การเงิน: Double-entry Audit Ledger (บันทึกยอดก่อน-หลังเสมอ)
+</code></pre>
+<h3>รายละเอียดการจัดเก็บในฐานข้อมูล:</h3>
+<table>
+<thead>
+<tr>
+<th>หมวดความปลอดภัย</th>
+<th>เทคโนโลยีที่ใช้</th>
+<th>ตารางและคอลัมน์ใน Database ที่จัดเก็บ</th>
+<th>มาตรการป้องกันและความปลอดภัย</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>รหัสผ่านผู้ใช้</strong></td>
+<td><strong>Argon2id</strong> (64MB, 3 iterations) + HMAC-SHA256 Pepper</td>
+<td><code>app_users.password_hash</code> (TEXT)</td>
+<td>แฮชถูกเข้ารหัสด้วย Salt สุ่ม 16 bytes ในรูปแบบ PHC string และใช้ Pepper จากตัวแปร Environment นอกฐานข้อมูล ป้องกัน Rainbow Table และ GPU Cracking</td>
+</tr>
+<tr>
+<td><strong>ข้อมูลใบหน้า</strong></td>
+<td><strong>InsightFace</strong> (Cosine Distance Threshold &lt;= 0.42)</td>
+<td><code>face_profiles.embedding</code> (BYTEA) และ <code>face_profiles.image_path</code> (TEXT)</td>
+<td>แปลงใบหน้าเป็น Normalized Vector 512 มิติ และแปลงเป็น JSON Bytes เก็บในฐานข้อมูล รูปภาพจริงเก็บในโฟลเดอร์จำกัดสิทธิ์</td>
+</tr>
+<tr>
+<td><strong>จำกัดสิทธิ์เครื่องสแกน</strong></td>
+<td>Primary Terminal IP Whitelisting</td>
+<td><code>system_settings</code> (setting_key = 'primary_face_scan_ip')</td>
+<td>สแกนหน้าได้เฉพาะเครื่องที่ลงทะเบียนเป็นเครื่องหลักของร้านเท่านั้น ป้องกันการแอบถ่ายรูปสแกนจากนอกร้าน</td>
+</tr>
+<tr>
+<td><strong>คุกกี้เซสชัน</strong></td>
+<td>Flask Signed Cookies</td>
+<td>เก็บฝั่ง Client Browser</td>
+<td>บังคับแฟล็ก <code>HttpOnly=True</code> (กัน XSS ขโมยคุกกี้), <code>SameSite='Lax'</code> (กัน CSRF), และ <code>Secure=True</code> เมื่อรันบน HTTPS</td>
+</tr>
+<tr>
+<td><strong>การเชื่อมต่อ LINE</strong></td>
+<td>Secure Token &amp; State Machine</td>
+<td><code>vehicle_line_links.link_token</code>, <code>expires_at</code>, <code>revoked_at</code></td>
+<td>โทเค็นผูกรถถูกสร้างแบบสุ่ม ปลอดภัย มีวันหมดอายุ และมีคำสั่งเพิกถอนสิทธิ์ได้ทันที</td>
+</tr>
+<tr>
+<td><strong>บัญชีเงินกองกลาง</strong></td>
+<td>Immutable Movement Ledger</td>
+<td><code>central_fund_transactions</code> (<code>balance_before</code>, <code>balance_after</code>, <code>created_by</code>)</td>
+<td>บันทึกประวัติยอดเงินก่อนและหลังเปลี่ยนแปลงทุกครั้งพร้อมผู้กระทำ ห้ามอัปเดตยอดเงินลอยๆ</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>4. โครงสร้างฐานข้อมูลอย่างละเอียดทั้ง 21 ตาราง (Database Schema)</h2>
+<p>ฐานข้อมูลประกอบด้วย 21 ตารางที่ทำงานสอดประสานกัน:</p>
+<h3>4.1 ตารางระบบผู้ใช้และพนักงาน (Users &amp; Staff)</h3>
+<ol>
+<li><strong><code>app_users</code></strong>
+<ul>
+<li>บัญชีผู้ใช้งานระบบ (ผู้จัดการ และ พนักงาน)</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>username</code>, <code>password_hash</code>, <code>role</code> (CHECK: 'manager', 'staff'), <code>staff_id</code> (FK -&gt; <code>staff.id</code>), <code>is_active</code>, <code>created_at</code></li>
+</ul>
+</li>
+<li><strong><code>staff</code></strong>
+<ul>
+<li>ทะเบียนประวัติพนักงาน</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>employee_code</code>, <code>full_name</code>, <code>phone</code>, <code>role</code>, <code>daily_wage</code>, <code>is_active</code>, <code>created_at</code></li>
+</ul>
+</li>
+<li><strong><code>staff_attendance</code></strong>
+<ul>
+<li>บันทึกการลงเวลาเข้า-ออกงาน</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>staff_id</code> (FK -&gt; <code>staff.id</code>), <code>work_date</code>, <code>check_in_at</code>, <code>check_out_at</code>, <code>status</code> (CHECK: 'on_time', 'late', 'leave', 'absent'), <code>late_minutes</code></li>
+</ul>
+</li>
+<li><strong><code>face_profiles</code></strong>
+<ul>
+<li>ข้อมูลเวกเตอร์ใบหน้าสำหรับสแกนเข้าสู่ระบบ</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>staff_id</code> (FK), <code>app_user_id</code> (FK), <code>image_path</code>, <code>embedding</code> (BYTEA), <code>model_name</code>, <code>created_at</code></li>
+</ul>
+</li>
+<li><strong><code>staff_withdrawals</code></strong>
+<ul>
+<li>ประวัติการขอเบิกเงินล่วงหน้าของพนักงาน</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>staff_id</code> (FK), <code>request_amount</code>, <code>approved_amount</code>, <code>withdraw_week</code>, <code>withdraw_year</code>, <code>status</code> ('pending', 'approved', 'rejected', 'paid', 'cancelled'), <code>approved_by</code> (FK -&gt; <code>app_users.id</code>)</li>
+</ul>
+</li>
+<li><strong><code>attendance_bonus_payouts</code></strong>
+<ul>
+<li>ประวัติการจ่ายเงินเบี้ยขยัน</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>staff_id</code> (FK), <code>bonus_month</code>, <code>amount</code>, <code>finance_transaction_id</code> (FK), <code>approved_by</code> (FK), <code>created_at</code></li>
+</ul>
+</li>
+</ol>
+<hr />
+<h3>4.2 ตารางลูกค้าและยานพาหนะ (Customers &amp; Vehicles)</h3>
+<ol start="7">
+<li><strong><code>customers</code></strong>
+<ul>
+<li>ข้อมูลลูกค้า</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>full_name</code>, <code>phone</code> (Unique per customer lookup), <code>line_id</code>, <code>created_at</code></li>
+</ul>
+</li>
+<li><strong><code>vehicles</code></strong>
+<ul>
+<li>ทะเบียนและข้อมูลยานพาหนะ</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>customer_id</code> (FK -&gt; <code>customers.id</code>), <code>license_plate</code>, <code>province</code>, <code>category</code> (S, M, L, XL, XXL), <code>size_code</code>, <code>brand</code>, <code>model</code>, <code>color</code></li>
+</ul>
+</li>
+<li><strong><code>vehicle_edit_history</code></strong>
+<ul>
+<li>ประวัติการแก้ไขข้อมูลรถ (Audit Log)</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>vehicle_id</code> (FK), <code>customer_id</code> (FK), <code>before_data</code> (JSONB), <code>after_data</code> (JSONB), <code>edited_by</code> (FK -&gt; <code>app_users.id</code>), <code>edited_at</code></li>
+</ul>
+</li>
+</ol>
+<hr />
+<h3>4.3 ตารางบริการและโปรโมชั่น (Services &amp; Pricing)</h3>
+<ol start="10">
+<li><strong><code>services</code></strong>
+<ul>
+<li>แคตตาล็อกบริการของคาร์แคร์</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>code</code>, <code>name</code>, <code>category</code>, <code>estimated_minutes</code>, <code>is_active</code></li>
+</ul>
+</li>
+<li><strong><code>service_prices</code></strong>
+<ul>
+<li>ตารางกำหนดราคาบริการตามขนาดรถ</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>service_id</code> (FK -&gt; <code>services.id</code>), <code>category</code> (ขนาดรถ เช่น S, M, L), <code>price</code></li>
+</ul>
+</li>
+<li><strong><code>promotions</code></strong>
+<ul>
+<li>แคมเปญส่วนลดและโปรโมชั่น</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>name</code>, <code>description</code>, <code>discount_type</code> ('percent', 'fixed'), <code>discount_value</code>, <code>starts_at</code>, <code>ends_at</code>, <code>is_active</code></li>
+</ul>
+</li>
+</ol>
+<hr />
+<h3>4.4 ตารางคำสั่งซื้อและการชำระเงิน (Orders &amp; Payments)</h3>
+<ol start="13">
+<li><strong><code>service_orders</code></strong>
+<ul>
+<li>คำสั่งซื้อหลัก (คิวบริการ)</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>queue_no</code>, <code>vehicle_id</code> (FK), <code>customer_id</code> (FK), <code>total_amount</code>, <code>discount_amount</code>, <code>net_amount</code>, <code>payment_method</code>, <code>status</code> ('pending', 'in_progress', 'drying', 'ready', 'completed', 'picked_up', 'cancelled'), <code>damage_note</code>, <code>started_at</code>, <code>completed_at</code></li>
+</ul>
+</li>
+<li><strong><code>service_order_items</code></strong>
+<ul>
+<li>รายการบริการย่อยที่เลือกลงในออเดอร์</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>order_id</code> (FK -&gt; <code>service_orders.id</code>), <code>service_id</code> (FK), <code>service_code</code>, <code>service_name</code>, <code>price</code></li>
+</ul>
+</li>
+<li><strong><code>payments</code></strong>
+<ul>
+<li>บันทึกการชำระเงินของแต่ละออเดอร์</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>order_id</code> (FK -&gt; <code>service_orders.id</code>), <code>method</code> ('cash', 'transfer', 'card', 'other'), <code>amount</code>, <code>paid_at</code>, <code>status</code> ('pending', 'paid', 'void')</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h3>4.5 ตารางการเงินและเงินกองกลาง (Finance &amp; Central Fund)</h3>
+<ol start="16">
+<li><strong><code>finance_transactions</code></strong>
+<ul>
+<li>รายการเดินบัญชีรายรับ-รายจ่ายของร้าน</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>order_id</code> (FK), <code>staff_id</code> (FK), <code>transaction_type</code> ('income', 'expense'), <code>category</code>, <code>description</code>, <code>amount</code>, <code>payment_method</code>, <code>occurred_at</code></li>
+</ul>
+</li>
+<li><strong><code>central_fund</code></strong>
+<ul>
+<li>ยอดเงินกองกลางและเงินทอน (Singleton Row: <code>id = 1</code>)</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK=1), <code>balance</code>, <code>cash_float_balance</code>, <code>opening_balance</code>, <code>shop_opened_at</code>, <code>updated_at</code></li>
+</ul>
+</li>
+<li><strong><code>central_fund_transactions</code></strong>
+<ul>
+<li>บันทึกความเคลื่อนไหวเงินกองกลางแบบละเอียด</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>movement_type</code> ('income', 'expense', 'opening_float', 'closing_float', 'adjustment', 'fund_received'), <code>amount</code>, <code>balance_before</code>, <code>balance_after</code>, <code>description</code>, <code>finance_transaction_id</code> (FK), <code>created_by</code> (FK -&gt; <code>app_users.id</code>), <code>opening_date</code>, <code>occurred_at</code></li>
+</ul>
+</li>
+</ol>
+<hr />
+<h3>4.6 ตารางระบบ LINE และการตั้งค่า (LINE Integration &amp; Settings)</h3>
+<ol start="19">
+<li><strong><code>vehicle_line_links</code></strong>
+<ul>
+<li>ความสัมพันธ์ระหว่างรถกับบัญชี LINE ของลูกค้า</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>id</code> (PK), <code>vehicle_id</code> (FK), <code>customer_id</code> (FK), <code>line_user_id</code>, <code>link_token</code>, <code>linked_at</code>, <code>expires_at</code>, <code>revoked_at</code></li>
+</ul>
+</li>
+<li><strong><code>line_registration_sessions</code></strong>
+<ul>
+<li>Session State การสนทนาลงทะเบียนรถผ่าน LINE Chatbot</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>line_user_id</code> (PK), <code>step</code>, <code>license_plate</code>, <code>province</code>, <code>phone</code>, <code>updated_at</code></li>
+</ul>
+</li>
+<li><strong><code>system_settings</code></strong>
+<ul>
+<li>คอนฟิกระบบแบบ Key-Value</li>
+<li><strong>คอลัมน์สำคัญ:</strong> <code>setting_key</code> (PK), <code>setting_value</code>, <code>updated_at</code></li>
+</ul>
+</li>
+</ol>
+<hr />
+<h2>5. การวิเคราะห์การเชื่อมโยงตารางและการ JOIN ในระบบ (In-Depth Join Analysis)</h2>
+<p>ในระบบ V-CarCare มีการทำ SQL JOIN รวมทั้งหมด <strong>11 จุดสำคัญ</strong>:</p>
+<pre><code class="language-mermaid">erDiagram
+    customers ||--o{ vehicles : &quot;owns&quot;
+    vehicles ||--o{ service_orders : &quot;services&quot;
+    customers ||--o{ service_orders : &quot;places&quot;
+    service_orders ||--o{ service_order_items : &quot;contains&quot;
+    service_orders ||--o{ payments : &quot;paid_by&quot;
+    service_orders ||--o{ finance_transactions : &quot;generates&quot;
+    services ||--o{ service_prices : &quot;priced_at&quot;
+    vehicles ||--o{ vehicle_line_links : &quot;linked_to&quot;
+    staff ||--o{ staff_attendance : &quot;logs&quot;
+    staff ||--o{ staff_withdrawals : &quot;requests&quot;
+    app_users ||--o{ staff_withdrawals : &quot;approves&quot;
+    app_users ||--o{ face_profiles : &quot;authenticates&quot;
+    finance_transactions ||--o| central_fund_transactions : &quot;audits&quot;
+</code></pre>
+<hr />
+<h3>รายละเอียดการ JOIN ในแต่ละจุด:</h3>
+<h4>1. การดึงรายการออเดอร์ในหน้าคิวและประวัติ (Order Queue &amp; History)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/orders.py</code>](file:///c:/projects/v-carcare/src/backend/orders.py#L171-L174)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT o.id AS order_id, o.queue_no, o.status, o.total_amount,
+       v.license_plate, v.province, v.category AS vehicle_category,
+       c.phone
+FROM service_orders o
+JOIN vehicles v ON o.vehicle_id = v.id
+JOIN customers c ON o.customer_id = c.id
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>service_orders.vehicle_id = vehicles.id</code></li>
+<li><code>service_orders.customer_id = customers.id</code></li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> คำสั่งซื้อเก็บเพียง ID อ้างอิง จึงต้อง JOIN ตาราง <code>vehicles</code> เพื่อนำเลขทะเบียน/หมวดหมู่ขนาดรถ และ JOIN ตาราง <code>customers</code> เพื่อนำเบอร์โทรติดต่อมาแสดงผลบนกระดานคิว</li>
+</ul>
+<hr />
+<h4>2. การค้นหาผู้ใช้ LINE เพื่อยิงแจ้งเตือนสถานะรถ (LINE Push Notification)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/orders.py</code>](file:///c:/projects/v-carcare/src/backend/orders.py#L226-L230)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT l.line_user_id, v.license_plate
+FROM service_orders o
+JOIN vehicles v ON v.id = o.vehicle_id
+JOIN vehicle_line_links l ON l.vehicle_id = v.id
+WHERE o.id = %s 
+  AND l.line_user_id IS NOT NULL 
+  AND l.revoked_at IS NULL 
+  AND l.expires_at &gt; NOW();
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>service_orders.vehicle_id = vehicles.id</code></li>
+<li><code>vehicle_line_links.vehicle_id = vehicles.id</code></li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> เมื่อพนักงานกดเปลี่ยนสถานะเป็น &quot;กำลังล้าง&quot; หรือ &quot;ล้างเสร็จแล้ว&quot; ระบบจะ JOIN ข้ามจากออเดอร์ไปยังรถ แล้วค้นหาว่ารถคันนี้ผูกอยู่กับ LINE User ID ใดที่มีสิทธิ์ถูกต้องและยังไม่หมดอายุ เพื่อส่ง Flex Message แจ้งเตือนลูกค้าแบบ Real-time</li>
+</ul>
+<hr />
+<h4>3. การออกรายงานรายรับ-รายจ่ายและรายการเดินบัญชี (Finance Ledger)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/finance.py</code>](file:///c:/projects/v-carcare/src/backend/finance.py#L158-L162)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT f.id, f.transaction_type, f.category, f.amount, f.occurred_at,
+       COALESCE(f.payment_method, p.method) AS payment_method,
+       v.license_plate AS vehicle_plate
+FROM finance_transactions f
+LEFT JOIN payments p ON p.order_id = f.order_id AND p.status = 'paid'
+LEFT JOIN service_orders o ON o.id = f.order_id
+LEFT JOIN vehicles v ON v.id = o.vehicle_id
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>finance_transactions.order_id = payments.order_id</code></li>
+<li><code>finance_transactions.order_id = service_orders.id</code></li>
+<li><code>service_orders.vehicle_id = vehicles.id</code></li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> ใช้ <code>LEFT JOIN</code> 3 ชั้น เพื่อดึงรายละเอียดว่ารายรับแต่ละก้อนเกิดขึ้นจากออเดอร์ใด ชำระด้วยวิธีไหน (เงินสด/โอน) และมาจากรถทะเบียนอะไร โดยที่รายการรายจ่ายทั่วไป (เช่น ค่าอุปกรณ์) ที่ไม่มีเลขออเดอร์จะยังคงแสดงผลได้ครบถ้วน</li>
+</ul>
+<hr />
+<h4>4. การดึงราคาบริการตามขนาดของรถ (Service Pricing per Vehicle Category)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/orders.py</code>](file:///c:/projects/v-carcare/src/backend/orders.py#L437-L440)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT s.id AS service_id, s.code, s.name, s.estimated_minutes, sp.price
+FROM services s
+JOIN service_prices sp ON s.id = sp.service_id
+WHERE sp.category = %s AND s.is_active = TRUE;
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>services.id = service_prices.service_id</code></li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> เนื่องจากรถแต่ละขนาด (S, M, L, XL, XXL) มีอัตราค่าบริการต่างกัน การ JOIN นี้ช่วยให้ระบบ POS ดึงเฉพาะราคาที่ตรงกับขนาดของรถคันที่กำลังเปิดบิลได้อย่างถูกต้อง</li>
+</ul>
+<hr />
+<h4>5. การยืนยันตัวตนด้วยใบหน้า (Face Login &amp; Identification)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/main.py</code>](file:///c:/projects/v-carcare/src/backend/main.py#L273-L277)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT fp.id, fp.app_user_id, fp.staff_id, fp.embedding, au.role, au.username
+FROM face_profiles fp
+JOIN app_users au ON au.id = fp.app_user_id
+WHERE au.is_active = TRUE;
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>face_profiles.app_user_id = app_users.id</code></li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> เมื่อกล้องตรวจจับใบหน้าได้ เวกเตอร์ใบหน้าจะถูกนำมาจับคู่กับข้อมูลใน <code>face_profiles</code> และ JOIN เข้ากับ <code>app_users</code> เพื่อนำ Role และ Username ไปสร้าง Session เข้าสู่ระบบให้ผู้ใช้ทันที</li>
+</ul>
+<hr />
+<h4>6. การดึงข้อมูลพนักงานพร้อมเวลาเข้างานประจำวัน (Daily Staff Attendance)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/main.py</code>](file:///c:/projects/v-carcare/src/backend/main.py#L1465-L1470)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT s.id, s.employee_code, s.full_name, s.role, s.daily_wage,
+       sa.check_in_at, sa.check_out_at, sa.status, sa.late_minutes
+FROM staff s
+LEFT JOIN staff_attendance sa ON sa.staff_id = s.id AND sa.work_date = %s
+WHERE s.is_active = TRUE;
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>staff.id = staff_attendance.staff_id</code></li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> ใช้ <code>LEFT JOIN</code> เพื่อให้หน้าจอแดชบอร์ดแสดงรายชื่อพนักงานที่กำลังปฏิบัติงานทุกคน แม้ว่าพนักงานบางคนจะยังไม่ได้สแกนนิ้ว/สแกนหน้าเข้างานในวันนั้นก็ตาม</li>
+</ul>
+<hr />
+<h4>7. การตรวจสอบการเบิกเงินล่วงหน้าของพนักงาน (Staff Advance Withdrawals)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/main.py</code>](file:///c:/projects/v-carcare/src/backend/main.py#L2424-L2427)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT sw.*, s.full_name AS staff_name, s.employee_code,
+       approver.username AS approver_name
+FROM staff_withdrawals sw
+JOIN staff s ON s.id = sw.staff_id
+LEFT JOIN app_users approver ON approver.id = sw.approved_by;
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>staff_withdrawals.staff_id = staff.id</code></li>
+<li><code>staff_withdrawals.approved_by = approver.id</code> (ตาราง <code>app_users</code>)</li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> นำข้อมูลคำขอเบิกเงินมาจับคู่กับชื่อพนักงานผู้ขอ และแสดงชื่อผู้จัดการที่กดอนุมัติรายการ เพื่อความโปร่งใสในการตรวจสอบบัญชี</li>
+</ul>
+<hr />
+<h4>8. การคำนวณเบี้ยขยันประจำเดือน (Attendance Bonus Qualification)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/staff.py</code>](file:///c:/projects/v-carcare/src/backend/staff.py#L86-L95)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT s.id, s.employee_code, s.full_name,
+       COUNT(sa.id) FILTER (WHERE sa.check_in_at IS NOT NULL) AS attended_days,
+       COUNT(sa.id) FILTER (WHERE sa.status IN ('late', 'leave', 'absent') OR sa.check_in_at IS NULL) AS disqualifying_days,
+       p.id AS payout_id, p.amount AS paid_amount, p.created_at AS paid_at
+FROM staff s
+LEFT JOIN staff_attendance sa ON sa.staff_id = s.id 
+     AND sa.work_date &gt;= %s AND sa.work_date &lt; %s
+LEFT JOIN attendance_bonus_payouts p ON p.staff_id = s.id 
+     AND p.bonus_month = %s
+WHERE s.is_active = true AND s.created_at::date &lt; %s
+GROUP BY s.id, s.employee_code, s.full_name, p.id, p.amount, p.created_at;
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>staff.id = staff_attendance.staff_id</code> (ช่วงวันที่ของเดือน)</li>
+<li><code>staff.id = attendance_bonus_payouts.staff_id</code> (เดือนเดียวกัน)</li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> ทำการประมวลผลประวัติเข้างานทั้งเดือนของพนักงานเพื่อหาว่าเข้าเกณฑ์เบี้ยขยันหรือไม่ (ต้องมาทำงานและไม่มีวันมาสาย/ขาด/ลา) และตรวจว่าได้รับเงินเบี้ยขยันของเดือนนั้นไปแล้วหรือยัง</li>
+</ul>
+<hr />
+<h4>9. การค้นหาข้อมูลรถและประวัติเจ้าของรถ (Vehicle &amp; Customer Lookup)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/orders.py</code>](file:///c:/projects/v-carcare/src/backend/orders.py#L617-L620)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT v.id AS vehicle_id, v.license_plate, v.province, v.category, v.size_code,
+       c.id AS customer_id, c.phone, c.full_name
+FROM vehicles v 
+JOIN customers c ON c.id = v.customer_id
+WHERE v.license_plate = %s AND v.province = %s;
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>vehicles.customer_id = customers.id</code></li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> ในหน้า POS เมื่อกรอกทะเบียนรถและจังหวัด ระบบจะดึงข้อมูลรถพร้อมชื่อและเบอร์โทรของเจ้าของรถขึ้นมาอัตโนมัติ ช่วยลดเวลาการคีย์ข้อมูลซ้ำ</li>
+</ul>
+<hr />
+<h4>10. การตรวจสอบสิทธิ์การรีเซ็ตรหัสผ่านของผู้จัดการผ่านการสแกนหน้า</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/main.py</code>](file:///c:/projects/v-carcare/src/backend/main.py#L992-L995)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT au.id, au.username, au.role, s.full_name
+FROM app_users au 
+JOIN staff s ON s.id = au.staff_id
+WHERE au.id = %s;
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่ JOIN:</strong>
+<ul>
+<li><code>app_users.staff_id = staff.id</code></li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> เมื่อผู้จัดการสแกนหน้าผ่านเพื่อขอรีเซ็ตรหัสผ่าน ระบบจะ JOIN ตรวจสอบว่าบัญชีนี้ผูกอยู่กับพนักงานคนใด เพื่อยืนยันตัวตนก่อนอนุญาตให้ตั้งรหัสผ่านใหม่</li>
+</ul>
+<hr />
+<h4>11. การรวมบริการย่อยในคำสั่งซื้อ (Correlated Aggregation)</h4>
+<ul>
+<li><strong>ไฟล์:</strong> [<code>src/backend/orders.py</code>](file:///c:/projects/v-carcare/src/backend/orders.py#L167-L170)</li>
+<li><strong>คำสั่ง SQL:</strong><pre><code class="language-sql">SELECT o.id,
+       COALESCE(
+         (SELECT string_agg(soi.service_name, ' + ' ORDER BY soi.id)
+          FROM service_order_items soi WHERE soi.order_id = o.id),
+         ''
+       ) AS services_summary
+FROM service_orders o;
+</code></pre>
+</li>
+<li><strong>คู่คีย์ที่เชื่อมโยง:</strong>
+<ul>
+<li><code>service_order_items.order_id = service_orders.id</code></li>
+</ul>
+</li>
+<li><strong>เหตุผลทางธุรกิจ:</strong> รวมรายการบริการย่อยทั้งหมดในออเดอร์มาเป็นข้อความสรุปชุดเดียว (เช่น &quot;ล้างสี + ดูดฝุ่น + เคลือบสี&quot;) สำหรับแสดงผลในตารางคิวและใบเสร็จ</li>
+</ul>
+<hr />
+<h2>สรุปจุดเด่นของระบบ (System Architecture Highlights)</h2>
+<ol>
+<li><strong>สถาปัตยกรรมแบบแยกส่วน (Modularity):</strong> แยกความรับผิดชอบชัดเจนระหว่าง Controller, Service Layer, Domain Validation, และ Infrastructure Adapter</li>
+<li><strong>ความปลอดภัยมาตรฐานระดับสูง:</strong> ใช้ Argon2id ร่วมกับ HMAC Pepper, ป้องกัน Brute-force ด้วย Rate Limiting แบบ In-memory Sliding Window, และบังคับ Default-Deny Access Gate</li>
+<li><strong>การประมวลผลไบโอเมตริกที่มีประสิทธิภาพ:</strong> InsightFace Buffalo_sc ทำงานแบบ Singleton Lazy-loading พร้อม Double-Checked Lock และ Cosine Distance Threshold สำหรับความแม่นยำสูง</li>
+<li><strong>ความถูกต้องทางบัญชี:</strong> ระบบเงินกองกลาง (Central Fund) ทำงานแบบ Double-Entry Ledger ไม่เปิดให้แก้ไขยอดเงินโดยตรง ทุกรายการต้องมี Transaction Id, ผู้กระทำ และบันทึกยอดก่อน-หลังเสมอ</li>
+</ol>
+
+</body>
+</html>

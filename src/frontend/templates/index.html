@@ -69,7 +69,7 @@
   </style>
   {% endif %}
 
-  <body>
+  <body data-is-manager="{{ 'true' if session_role == 'manager' else 'false' }}">
     <!-- ==================== Mobile View ==================== -->
     <div class="d-block d-md-none p-3">
       <div class="fb-nav-tabs mb-3">
@@ -207,7 +207,7 @@
               >
             </div>
           </div>
-
+ 
           <div class="row g-3 mb-4">
             <div class="col-md-6">
               <div class="card-custom p-4 border-start border-orange border-5">
@@ -900,7 +900,8 @@
            }
 
            async function loadTodaySummary() {
-               {% if session_role == 'manager' %}
+               if (document.body.dataset.isManager !== 'true') return;
+
                try {
                    const res = await fetch('/api/finance/summary?period=day');
                    if (!res.ok) return;
@@ -914,7 +915,6 @@
                } catch (err) {
                    console.error(err);
                }
-               {% endif %}
            }
 
            async function refreshAll() {
