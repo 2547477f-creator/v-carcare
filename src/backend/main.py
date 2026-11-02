@@ -24,7 +24,6 @@ from flask import (
 from flask_cors import CORS
 import numpy as np
 import psycopg2
-from werkzeug.security import check_password_hash, generate_password_hash
 
 from .auth import login_required, manager_required
 from .config import (
@@ -38,6 +37,25 @@ from .database import (
 )
 from .line_bot import LINE_LIFF_ID, line_messaging_service
 from .line_link import register_line_link_routes
+from .security import hash_password, needs_rehash, verify_legacy_werkzeug_password, verify_password
+
+
+def _verify_and_upgrade_password(cursor, table, record_id, hash_column, stored_hash, password):
+    """Verify a credential and transparently replace legacy/obsolete hashes."""
+    if verify_password(password, stored_hash):
+        if needs_rehash(stored_hash):
+            cursor.execute(
+                f"UPDATE {table} SET {hash_column} = %s WHERE id = %s;",
+                (hash_password(password), record_id),
+            )
+        return True
+    if verify_legacy_werkzeug_password(password, stored_hash):
+        cursor.execute(
+            f"UPDATE {table} SET {hash_column} = %s WHERE id = %s;",
+            (hash_password(password), record_id),
+        )
+        return True
+    return False
 
 # ===================================================================
 # ⚙️ 0. ตั้งค่า Environment Variable & Path
@@ -677,7 +695,10 @@ def login():
                     (username,)
                 )
                 user = cur.fetchone()
-                if user and check_password_hash(user['password_hash'], password):
+                if user and _verify_and_upgrade_password(
+                    cur, 'app_users', user['id'], 'password_hash', user['password_hash'], password
+                ):
+                    conn.commit()
                     session['user_id'] = user['id']
                     session['role'] = 'manager'
                     session['staff_id'] = None
@@ -698,7 +719,16 @@ def login():
                     flash("ไม่พบพนักงานนี้ หรือยังไม่ได้ตั้งรหัส PIN กรุณาติดต่อผู้จัดการ", "error")
                     return redirect(url_for('login'))
 
-                if check_password_hash(staff['pin_hash'], pin_code):
+                if _verify_and_upgrade_password(
+                    cur, 'staff', staff['id'], 'pin_hash', staff['pin_hash'], pin_code
+                ):
+                    # Staff credentials are duplicated for face-reset account lookup.
+                    cur.execute(
+                        "UPDATE app_users SET password_hash = (SELECT pin_hash FROM staff WHERE id = %s) "
+                        "WHERE staff_id = %s AND role = 'staff';",
+                        (staff['id'], staff['id']),
+                    )
+                    conn.commit()
                     session['user_id'] = f"staff-{staff['id']}"
                     session['role'] = 'staff'
                     session['staff_id'] = staff['id']
@@ -895,7 +925,7 @@ def managers_api():
 
         cur.execute(
             "INSERT INTO app_users (username, password_hash, role) VALUES (%s, %s, 'manager') RETURNING id, username, is_active, created_at;",
-            (username, generate_password_hash(password)),
+            (username, hash_password(password)),
         )
         manager = cur.fetchone()
         conn.commit()
@@ -993,12 +1023,28 @@ def reset_password_with_face():
     conn = get_db_connection(); cur = conn.cursor()
     try:
         if role == 'manager':
-            cur.execute("UPDATE app_users SET password_hash = %s WHERE id = %s AND role = 'manager' AND is_active = true;", (generate_password_hash(password), user_id))
+            cur.execute("UPDATE app_users SET password_hash = %s WHERE id = %s AND role = 'manager' AND is_active = true;", (hash_password(password), user_id))
         else:
+            new_pin_hash = hash_password(password)
             cur.execute("""UPDATE staff SET pin_hash = %s WHERE id = (
                              SELECT staff_id FROM app_users WHERE id = %s AND role = 'staff' AND is_active = true
-                         );""", (generate_password_hash(password), user_id))
-        if cur.rowcount != 1:
+                         );""", (new_pin_hash, user_id))
+            cur.execute(
+                "UPDATE app_users SET password_hash = %s WHERE id = %s AND role = 'staff' AND is_active = true;",
+                (new_pin_hash, user_id),
+            )
+        if role == 'staff':
+            # The account-sync UPDATE has its own row count; confirm that the
+            # corresponding staff PIN was updated instead.
+            cur.execute(
+                "SELECT 1 FROM staff WHERE id = (SELECT staff_id FROM app_users WHERE id = %s AND role = 'staff') "
+                "AND pin_hash = %s;",
+                (user_id, new_pin_hash),
+            )
+            password_was_updated = cur.fetchone() is not None
+        else:
+            password_was_updated = cur.rowcount == 1
+        if not password_was_updated:
             conn.rollback()
             return jsonify({"status": "error", "message": "ไม่พบบัญชีที่ยืนยันไว้"}), 404
         conn.commit()
@@ -1305,7 +1351,7 @@ def setup_admin():
                 "account": {"username": "admin", "password": "admin123", "role": "manager"}
             }), 200
 
-        hashed_password = generate_password_hash('admin123')
+        hashed_password = hash_password('admin123')
         cur.execute(
             "INSERT INTO app_users (username, password_hash, role) VALUES (%s, %s, 'manager') RETURNING id, username, role;",
             ('admin', hashed_password)
@@ -1332,9 +1378,8 @@ def setup_staff_pins():
     try:
         cur.execute("SELECT id, full_name FROM staff WHERE pin_hash IS NULL;")
         staff_without_pin = cur.fetchall()
-        default_hash = generate_password_hash('1234')
         for s in staff_without_pin:
-            cur.execute("UPDATE staff SET pin_hash = %s WHERE id = %s;", (default_hash, s['id']))
+            cur.execute("UPDATE staff SET pin_hash = %s WHERE id = %s;", (hash_password('1234'), s['id']))
         conn.commit()
         return jsonify({
             "status": "success",
@@ -1593,7 +1638,7 @@ def add_staff():
         next_no = cur.fetchone()['max_no'] + 1
         employee_code = f"S{next_no:02d}"
 
-        pin_hash = generate_password_hash(str(pin_code))
+        pin_hash = hash_password(str(pin_code))
 
         cur.execute(
             """INSERT INTO staff (employee_code, full_name, "position", daily_wage, pin_hash)

@@ -87,12 +87,16 @@ class LineMessagingService:
         }, 'LINE reply failed')
 
     def notify(self, line_user_id, message):
+        """Send a push notification using either text or a LINE message payload."""
         if not line_user_id or not self.channel_access_token:
             logger.info('LINE notification skipped: account is not linked or LINE is not configured')
             return False
+        line_message = message if isinstance(message, dict) else {
+            'type': 'text', 'text': str(message)[:5000],
+        }
         sent = self._send('https://api.line.me/v2/bot/message/push', {
             'to': line_user_id,
-            'messages': [{'type': 'text', 'text': message[:5000]}],
+            'messages': [line_message],
         }, 'LINE notification failed')
         if sent:
             logger.info('LINE notification sent')

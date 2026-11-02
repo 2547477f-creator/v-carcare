@@ -1,6 +1,7 @@
 # Production dependencies for Render (Python 3.12).
 Flask==3.0.3
 flask-cors==4.0.1
+argon2-cffi==23.1.0
 psycopg2-binary==2.9.9
 python-dotenv>=1.0,<2.0
 numpy==1.26.4

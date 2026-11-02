@@ -12,6 +12,73 @@ from .auth import login_required, manager_required
 logger = logging.getLogger(__name__)
 
 
+LINE_STATUS_STYLES = {
+    'in_progress': {
+        'label': 'กำลังล้างรถ',
+        'description': 'รถของคุณกำลังอยู่ระหว่างการล้างทำความสะอาด',
+        'color': '#F57C00',
+    },
+    'ready': {
+        'label': 'พร้อมรับรถ',
+        'description': 'รถของคุณพร้อมให้รับบริการแล้ว',
+        'color': '#0288D1',
+    },
+    'completed': {
+        'label': 'ล้างเสร็จแล้ว',
+        'description': 'รถของคุณล้างเสร็จเรียบร้อยแล้ว พร้อมรับรถได้เลย',
+        'color': '#2E7D32',
+    },
+}
+
+
+def build_line_status_message(license_plate, status):
+    """Build a color-coded LINE Flex Message for customer order updates."""
+    style = LINE_STATUS_STYLES[status]
+    return {
+        'type': 'flex',
+        'altText': f'V CARCARE: รถทะเบียน {license_plate} {style["label"]}',
+        'contents': {
+            'type': 'bubble',
+            'body': {
+                'type': 'box',
+                'layout': 'vertical',
+                'spacing': 'md',
+                'contents': [
+                    {
+                        'type': 'text',
+                        'text': 'V CARCARE',
+                        'weight': 'bold',
+                        'color': '#555555',
+                        'size': 'sm',
+                    },
+                    {
+                        'type': 'text',
+                        'text': style['label'],
+                        'weight': 'bold',
+                        'color': style['color'],
+                        'size': 'xl',
+                        'wrap': True,
+                    },
+                    {
+                        'type': 'text',
+                        'text': f'รถทะเบียน {license_plate}',
+                        'color': '#333333',
+                        'size': 'md',
+                        'wrap': True,
+                    },
+                    {
+                        'type': 'text',
+                        'text': style['description'],
+                        'color': '#777777',
+                        'size': 'sm',
+                        'wrap': True,
+                    },
+                ],
+            },
+        },
+    }
+
+
 class OrderWorkflow:
     """Domain rules shared by the order route handlers."""
 
@@ -163,8 +230,10 @@ def _register_order_routes(app, dependencies):
                                    ORDER BY l.linked_at DESC LIMIT 1;''', (order_id,))
                     recipient = cur.fetchone()
                     if recipient and recipient.get('line_user_id'):
-                        status_text = {'in_progress': 'กำลังดำเนินการ', 'ready': 'พร้อมรับรถ', 'completed': 'เสร็จเรียบร้อยแล้ว'}[new_status]
-                        send_line_notification(recipient['line_user_id'], f'V CARCARE\nรถทะเบียน {recipient["license_plate"]}\n{status_text}')
+                        send_line_notification(
+                            recipient['line_user_id'],
+                            build_line_status_message(recipient['license_plate'], new_status),
+                        )
                 except Exception:
                     logger.warning('LINE notification skipped after order status update')
             return jsonify({"status": "success", "order": updated_order}), 200

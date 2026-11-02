@@ -67,6 +67,7 @@ export DB_NAME=v_carcare
 export DB_USER=postgres
 export DB_PASSWORD=รหัสผ่านจริงของคุณ
 export DB_PORT=5432
+export PASSWORD_PEPPER=generate-a-long-random-secret-and-keep-it-out-of-the-database
 export SECRET_KEY=สุ่มข้อความยาวๆ-สำหรับ-session
 ```
 
