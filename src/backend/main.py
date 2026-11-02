@@ -431,6 +431,153 @@ def _record_central_fund_movement(cur, amount, movement_type, description,
     return cur.fetchone()
 
 
+def _ensure_payroll_tables(cur):
+    """Create the monthly payroll ledger.  A completed period is immutable."""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payroll_periods (
+            period_start DATE PRIMARY KEY,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'paid')),
+            total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+            paid_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS payroll_entries (
+            id BIGSERIAL PRIMARY KEY,
+            period_start DATE NOT NULL REFERENCES payroll_periods(period_start) ON DELETE RESTRICT,
+            staff_id BIGINT NOT NULL REFERENCES staff(id) ON DELETE RESTRICT,
+            work_days INTEGER NOT NULL DEFAULT 0,
+            daily_wage NUMERIC(12,2) NOT NULL DEFAULT 0,
+            amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+            finance_transaction_id BIGINT REFERENCES finance_transactions(id) ON DELETE SET NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (period_start, staff_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_payroll_entries_period
+            ON payroll_entries(period_start, staff_id);
+    """)
+    # Payroll belongs to the month being closed, even when the automated
+    # payment runs after midnight in the following month.
+    cur.execute("""
+        UPDATE finance_transactions AS finance
+        SET occurred_at = (
+            (entry.period_start + INTERVAL '1 month' - INTERVAL '1 second')
+            AT TIME ZONE 'Asia/Bangkok'
+        )
+        FROM payroll_entries AS entry
+        WHERE finance.id = entry.finance_transaction_id
+          AND finance.occurred_at::date <>
+              (entry.period_start + INTERVAL '1 month' - INTERVAL '1 day')::date;
+    """)
+
+
+def _payroll_period_is_closed(cur, work_date):
+    _ensure_payroll_tables(cur)
+    period_start = work_date.replace(day=1)
+    cur.execute(
+        "SELECT 1 FROM payroll_periods WHERE period_start = %s AND status = 'paid';",
+        (period_start,)
+    )
+    return cur.fetchone() is not None
+
+
+def _run_monthly_payroll():
+    """Pay at 23:59 on month-end; recover an unpaid prior period after downtime."""
+    now = datetime.now(THAI_TIMEZONE)
+    today = now.date()
+    current_month = today.replace(day=1)
+    next_month = (current_month.replace(day=28) + timedelta(days=4)).replace(day=1)
+    is_month_end = today == next_month - timedelta(days=1)
+
+    if is_month_end and now.time() >= time(23, 59):
+        # Normal path: salaries are paid from the central fund on the final
+        # minute of the month they belong to.
+        period_start, period_end = current_month, next_month
+    else:
+        # If the application was offline at month-end, settle the previous
+        # period at the first later scheduler run, while retaining its
+        # month-end accounting date.
+        period_start = (current_month - timedelta(days=1)).replace(day=1)
+        period_end = current_month
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        _ensure_payroll_tables(cur)
+        _ensure_central_fund_tables(cur)
+        cur.execute(
+            "INSERT INTO payroll_periods (period_start) VALUES (%s) ON CONFLICT DO NOTHING;",
+            (period_start,)
+        )
+        cur.execute(
+            "SELECT status FROM payroll_periods WHERE period_start = %s FOR UPDATE;",
+            (period_start,)
+        )
+        period = cur.fetchone()
+        if period['status'] == 'paid':
+            conn.commit()
+            return False
+
+        cur.execute("""
+            SELECT s.id, s.full_name, COALESCE(s.daily_wage, 0) AS daily_wage,
+                   COUNT(sa.id) FILTER (WHERE sa.check_in_at IS NOT NULL) AS work_days
+            FROM staff s
+            JOIN staff_attendance sa ON sa.staff_id = s.id
+                AND sa.work_date >= %s AND sa.work_date < %s
+            GROUP BY s.id, s.full_name, s.daily_wage
+            HAVING COUNT(sa.id) FILTER (WHERE sa.check_in_at IS NOT NULL) > 0
+            ORDER BY s.id;
+        """, (period_start, period_end))
+        staff_rows = cur.fetchall()
+        total = sum(float(row['daily_wage']) * int(row['work_days']) for row in staff_rows)
+        cur.execute("SELECT balance FROM central_fund WHERE id = 1 FOR UPDATE;")
+        fund = cur.fetchone()
+        if float(fund['balance']) + 0.00001 < total:
+            # Keep the period pending. The next scheduler run retries after funds are added.
+            conn.commit()
+            return False
+
+        for row in staff_rows:
+            amount = float(row['daily_wage']) * int(row['work_days'])
+            payroll_occurred_at = datetime.combine(
+                period_end - timedelta(days=1), time(23, 59, 59), tzinfo=THAI_TIMEZONE
+            )
+            description = (
+                f"เงินเดือนเดือน {period_start.strftime('%m/%Y')} - "
+                f"{row['full_name']} ({row['work_days']} วัน)"
+            )
+            cur.execute("""
+                INSERT INTO finance_transactions
+                    (staff_id, transaction_type, category, description, amount, occurred_at)
+                VALUES (%s, 'expense', 'เงินเดือนพนักงาน', %s, %s, %s)
+                RETURNING *;
+            """, (row['id'], description, amount, payroll_occurred_at))
+            transaction = cur.fetchone()
+            _record_central_fund_movement(
+                cur, -amount, 'expense', description,
+                finance_transaction_id=transaction['id']
+            )
+            cur.execute("""
+                INSERT INTO payroll_entries
+                    (period_start, staff_id, work_days, daily_wage, amount, finance_transaction_id)
+                VALUES (%s, %s, %s, %s, %s, %s);
+            """, (period_start, row['id'], row['work_days'], row['daily_wage'], amount, transaction['id']))
+
+        cur.execute("""
+            UPDATE payroll_periods
+            SET status = 'paid', total_amount = %s, paid_at = NOW()
+            WHERE period_start = %s;
+        """, (total, period_start))
+        conn.commit()
+        return True
+    except Exception as exc:
+        conn.rollback()
+        app.logger.warning('Monthly payroll failed: %s', exc)
+        return False
+    finally:
+        cur.close()
+        conn.close()
+
+
 def _ensure_finance_payment_method_column(cur):
     """Store the receipt channel with each finance entry for history filtering."""
     cur.execute("""
@@ -607,6 +754,7 @@ def _run_scheduled_shop_open():
 def _auto_shop_open_loop():
     while True:
         _run_scheduled_shop_open()
+        _run_monthly_payroll()
         clock.sleep(5)
 
 
@@ -1441,6 +1589,7 @@ def get_staff():
     cur = conn.cursor()
 
     try:
+        payroll_locked = _payroll_period_is_closed(cur, selected_date)
 
         # ==========================================================
         # ดึงพนักงานทั้งหมด + attendance ของวันที่เลือก
@@ -1560,6 +1709,8 @@ def get_staff():
             # ------------------------------------------------------
             if staff.get('late_minutes') is None:
                 staff['late_minutes'] = 0
+
+            staff['payroll_locked'] = payroll_locked
 
             staff_list.append(staff)
 
@@ -1937,6 +2088,8 @@ def mark_staff_leave():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        if _payroll_period_is_closed(cur, work_date):
+            return jsonify({'status': 'error', 'message': 'รอบเงินเดือนของเดือนนี้ปิดแล้ว จึงแก้ไขประวัติการเข้างานไม่ได้'}), 409
         cur.execute('SELECT id FROM staff WHERE id = %s;', (staff_id,))
         if not cur.fetchone():
             return jsonify({'status': 'error', 'message': 'ไม่พบพนักงาน'}), 404
@@ -2040,6 +2193,12 @@ def backdate_staff_attendance():
     cur = conn.cursor()
 
     try:
+
+        if _payroll_period_is_closed(cur, work_date):
+            return jsonify({
+                "status": "error",
+                "message": "รอบเงินเดือนของเดือนนี้ปิดแล้ว จึงบันทึกหรือแก้ไขเวลาเข้างานย้อนหลังไม่ได้"
+            }), 409
 
         cur.execute(
             """
@@ -2228,6 +2387,8 @@ def edit_staff_attendance():
     cur = conn.cursor()
 
     try:
+        if _payroll_period_is_closed(cur, work_date):
+            return jsonify({"status": "error", "message": "รอบเงินเดือนของเดือนนี้ปิดแล้ว จึงแก้ไขประวัติการเข้างานไม่ได้"}), 409
         cur.execute("SELECT id FROM staff WHERE id = %s;", (staff_id,))
         if not cur.fetchone():
             return jsonify({"status": "error", "message": "ไม่พบพนักงาน"}), 404

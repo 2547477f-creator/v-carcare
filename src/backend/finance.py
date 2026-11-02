@@ -15,7 +15,7 @@ class FinanceWorkflow:
     PAYMENT_METHODS = frozenset({'all', 'cash', 'transfer'})
     FUND_ACTIVITIES = frozenset({'all', 'adjustment', 'fund_received'})
     EXPENSE_CATEGORIES = frozenset({
-        'ค่าวัตถุดิบ', 'ค่าแรง/เงินเดือน', 'ค่าน้ำค่าไฟ',
+        'ค่าวัตถุดิบ', 'เงินเดือนพนักงาน', 'ค่าน้ำค่าไฟ',
         'ค่าซ่อมบำรุง', 'ค่าอุปกรณ์', 'ค่าเสียหาย',
     })
 

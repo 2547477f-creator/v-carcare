@@ -1283,6 +1283,7 @@
         const hasCheckOut = !!s.check_out_at;
 
         const todaySelected = isToday(selectedDate);
+        const payrollLocked = Boolean(s.payroll_locked);
 
         let actionBtn = "";
 
@@ -1340,7 +1341,19 @@
         // ย้อนหลัง
         // ============================================================
         else {
-          if (!hasCheckIn) {
+          if (payrollLocked) {
+            actionBtn = `
+
+                <button class="btn btn-sm btn-secondary px-3" disabled>
+
+                    <i class="bi bi-lock-fill me-1"></i>
+
+                    ปิดรอบเงินเดือนแล้ว
+
+                </button>
+
+            `;
+          } else if (!hasCheckIn) {
             actionBtn = `
 
                 <button
