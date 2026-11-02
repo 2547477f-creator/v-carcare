@@ -433,6 +433,7 @@ def _record_central_fund_movement(cur, amount, movement_type, description,
 
 def _ensure_payroll_tables(cur):
     """Create the monthly payroll ledger.  A completed period is immutable."""
+    _ensure_security_settings(cur)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS payroll_periods (
             period_start DATE PRIMARY KEY,
@@ -448,6 +449,8 @@ def _ensure_payroll_tables(cur):
             staff_id BIGINT NOT NULL REFERENCES staff(id) ON DELETE RESTRICT,
             work_days INTEGER NOT NULL DEFAULT 0,
             daily_wage NUMERIC(12,2) NOT NULL DEFAULT 0,
+            base_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+            attendance_bonus NUMERIC(12,2) NOT NULL DEFAULT 0,
             amount NUMERIC(12,2) NOT NULL DEFAULT 0,
             finance_transaction_id BIGINT REFERENCES finance_transactions(id) ON DELETE SET NULL,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -455,6 +458,24 @@ def _ensure_payroll_tables(cur):
         );
         CREATE INDEX IF NOT EXISTS idx_payroll_entries_period
             ON payroll_entries(period_start, staff_id);
+        ALTER TABLE payroll_entries
+            ADD COLUMN IF NOT EXISTS base_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS attendance_bonus NUMERIC(12,2) NOT NULL DEFAULT 0;
+        CREATE TABLE IF NOT EXISTS attendance_bonus_payouts (
+            id BIGSERIAL PRIMARY KEY,
+            staff_id BIGINT NOT NULL REFERENCES staff(id),
+            bonus_month DATE NOT NULL,
+            amount NUMERIC(10,2) NOT NULL CHECK (amount > 0),
+            finance_transaction_id BIGINT UNIQUE REFERENCES finance_transactions(id),
+            approved_by BIGINT REFERENCES app_users(id),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (staff_id, bonus_month)
+        );
+        CREATE INDEX IF NOT EXISTS idx_attendance_bonus_payouts_month
+            ON attendance_bonus_payouts(bonus_month DESC);
+        INSERT INTO system_settings (setting_key, setting_value, updated_at)
+        VALUES ('attendance_bonus_amount', '500', NOW())
+        ON CONFLICT (setting_key) DO NOTHING;
     """)
     # Payroll belongs to the month being closed, even when the automated
     # payment runs after midnight in the following month.
@@ -519,16 +540,33 @@ def _run_monthly_payroll():
 
         cur.execute("""
             SELECT s.id, s.full_name, COALESCE(s.daily_wage, 0) AS daily_wage,
-                   COUNT(sa.id) FILTER (WHERE sa.check_in_at IS NOT NULL) AS work_days
+                   COUNT(sa.id) FILTER (WHERE sa.check_in_at IS NOT NULL) AS work_days,
+                   COUNT(sa.id) FILTER (
+                       WHERE sa.status IN ('late', 'leave', 'absent') OR sa.check_in_at IS NULL
+                   ) AS disqualifying_days,
+                   bonus_payout.id AS existing_bonus_payout
             FROM staff s
             JOIN staff_attendance sa ON sa.staff_id = s.id
                 AND sa.work_date >= %s AND sa.work_date < %s
-            GROUP BY s.id, s.full_name, s.daily_wage
+            LEFT JOIN attendance_bonus_payouts bonus_payout
+                ON bonus_payout.staff_id = s.id AND bonus_payout.bonus_month = %s
+            GROUP BY s.id, s.full_name, s.daily_wage, bonus_payout.id
             HAVING COUNT(sa.id) FILTER (WHERE sa.check_in_at IS NOT NULL) > 0
             ORDER BY s.id;
-        """, (period_start, period_end))
+        """, (period_start, period_end, period_start))
         staff_rows = cur.fetchall()
-        total = sum(float(row['daily_wage']) * int(row['work_days']) for row in staff_rows)
+        cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'attendance_bonus_amount';")
+        bonus_setting = cur.fetchone()
+        attendance_bonus_amount = float(bonus_setting['setting_value']) if bonus_setting else 500.0
+        for row in staff_rows:
+            row['base_amount'] = float(row['daily_wage']) * int(row['work_days'])
+            row['attendance_bonus'] = (
+                attendance_bonus_amount
+                if int(row['disqualifying_days']) == 0 and not row['existing_bonus_payout']
+                else 0.0
+            )
+            row['total_amount'] = row['base_amount'] + row['attendance_bonus']
+        total = sum(row['total_amount'] for row in staff_rows)
         cur.execute("SELECT balance FROM central_fund WHERE id = 1 FOR UPDATE;")
         fund = cur.fetchone()
         if float(fund['balance']) + 0.00001 < total:
@@ -537,7 +575,7 @@ def _run_monthly_payroll():
             return False
 
         for row in staff_rows:
-            amount = float(row['daily_wage']) * int(row['work_days'])
+            amount = row['total_amount']
             payroll_occurred_at = datetime.combine(
                 period_end - timedelta(days=1), time(23, 59, 59), tzinfo=THAI_TIMEZONE
             )
@@ -545,6 +583,8 @@ def _run_monthly_payroll():
                 f"เงินเดือนเดือน {period_start.strftime('%m/%Y')} - "
                 f"{row['full_name']} ({row['work_days']} วัน)"
             )
+            if row['attendance_bonus']:
+                description += f" + เบี้ยขยัน {row['attendance_bonus']:,.2f} บาท"
             cur.execute("""
                 INSERT INTO finance_transactions
                     (staff_id, transaction_type, category, description, amount, occurred_at)
@@ -558,9 +598,15 @@ def _run_monthly_payroll():
             )
             cur.execute("""
                 INSERT INTO payroll_entries
-                    (period_start, staff_id, work_days, daily_wage, amount, finance_transaction_id)
-                VALUES (%s, %s, %s, %s, %s, %s);
-            """, (period_start, row['id'], row['work_days'], row['daily_wage'], amount, transaction['id']))
+                    (period_start, staff_id, work_days, daily_wage, base_amount, attendance_bonus, amount, finance_transaction_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+            """, (period_start, row['id'], row['work_days'], row['daily_wage'], row['base_amount'], row['attendance_bonus'], amount, transaction['id']))
+            if row['attendance_bonus']:
+                cur.execute("""
+                    INSERT INTO attendance_bonus_payouts
+                        (staff_id, bonus_month, amount, finance_transaction_id)
+                    VALUES (%s, %s, %s, %s);
+                """, (row['id'], period_start, row['attendance_bonus'], transaction['id']))
 
         cur.execute("""
             UPDATE payroll_periods

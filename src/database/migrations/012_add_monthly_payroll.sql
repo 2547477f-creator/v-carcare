@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS payroll_entries (
     staff_id BIGINT NOT NULL REFERENCES staff(id) ON DELETE RESTRICT,
     work_days INTEGER NOT NULL DEFAULT 0,
     daily_wage NUMERIC(12,2) NOT NULL DEFAULT 0,
+    base_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+    attendance_bonus NUMERIC(12,2) NOT NULL DEFAULT 0,
     amount NUMERIC(12,2) NOT NULL DEFAULT 0,
     finance_transaction_id BIGINT REFERENCES finance_transactions(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -23,6 +25,10 @@ CREATE TABLE IF NOT EXISTS payroll_entries (
 
 CREATE INDEX IF NOT EXISTS idx_payroll_entries_period
     ON payroll_entries(period_start, staff_id);
+
+ALTER TABLE payroll_entries
+    ADD COLUMN IF NOT EXISTS base_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS attendance_bonus NUMERIC(12,2) NOT NULL DEFAULT 0;
 
 -- Record a payroll expense on the final day of the month it pays for. This
 -- also corrects entries created before this rule was introduced.
