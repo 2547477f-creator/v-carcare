@@ -1284,6 +1284,117 @@ def change_primary_face_ip():
         conn.close()
 
 
+@app.route('/api/security/verify-current-manager', methods=['POST'])
+@manager_required
+def verify_current_manager_for_change():
+    """Require the signed-in manager's face before replacing their account."""
+    try:
+        matched_user_id = _face_image_to_user_id(
+            (request.get_json(silent=True) or {}).get('face_image'),
+            'manager_change_verify',
+        )
+    except ValueError as exc:
+        return jsonify({'status': 'error', 'message': str(exc)}), 400
+
+    if matched_user_id != session.get('user_id'):
+        return jsonify({
+            'status': 'error',
+            'message': 'ใบหน้าไม่ตรงกับผู้จัดการที่กำลังเข้าสู่ระบบ',
+        }), 403
+
+    session['manager_change_verified'] = True
+    return jsonify({'status': 'success', 'redirect': url_for('manager_change_page')})
+
+
+@app.route('/manager-change')
+@manager_required
+def manager_change_page():
+    if not session.get('manager_change_verified'):
+        return redirect(url_for('face_checkin', mode='verify-manager-change'))
+    return render_template('manager_change.html')
+
+
+@app.route('/api/security/change-manager', methods=['POST'])
+@manager_required
+def change_manager():
+    """Replace the current manager credentials and face profile after face verification."""
+    if not session.get('manager_change_verified'):
+        return jsonify({
+            'status': 'error',
+            'message': 'กรุณาสแกนยืนยันใบหน้าผู้จัดการเดิมก่อน',
+        }), 403
+
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    face_image = data.get('face_image') or ''
+    if (not username or len(username) > 100
+            or not all(char.isalnum() or char in '._-' for char in username)):
+        return jsonify({'status': 'error', 'message': 'ชื่อผู้ใช้ไม่ถูกต้อง'}), 400
+    if len(password) < 6 or not face_image:
+        return jsonify({
+            'status': 'error',
+            'message': 'กรอกชื่อผู้ใช้ รหัสผ่านอย่างน้อย 6 ตัวอักษร และสแกนหน้าใหม่ให้ครบ',
+        }), 400
+
+    try:
+        image_data = base64.b64decode(face_image.split(',', 1)[-1], validate=True)
+    except (ValueError, binascii.Error):
+        return jsonify({'status': 'error', 'message': 'รูปภาพใบหน้าไม่ถูกต้อง'}), 400
+
+    user_id = session['user_id']
+    faces_dir = os.path.join(app.static_folder, 'faces')
+    os.makedirs(faces_dir, exist_ok=True)
+    filename = f'manager_{user_id}_{uuid.uuid4().hex[:8]}.jpg'
+    filepath = os.path.join(faces_dir, filename)
+    profile_saved = False
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT 1 FROM app_users WHERE username = %s AND id <> %s;",
+            (username, user_id),
+        )
+        if cur.fetchone():
+            return jsonify({'status': 'error', 'message': 'ชื่อผู้ใช้นี้ถูกใช้แล้ว'}), 409
+
+        with open(filepath, 'wb') as fh:
+            fh.write(image_data)
+        embedding = create_face_embedding(filepath)
+        if embedding is None:
+            return jsonify({'status': 'error', 'message': 'ไม่พบใบหน้าในภาพ กรุณาสแกนใหม่'}), 400
+
+        cur.execute('DELETE FROM face_profiles WHERE app_user_id = %s;', (user_id,))
+        cur.execute(
+            "UPDATE app_users SET username = %s, password_hash = %s WHERE id = %s AND role = 'manager';",
+            (username, hash_password(password), user_id),
+        )
+        if cur.rowcount != 1:
+            conn.rollback()
+            return jsonify({'status': 'error', 'message': 'ไม่พบบัญชีผู้จัดการ'}), 404
+        cur.execute(
+            """INSERT INTO face_profiles (app_user_id, image_path, embedding, model_name)
+               VALUES (%s, %s, %s, %s);""",
+            (user_id, f'faces/{filename}',
+             psycopg2.Binary(json.dumps(embedding).encode('utf-8')), FACE_MODEL_NAME),
+        )
+        conn.commit()
+        profile_saved = True
+        _face_profile_cache.update({'loaded_at': 0, 'rows': []})
+        session.clear()
+        return jsonify({'status': 'success', 'redirect': url_for('login')})
+    except Exception:
+        conn.rollback()
+        app.logger.exception('Manager change failed')
+        return jsonify({'status': 'error', 'message': 'ไม่สามารถเปลี่ยนผู้จัดการได้ กรุณาลองใหม่'}), 500
+    finally:
+        cur.close()
+        conn.close()
+        # Keep a valid newly enrolled image; discard an incomplete upload.
+        if not profile_saved and os.path.exists(filepath):
+            os.remove(filepath)
+
+
 @app.route('/api/face-login', methods=['POST'])
 @app.route('/api/face-login/', methods=['POST'])
 @app.route('/api/face-login/<string:required_role>', methods=['POST'])
